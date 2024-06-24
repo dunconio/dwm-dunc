@@ -1,10 +1,10 @@
-# dwm-dunc-6.5
-[![GitHub version](https://img.shields.io/github/v/tag/dunconio/dwm-dunc-6.5?label=version&style=flat-square)](https://github.com/dunconio/dwm-dunc-6.5/releases/latest)
-[![GitHub stars](https://img.shields.io/github/stars/dunconio/dwm-dunc-6.5.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc-6.5/stargazers)
-![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/dunconio/dwm-dunc-6.5?style=flat-square)
-[![GitHub contributors](https://img.shields.io/github/contributors/dunconio/dwm-dunc-6.5.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc-6.5/graphs/contributors)
-[![GitHub issues](https://img.shields.io/github/issues/dunconio/dwm-dunc-6.5.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc-6.5/issues)
-[![GitHub license](https://img.shields.io/github/license/dunconio/dwm-dunc-6.5.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc-6.5/blob/dev/LICENSE)
+# dwm-dunc
+[![GitHub version](https://img.shields.io/github/v/tag/dunconio/dwm-dunc?label=version&style=flat-square)](https://github.com/dunconio/dwm-dunc/releases/latest)
+[![GitHub stars](https://img.shields.io/github/stars/dunconio/dwm-dunc.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc/stargazers)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/dunconio/dwm-dunc?style=flat-square)
+[![GitHub contributors](https://img.shields.io/github/contributors/dunconio/dwm-dunc.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc/graphs/contributors)
+[![GitHub issues](https://img.shields.io/github/issues/dunconio/dwm-dunc.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc/issues)
+[![GitHub license](https://img.shields.io/github/license/dunconio/dwm-dunc.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc/blob/dev/LICENSE)
 
 ## dwm - dynamic window manager
 
