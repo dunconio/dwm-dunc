@@ -1223,6 +1223,9 @@ static Client *nexttiled(Client *c);
 static int parselayoutjson(cJSON *layout);
 static int parserulesjson(cJSON *json);
 static void placemouse(const Arg *arg);
+#if PATCH_MOUSE_POINTER_WARPING
+static int pointoverbar(int x, int y, int check_clients);
+#endif // PATCH_MOUSE_POINTER_WARPING
 static void pop(Client *c);
 #if PATCH_MOVE_TILED_WINDOWS || PATCH_FLAG_HIDDEN
 static Client *prevtiled(Client *c);
@@ -8551,6 +8554,9 @@ DEBUGENDIF
 				&& !(c->isgame && c->isfullscreen)
 				#endif // PATCH_FLAG_GAME
 				&& selmon->sel && selmon->sel->isfloating && selmon->sel->ultparent != c->ultparent
+				#if PATCH_FLAG_PANEL
+				&& !selmon->sel->ispanel
+				#endif // PATCH_FLAG_PANEL
 				#if PATCH_SHOW_DESKTOP
 				&& !selmon->sel->isdesktop
 				#endif // PATCH_SHOW_DESKTOP
@@ -10309,9 +10315,55 @@ placemouse(const Arg *arg)
 
 	snapchildclients(c, 1);
 
-//	arrangemon(c->mon);
+	//arrangemon(c->mon);
 	arrange(NULL);
 }
+
+#if PATCH_MOUSE_POINTER_WARPING
+int
+pointoverbar(int x, int y, int check_clients)
+{
+	unsigned int num;
+	Window d1, d2, *wins = NULL;
+	int a, w = 1, h = 1;
+	int i;
+	Client *c;
+	Monitor *m;
+
+	// is the point over a bar;
+	for (m = mons; m; m = m->next)
+		if (m->barvisible &&
+			x >= m->mx && x <= m->mx+m->mw &&
+			y >= (m->topbar ? m->my : m->my+m->mh-bh) &&
+			y <= (m->topbar ? m->my+bh : m->my+m->mh)
+		)
+			break;
+
+	// not over a bar;
+	if (!m)
+		return 0;
+
+	// XQueryTree returns windows in stacking order top to bottom;
+	if (check_clients && XQueryTree(dpy, root, &d1, &d2, &wins, &num)) {
+		if (num > 0) {
+			for (i = 0; i < num; i++) {
+				if ((c = wintoclient(wins[i])) && ISVISIBLE(c)
+					#if PATCH_FLAG_HIDDEN
+					&& !c->ishidden
+					#endif // PATCH_FLAG_HIDDEN
+				) {
+					if ((a = INTERSECTC(x, y, w, h, c)))
+						return 0;
+				}
+			}
+		}
+		if (wins)
+			XFree(wins);
+	}
+
+	return 1;
+}
+#endif // PATCH_MOUSE_POINTER_WARPING
 
 void
 pop(Client *c)
@@ -15259,9 +15311,9 @@ unmanage(Client *c, int destroyed, int cleanup)
 		if (c->mon == selmon) {
 			if (c->mon->sel)
 				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c->mon->sel, 1, 0);
+				warptoclient(c->mon->sel, 1, -1);
 				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c->mon->sel, 0);
+				warptoclient(c->mon->sel, -1);
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		}
 		#endif // PATCH_MOUSE_POINTER_WARPING
@@ -16337,7 +16389,7 @@ warppointer(void *arg)
 		ts.tv_nsec = (unsigned long)((t / steps)*((cos(1.8*PI*(steps-i+1)/steps)+1)/2));
 		nanosleep(&ts, NULL);
 
-		if (force)
+		if (force == 1)
 			continue;
 		#if PATCH_FOCUS_FOLLOWS_MOUSE
 		// stop moving prematurely if the mouse was moved and the pointer is over the target area
@@ -16430,17 +16482,16 @@ warptoclient(Client *c, int force)
 		smoothly = 0
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		;
-	else if (!force && px >= tx && px <= (tx + tw) && py >= ty && py <= (ty + th)) {
+	else if (force < 1 && px >= tx && px <= (tx + tw) && py >= ty && py <= (ty + th)) {
 		if (c)
 			focus(c, 0);
 		return;
 	}
 
-	// no warping if current view is monocle or pointer is over the top bar;
-	if (c && (
-			(!c->isfloating && c->mon->lt[c->mon->sellt]->arrange == monocle && c->mon->showbar) ||
-			(px >= c->mon->mx && px <= (c->mon->mx + c->mon->mw) && py >= c->mon->my && py <= (c->mon->my + bh))
-		)) {
+	// no warping if current view is monocle;
+	if ((c && !c->isfloating && c->mon->lt[c->mon->sellt]->arrange == monocle && c->mon->showbar)
+		|| pointoverbar(px, py, force == -1 ? 0 : 1)
+	) {
 		focus(c, 0);
 		return;
 	}
@@ -16465,7 +16516,7 @@ warptoclient(Client *c, int force)
 		th_data->client = c;
 		th_data->monitor = selmon;
 		th_data->force = force;
-		th_data->grab = (smoothly && force) ? 0 : 1;
+		th_data->grab = (smoothly && force == 1) ? 0 : 1;
 		pthread_create(&th, NULL, warppointer, th_data);
 		focus(c, 0);
 		return;
