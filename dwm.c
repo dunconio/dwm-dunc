@@ -13115,27 +13115,6 @@ setupepoll(void)
 		return result;
 	}
 
-	// ***********************************************************************;
-	// debugging check
-	const char *sockpath = "${XDG_RUNTIME_DIR}/dwm/dwm.sock";
-	ipcsockpath = expandenv(sockpath);
-	logdatetime(stderr);
-	if (ipcsockpath) {
-		if (strchr(ipcsockpath, '$') && strlen(ipcsockpath) == strlen(sockpath)) {
-			fprintf(stderr, "dwm: TEST: Failed to expand path: \"%s\".\n", ipcsockpath);
-		}
-		else {
-			fprintf(stderr, "dwm: TEST: Successfully expanded path to: \"%s\".\n", ipcsockpath);
-		}
-		free(ipcsockpath);
-		ipcsockpath = NULL;
-	}
-	else {
-		fprintf(stderr, "dwm: TEST: Unable to evaluate path: %s\n\n\n", sockpath);
-	}
-	// ***********************************************************************;
-
-
 	ipcsockpath = expandenv(socketpath);
 	if (ipcsockpath) {
 		if (strchr(socketpath, '$') && strlen(ipcsockpath) == strlen(socketpath)) {
@@ -17116,6 +17095,16 @@ main(int argc, char *argv[], char *envp[])
 				return (usage(NULL));
 		}
 	}
+
+	// ***********************************************************************;
+	// check if environment works;
+	const char *env = "XDG_RUNTIME_DIR";
+	if (!getenv(env)) {
+		fprintf(stderr, "dwm: environment failed.");
+		goto finish;
+	}
+	// ***********************************************************************;
+
 
 	#if PATCH_LOG_DIAGNOSTICS
 	logdatetime(stderr);

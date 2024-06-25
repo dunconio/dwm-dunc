@@ -15,8 +15,9 @@ void logdatetime(FILE *fd);
 void die(const char *fmt, ...);
 void *ecalloc(size_t nmemb, size_t size);
 
-#if PATCH_IPC
 char *expandenv(const char *string);
+char *str_replace(char *orig, char *rep, char *with);
+#if PATCH_IPC
 int normalizepath(const char *path, char **normal);
 int mkdirp(const char *path);
 int parentdir(const char *path, char **parent);
