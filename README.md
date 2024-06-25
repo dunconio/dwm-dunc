@@ -4,7 +4,7 @@
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/dunconio/dwm-dunc?style=flat-square)
 [![GitHub contributors](https://img.shields.io/github/contributors/dunconio/dwm-dunc.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc/graphs/contributors)
 [![GitHub issues](https://img.shields.io/github/issues/dunconio/dwm-dunc.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc/issues)
-[![GitHub license](https://img.shields.io/github/license/dunconio/dwm-dunc.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc/blob/LICENSE)
+[![GitHub license](https://img.shields.io/github/license/dunconio/dwm-dunc.svg?style=flat-square)](https://github.com/dunconio/dwm-dunc/blob/main/LICENSE)
 
 ## dwm - dynamic window manager
 
