@@ -5100,12 +5100,14 @@ enternotify(XEvent *e)
 	}
 	Monitor *m = c ? c->mon : wintomon(ev->window);
 	if (m && m != selmon) {
+		/*
 		#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 		if (sel)
 			unfocus(sel, (c ? 0 : 1) | (sel->mon != m ? (1 << 1) : 0));
 		#else
 		unfocus(sel, c ? 0 : 1);
 		#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
+		*/
 		focusmonex(m);
 		m->sel = NULL;
 	}
@@ -8043,11 +8045,13 @@ manage(Window w, XWindowAttributes *wa)
 			if (c->ismodal_override == -1)
 				c->ismodal = c->parent->ismodal;
 			#endif // PATCH_MODAL_SUPPORT
+			#if PATCH_FLAG_STICKY
 			#if PATCH_FLAG_PANEL
 			// if parent is born of a panel, then it must be as sticky as the panel;
 			if (c->ultparent->ispanel)
 				c->issticky = c->ultparent->issticky;
 			#endif // PATCH_FLAG_PANEL
+			#endif // PATCH_FLAG_STICKY
 		}
 		else if (!c->mon) {
 			#if PATCH_SHOW_DESKTOP
@@ -9507,12 +9511,14 @@ parselayoutjson(cJSON *layout)
 				}
 				cJSON_AddNumberToObject(unsupported, "\"alt-tab-y\" must contain 0, 1 or 2", 0);
 			}
+			#if PATCH_FLAG_HIDDEN
 			else if (strcmp(L->string, "colours-alt-tab-hidden")==0) {
 				if (cJSON_IsArray(L))
 					if (validate_colours(L, colours[SchemeTabHide]))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-alt-tab-hidden\" must contain an array of strings", 0);
 			}
+			#endif // PATCH_FLAG_HIDDEN
 			else if (strcmp(L->string, "colours-alt-tab-normal")==0) {
 				if (cJSON_IsArray(L))
 					if (validate_colours(L, colours[SchemeTabNorm]))
@@ -11416,12 +11422,6 @@ restack(Monitor *m)
 		}
 		#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
 
-		#if PATCH_SHOW_DESKTOP
-		for (c = m->clients; c; c = c->next)
-			if (c->isdesktop)
-				XLowerWindow(dpy, c->win);
-		#endif // PATCH_SHOW_DESKTOP
-
 		// top layer are fullscreen clients;
 		for (c = m->stack; c; c = c->snext)
 			if (ISVISIBLE(c) && c->isfullscreen
@@ -11571,32 +11571,32 @@ restack(Monitor *m)
 				}
 		//}
 
-			// put any floating clients above their parents;
-			// for monocle layout mode;
-			if (m->lt[m->sellt]->arrange == monocle) {
-				wc.stack_mode = Above;
-				for (c = m->stack; c; c = c->snext)
-					if (c->isfloating && ISVISIBLE(c) && c->parent
-						&& (!c->isfullscreen
-							#if PATCH_FLAG_FAKEFULLSCREEN
-							|| c->fakefullscreen
-							#endif // PATCH_FLAG_FAKEFULLSCREEN
-						)
-						#if PATCH_FLAG_PANEL
-						&& !c->ispanel
-						#endif // PATCH_FLAG_PANEL
-						#if PATCH_FLAG_IGNORED
-						&& !c->isignored
-						#endif // PATCH_FLAG_IGNORED
-						#if PATCH_FLAG_HIDDEN
-						&& !c->ishidden
-						#endif // PATCH_FLAG_HIDDEN
-					) {
-						wc.sibling = c->parent->win;
-						XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc);
-					}
-				wc.stack_mode = Below;
-			}
+		// put any floating clients above their parents;
+		// for monocle layout mode;
+		if (m->lt[m->sellt]->arrange == monocle) {
+			wc.stack_mode = Above;
+			for (c = m->stack; c; c = c->snext)
+				if (c->isfloating && ISVISIBLE(c) && c->parent
+					&& (!c->isfullscreen
+						#if PATCH_FLAG_FAKEFULLSCREEN
+						|| c->fakefullscreen
+						#endif // PATCH_FLAG_FAKEFULLSCREEN
+					)
+					#if PATCH_FLAG_PANEL
+					&& !c->ispanel
+					#endif // PATCH_FLAG_PANEL
+					#if PATCH_FLAG_IGNORED
+					&& !c->isignored
+					#endif // PATCH_FLAG_IGNORED
+					#if PATCH_FLAG_HIDDEN
+					&& !c->ishidden
+					#endif // PATCH_FLAG_HIDDEN
+				) {
+					wc.sibling = c->parent->win;
+					XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc);
+				}
+			wc.stack_mode = Below;
+		}
 
 	}
 
@@ -12108,11 +12108,8 @@ scan(void)
 			for (m = mons; m; m = m->next) {
 				if (m->isdefault)
 					mdef = m;
-				if (m->defaulttag) {
-					//selmon = m;
-					//view(&((Arg){.ui = (1 << (m->defaulttag - 1))}));
+				if (m->defaulttag)
 					viewmontag(m, (1 << (m->defaulttag - 1)), 1);
-				}
 			}
 		}
 
@@ -12502,7 +12499,11 @@ setfocus(Client *c)
 	#if PATCH_FLAG_GAME
 	else destroybarrier();
 	#endif // PATCH_FLAG_GAME
-	if (!c->isfullscreen && c->isfloating)
+	if (!c->isfullscreen && c->isfloating
+		#if PATCH_SHOW_DESKTOP
+		&& !c->isdesktop
+		#endif // PATCH_SHOW_DESKTOP
+	)
 		raiseclient(c);
 
 	#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
@@ -13199,6 +13200,7 @@ showhide(Client *c, int client_only)
 
 		#if PATCH_SHOW_DESKTOP
 		if (c->isdesktop) {
+			XLowerWindow(dpy, c->win);
 			c->x = c->mon->wx;
 			c->y = c->mon->wy;
 			c->w = c->mon->ww;
@@ -14462,10 +14464,6 @@ altTabStart(const Arg *arg)
 					if (same && px)
 						XWarpPointer(dpy, None, root, 0, 0, 0, 0, px, py);
 					#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
-
-					#if PATCH_SHOW_DESKTOP
-					m = altTabMon;
-					#endif // PATCH_SHOW_DESKTOP
 				}
 				altTabEnd(); // end the alt-tab functionality;
 
@@ -14483,7 +14481,6 @@ altTabStart(const Arg *arg)
 					}
 					#endif // PATCH_FLAG_HIDDEN
 					focus(c, 1);
-					//restack(selmon);
 				}
 				#if PATCH_MOUSE_POINTER_WARPING
 				if (!isAltMouse || !same)
@@ -14660,7 +14657,10 @@ toggledesktop(const Arg *arg)
 		return;
 
 	int i;
-	Client *c = NULL, *d = NULL;
+	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+	Client *c = NULL;
+	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+	Client *d = NULL;
 	Monitor *m = selmon;
 	if (arg)
 		if ((i = arg->i) >= 0) {
