@@ -108,7 +108,7 @@ static const supported_json supported_layout_global[] = {
 	{ "alt-tab-x",					"alt-tab switcher position - 0 left, 1 centre, 2 right" },
 	{ "alt-tab-y",					"alt-tab switcher position - 0 top, 1 middle, 2 bottom" },
 	#endif // PATCH_ALTTAB
-	{ "bar-layout",					"array of bar elements in order of appearance (TagBar, LtSymbol, WinTitle, StatusText)" },
+	{ "bar-layout",					"array of bar elements in order of appearance\n(TagBar, LtSymbol, WinTitle, StatusText)" },
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	{ "bar-tag-format-empty",	 	"printf style format of tag displayed when no client is assigned, using %s as placeholder" },
 	{ "bar-tag-format-populated", 	"printf style format of tag displayed when one or more clients are assigned, using %s as placeholders" },
@@ -120,26 +120,26 @@ static const supported_json supported_layout_global[] = {
 	{ "client-indicator-size",		"size in pixels of client indicators" },
 	{ "client-indicators-top",		"true to show indicators at the top of the bar, false to show indicators at the bottom" },
 	#endif // PATCH_CLIENT_INDICATORS
-	{ "colours-layout",				"colour of layout indicator, in the form [<foreground>, <background>, <border>]" },
+	{ "colours-layout",				"colour of layout indicator, in the form\n[<foreground>, <background>, <border>]" },
 	#if PATCH_FLAG_HIDDEN || PATCH_SHOW_DESKTOP
-	{ "colours-hidden",				"colour of hidden elements, in the form [<foreground>, <background>, <border>]" },
+	{ "colours-hidden",				"colour of hidden elements, in the form\n[<foreground>, <background>, <border>]" },
 	#endif // PATCH_FLAG_HIDDEN || PATCH_SHOW_DESKTOP
-	{ "colours-normal",				"colour of normal elements, in the form [<foreground>, <background>, <border>]" },
-	{ "colours-selected",			"colour of selected elements, in the form [<foreground>, <background>, <border>]" },
+	{ "colours-normal",				"colour of normal elements, in the form\n[<foreground>, <background>, <border>]" },
+	{ "colours-selected",			"colour of selected elements, in the form\n[<foreground>, <background>, <border>]" },
 	#if PATCH_TWO_TONE_TITLE
 	{ "colour-selected-bg2",		"active client title background colour 2 (right side colour of gradient)" },
 	#endif // PATCH_TWO_TONE_TITLE
 	#if PATCH_TORCH
-	{ "colours-torch",				"torch colours, in the form [<foreground>, <background>, <border>]" },
+	{ "colours-torch",				"torch colours, in the form\n[<foreground>, <background>, <border>]" },
 	#endif // PATCH_TORCH
-	{ "colours-urgent",				"colour of urgent elements, in the form [<foreground>, <background>, <border>]" },
+	{ "colours-urgent",				"colour of urgent elements, in the form\n[<foreground>, <background>, <border>]" },
 	#if PATCH_ALTTAB
 	#if PATCH_FLAG_HIDDEN
-	{ "colours-alt-tab-hidden",		"colour of alt-tab switcher hidden elements, in the form [<foreground>, <background>, <border>]" },
+	{ "colours-alt-tab-hidden",		"colour of alt-tab switcher hidden elements, in the form\n[<foreground>, <background>, <border>]" },
 	#endif // PATCH_FLAG_HIDDEN
-	{ "colours-alt-tab-normal",		"colour of alt-tab switcher elements, in the form [<foreground>, <background>, <border>]" },
-	{ "colours-alt-tab-selected",	"colour of alt-tab switcher selected elements, in the form [<foreground>, <background>, <border>]" },
-	{ "colours-alt-tab-urgent",		"colour of alt-tab switcher urgent elements, in the form [<foreground>, <background>, <border>]" },
+	{ "colours-alt-tab-normal",		"colour of alt-tab switcher elements, in the form\n[<foreground>, <background>, <border>]" },
+	{ "colours-alt-tab-selected",	"colour of alt-tab switcher selected elements, in the form\n[<foreground>, <background>, <border>]" },
+	{ "colours-alt-tab-urgent",		"colour of alt-tab switcher urgent elements, in the form\n[<foreground>, <background>, <border>]" },
 	#endif // PATCH_ALTTAB
 	#if PATCH_MOUSE_POINTER_HIDING
 	{ "cursor-autohide",			"true to hide cursor when stationary or keys are pressed, for all clients" },
@@ -1232,6 +1232,7 @@ static void print_socket_reply(void);
 #endif // PATCH_IPC
 static void print_supported_json(const supported_json array[], const size_t len, const char *title, const char *indent);
 static void print_supported_rules_json(const supported_rules_json array[], const size_t len, const char *title, const char *indent);
+static void print_supported_wrap(size_t help_length, const char *name, const char *help, const char *indent, char *gap, size_t mingap);
 static void propertynotify(XEvent *e);
 static void quit(const Arg *arg);
 static void raiseclient(Client *c);
@@ -7592,7 +7593,7 @@ logdiagnostics(const Arg *arg)
 			strncpy(buffer, "Unknown!", sizeof buffer);
 			for (j = 0; j < LENGTH(BarElementTypes); j++)
 				if (BarElementTypes[j].type == e.type) {
-					strncpy(buffer, BarElementTypes[j].name, sizeof buffer);
+					strncpy(buffer, BarElementTypes[j].name, sizeof buffer - 1);
 					break;
 				}
 			for (j = 0; j < len-1; j++)
@@ -10064,19 +10065,19 @@ parserulesjson(cJSON *rules)
 						int types = (&supported_rules[i])->types;
 						if (types != R_IGNORE) {
 							if (cJSON_IsArray(c) && !(types & R_A))
-								strncpy(buffer, "does not support arrays", sizeof buffer);
+								strncpy(buffer, "does not support arrays", sizeof buffer - 1);
 							else if (cJSON_IsString(c) && !(types & R_S))
-								strncpy(buffer, "does not support text strings", sizeof buffer);
+								strncpy(buffer, "does not support text strings", sizeof buffer - 1);
 							else if (cJSON_IsNumber(c) && !(types & R_N))
-								strncpy(buffer, "does not support non-integer numeric values", sizeof buffer);
+								strncpy(buffer, "does not support non-integer numeric values", sizeof buffer - 1);
 							else if (cJSON_IsInteger(c) && !(types & R_I)) {
 								if (!(json_isboolean(c) && (types & R_BOOL)))
-									strncpy(buffer, "does not support integers", sizeof buffer);
+									strncpy(buffer, "does not support integers", sizeof buffer - 1);
 								else
 									found = 1;
 							}
 							else if (cJSON_IsBool(c) && !(types & R_BOOL))
-								strncpy(buffer, "does not support boolean values", sizeof buffer);
+								strncpy(buffer, "does not support boolean values", sizeof buffer - 1);
 							else
 								found = 1;
 
@@ -10342,9 +10343,10 @@ print_socket_reply(void)
 void
 print_supported_json(const supported_json array[], const size_t len, const char *title, const char *indent)
 {
-	int g, i;
+	size_t g = 0, i;
 	size_t colw = 0, minw = INT_MAX;
 	size_t w;
+	size_t wrap = WRAP_LENGTH - strlen(indent) - 4;
 	char *gap = NULL;
 
 	fprintf(stdout, "%s\n", title);
@@ -10356,9 +10358,11 @@ print_supported_json(const supported_json array[], const size_t len, const char 
 		if (w < minw)
 			minw = w;
 	}
-	if ((minw = colw - minw) > 0) {
-		gap = (char *)calloc(minw + 1, sizeof(char));
-		for (i = 0; i < minw; i++)
+	wrap -= colw;
+
+	if (colw > 0) {
+		gap = (char *)calloc(colw + 1, sizeof(char));
+		for (i = 0; i < colw; i++)
 			gap[i] = ' ';
 		gap[i] = '\0';
 	}
@@ -10370,10 +10374,15 @@ print_supported_json(const supported_json array[], const size_t len, const char 
 			if (g < 0)
 				g = 0;
 			gap[g] = '\0';
-			fprintf(stdout, "%s%s%s    %s\n", indent, array[i].name, gap, array[i].help);
-			gap[g] = ' ';
 		}
-		else fprintf(stdout, "%s%s    %s\n", indent, array[i].name, array[i].help);
+
+		if (strlen(array[i].help) > wrap)
+			print_supported_wrap(wrap, array[i].name, array[i].help, indent, gap, g);
+		else {
+			fprintf(stdout, "%s%s%s    %s\n", indent, array[i].name, gap, array[i].help);
+			if (gap)
+				gap[g] = ' ';
+		}
 	}
 
 	if (gap)
@@ -10383,9 +10392,10 @@ print_supported_json(const supported_json array[], const size_t len, const char 
 void
 print_supported_rules_json(const supported_rules_json array[], const size_t len, const char *title, const char *indent)
 {
-	int g, i;
+	size_t g = 0, i;
 	size_t colw = 0, minw = INT_MAX;
 	size_t w;
+	size_t wrap = WRAP_LENGTH - strlen(indent) - 4;
 	char *gap = NULL;
 
 	fprintf(stdout, "%s\n", title);
@@ -10397,9 +10407,11 @@ print_supported_rules_json(const supported_rules_json array[], const size_t len,
 		if (w < minw)
 			minw = w;
 	}
-	if ((minw = colw - minw) > 0) {
-		gap = (char *)calloc(minw + 1, sizeof(char));
-		for (i = 0; i < minw; i++)
+	wrap -= colw;
+
+	if (colw > 0) {
+		gap = (char *)calloc(colw + 1, sizeof(char));
+		for (i = 0; i < colw; i++)
 			gap[i] = ' ';
 		gap[i] = '\0';
 	}
@@ -10411,14 +10423,66 @@ print_supported_rules_json(const supported_rules_json array[], const size_t len,
 			if (g < 0)
 				g = 0;
 			gap[g] = '\0';
-			fprintf(stdout, "%s%s%s    %s\n", indent, array[i].name, gap, array[i].help);
-			gap[g] = ' ';
 		}
-		else fprintf(stdout, "%s%s    %s\n", indent, array[i].name, array[i].help);
+
+		if (strlen(array[i].help) > wrap)
+			print_supported_wrap(wrap, array[i].name, array[i].help, indent, gap, g);
+		else {
+			fprintf(stdout, "%s%s%s    %s\n", indent, array[i].name, gap, array[i].help);
+			if (gap)
+				gap[g] = ' ';
+		}
 	}
 
 	if (gap)
 		free(gap);
+}
+
+void
+print_supported_wrap(size_t help_length, const char *name, const char *help, const char *indent, char *gap, size_t mingap)
+{
+	int first;
+	size_t w, line, index, pindex;
+	char buff[help_length + 1];
+	pindex = 0;
+	index = 0;
+	line = 0;
+	first = 1;
+	snprintf(buff, sizeof buff, help, "%s");
+
+	while (help[index] != '\0') {
+		if (help[index] == ' ') {
+			w = 0;
+			while(
+				help[index + w + 1] != ' ' &&
+				help[index + w + 1] != '\0' &&
+				help[index + w + 1] != '\n'
+			)
+				++w;
+			if (line + w >= help_length)
+				buff[index - pindex] = '\n';
+		}
+		if (buff[index - pindex] == '\n') {
+			line = 0;
+			buff[index - pindex + 1] = '\0';
+			if (first) {
+				fprintf(stdout, "%s%s%s    %s", indent, name, gap, buff);
+				if (gap)
+					gap[mingap] = ' ';
+				first = 0;
+			}
+			else
+				fprintf(stdout, "%s%s    %s", indent, gap, buff);
+			pindex = index + 1;
+			snprintf(buff, sizeof buff, help + pindex, "%s");
+		}
+		line++;
+		index++;
+	}
+	if (pindex < index)
+		fprintf(stdout, "%s%s    %s", indent, gap, buff);
+	fprintf(stdout, "\n");
+
 }
 
 void
@@ -16956,7 +17020,8 @@ main(int argc, char *argv[], char *envp[])
 				if (LENGTH(ipccommands)) {
 					fputs(
 						"IPC verbs:\n"
-						"    get_dwm_client [Window ID]    Return DWM client properties for the specified (or active) window\n"
+						"    get_dwm_client [Window ID]    Return DWM client properties for the\n"
+						"                                  specified window (defaults to the active window)\n"
 						"    get_layouts                   Return a list of layouts\n"
 						"    get_monitors                  Return monitor properties\n"
 						"    get_tags                      Return a list of all tags\n"
@@ -17160,7 +17225,7 @@ usage(const char * err_text)
 		" [-n]"
 		#endif // PATCH_SYSTRAY
 		#if PATCH_IPC
-		" [-s <verb> [command [args]]]"
+		"\n           [-s <verb> [command [args]]]"
 		#endif // PATCH_IPC
 		"\n", stdout
 	);

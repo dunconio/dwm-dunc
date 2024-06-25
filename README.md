@@ -164,58 +164,89 @@ layout-file.json supported names:
     global section:
         alt-tab-border                alt-tab switcher border width in pixels
         alt-tab-highlight             alt-tab switcher highlights clients during selection
-        alt-tab-monitor-format        printf style format of monitor identifier using %s as placeholder
+        alt-tab-monitor-format        printf style format of monitor identifier using %s as
+                                      placeholder
         alt-tab-size                  maximum size of alt-tab switcher (WxH)
         alt-tab-x                     alt-tab switcher position - 0 left, 1 centre, 2 right
         alt-tab-y                     alt-tab switcher position - 0 top, 1 middle, 2 bottom
-        bar-layout                    array of bar elements in order of appearance (TagBar, LtSymbol, WinTitle, StatusText)
-        bar-tag-format-empty          printf style format of tag displayed when no client is assigned, using %s as placeholder
-        bar-tag-format-populated      printf style format of tag displayed when one or more clients are assigned, using %s as placeholders
-        bar-tag-format-reversed       true to reverse the order of tag number and master client class
+        bar-layout                    array of bar elements in order of appearance
+                                      (TagBar, LtSymbol, WinTitle, StatusText)
+        bar-tag-format-empty          printf style format of tag displayed when no client is
+                                      assigned, using %s as placeholder
+        bar-tag-format-populated      printf style format of tag displayed when one or more clients
+                                      are assigned, using %s as placeholders
+        bar-tag-format-reversed       true to reverse the order of tag number and master client
+                                      class
         border-width                  window border width in pixels
-        client-indicators             true to show indicators blobs on the edge of each tag to represent the number of clients present
+        client-indicators             true to show indicators blobs on the edge of each tag to
+                                      represent the number of clients present
         client-indicator-size         size in pixels of client indicators
-        client-indicators-top         true to show indicators at the top of the bar, false to show indicators at the bottom
-        colours-layout                colour of layout indicator, in the form [<foreground>, <background>, <border>]
-        colours-hidden                colour of hidden elements, in the form [<foreground>, <background>, <border>]
-        colours-normal                colour of normal elements, in the form [<foreground>, <background>, <border>]
-        colours-selected              colour of selected elements, in the form [<foreground>, <background>, <border>]
-        colour-selected-bg2           active client title background colour 2 (right side colour of gradient)
-        colours-torch                 torch colours, in the form [<foreground>, <background>, <border>]
-        colours-urgent                colour of urgent elements, in the form [<foreground>, <background>, <border>]
-        colours-alt-tab-hidden        colour of alt-tab switcher hidden elements, in the form [<foreground>, <background>, <border>]
-        colours-alt-tab-normal        colour of alt-tab switcher elements, in the form [<foreground>, <background>, <border>]
-        colours-alt-tab-selected      colour of alt-tab switcher selected elements, in the form [<foreground>, <background>, <border>]
-        colours-alt-tab-urgent        colour of alt-tab switcher urgent elements, in the form [<foreground>, <background>, <border>]
-        cursor-autohide               true to hide cursor when stationary or keys are pressed, for all clients
-        cursor-autohide-delay         the number of seconds before a stationary cursor can be hidden, 0 to disable
+        client-indicators-top         true to show indicators at the top of the bar, false to show
+                                      indicators at the bottom
+        colours-layout                colour of layout indicator, in the form
+                                      [<foreground>, <background>, <border>]
+        colours-hidden                colour of hidden elements, in the form
+                                      [<foreground>, <background>, <border>]
+        colours-normal                colour of normal elements, in the form
+                                      [<foreground>, <background>, <border>]
+        colours-selected              colour of selected elements, in the form
+                                      [<foreground>, <background>, <border>]
+        colour-selected-bg2           active client title background colour 2 (right side colour of
+                                      gradient)
+        colours-torch                 torch colours, in the form
+                                      [<foreground>, <background>, <border>]
+        colours-urgent                colour of urgent elements, in the form
+                                      [<foreground>, <background>, <border>]
+        colours-alt-tab-hidden        colour of alt-tab switcher hidden elements, in the form
+                                      [<foreground>, <background>, <border>]
+        colours-alt-tab-normal        colour of alt-tab switcher elements, in the form
+                                      [<foreground>, <background>, <border>]
+        colours-alt-tab-selected      colour of alt-tab switcher selected elements, in the form
+                                      [<foreground>, <background>, <border>]
+        colours-alt-tab-urgent        colour of alt-tab switcher urgent elements, in the form
+                                      [<foreground>, <background>, <border>]
+        cursor-autohide               true to hide cursor when stationary or keys are pressed, for
+                                      all clients
+        cursor-autohide-delay         the number of seconds before a stationary cursor can be
+                                      hidden, 0 to disable
         default-icon                  path to default icon file for clients without icons
         desktop-icon                  path to default icon file for desktop clients
-        default-tags                  array of single character strings for the default character for each tag
+        default-tags                  array of single character strings for the default character
+                                      for each tag
         fonts                         font string or array of font strings to use
         mirror-layout                 switch master area and stack area
         monitors                      array of monitor objects (see "monitor sections")
-        show-desktop                  true to enable management of desktop clients, and toggle desktop
-        show-desktop-when-active      true to only allow switching to the desktop, when a desktop client exists
-        show-desktop-with-floating    true to allow floating clients to be visible when showing the desktop
+        show-desktop                  true to enable management of desktop clients, and toggle
+                                      desktop
+        show-desktop-when-active      true to only allow switching to the desktop, when a desktop
+                                      client exists
+        show-desktop-with-floating    true to allow floating clients to be visible when showing the
+                                      desktop
         system-tray                   true to enable system tray handling
-        system-tray-align             align the system tray to side of the status area: 0 for left-aligned, 1 for right-aligned
-        system-tray-pinning           pin system tray to specific monitor, -1 to follow the active monitor
+        system-tray-align             align the system tray to side of the status area: 0 for
+                                      left-aligned, 1 for right-aligned
+        system-tray-pinning           pin system tray to specific monitor, -1 to follow the active
+                                      monitor
         system-tray-spacing           number of pixels between system tray icons
         terminal-swallowing           true to enable terminal swallowing
-        title-align                   active client title alignment: 0 for left-aligned, 1 for centred, 2 for right-aligned
-        urgency-hinting               disable urgency hinting for clients (doesn't affect set-urgency rule functionality)
-        vanity-gaps                   true for vanity gaps (default), false for no gaps between windows
+        title-align                   active client title alignment: 0 for left-aligned, 1 for
+                                      centred, 2 for right-aligned
+        urgency-hinting               disable urgency hinting for clients (doesn't affect
+                                      set-urgency rule functionality)
+        vanity-gaps                   true for vanity gaps (default), false for no gaps between
+                                      windows
         vanity-gaps-inner-h           inner horizontal gap between windows in pixels
         vanity-gaps-inner-v           inner vertical gap between windows in pixels
-        vanity-gaps-outer-h           outer horizontal gap between windows and monitor edges in pixels
+        vanity-gaps-outer-h           outer horizontal gap between windows and monitor edges in
+                                      pixels
         vanity-gaps-outer-v           outer vertical gap between windows and monitor edges in pixels
         view-on-tag                   switch view when tagging a client
     monitor sections:
         comment                    ignored
         log-rules                  log all matching rules for this monitor
         monitor                    monitor number
-        set-bar-layout             array of bar elements in order of appearance (TagBar, LtSymbol, WinTitle, StatusText)
+        set-bar-layout             array of bar elements in order of appearance (TagBar, LtSymbol,
+                                   WinTitle, StatusText)
         set-cursor-autohide        true to hide cursor when stationary on this monitor
         set-cursor-hide-on-keys    true to hide cursor when keys are pressed on this monitor
         set-default                set this monitor to be the default selected on startup
@@ -229,16 +260,24 @@ layout-file.json supported names:
         set-mfact                  size of master client area for all tags on this monitor
         set-mirror-layout          switch master area and stack area on this monitor
         set-nmaster                number of master clients for all tags on this monitor
-        set-quiet-alt-tags         don't raise the bar or show over fullscreen clients on this monitor
-        set-reverse-master         set to true if the master client class should be shown before the tag indicator
+        set-quiet-alt-tags         don't raise the bar or show over fullscreen clients on this
+                                   monitor
+        set-reverse-master         set to true if the master client class should be shown before the
+                                   tag indicator
         set-showbar                whether to show the bar by default on this monitor
-        set-showmaster             set to true if the master client class should be shown on each tag on the bar
-        set-showstatus             set to 1 if the status text should be displayed, -1 to ignore root window name changes
+        set-showmaster             set to true if the master client class should be shown on each
+                                   tag on the bar
+        set-showstatus             set to 1 if the status text should be displayed, -1 to ignore
+                                   root window name changes
         set-start-tag              default tag to activate on startup
-        set-switch-on-empty        switch to the specified tag when no more clients are visible under the active tag
-        set-title-align            active client title alignment: 0 for left-aligned, 1 for centred, 2 for right-aligned
-        set-topbar                 set to true if the bar should be at the top of the screen for this monitor
-        tags                       array of tag-specific settings (see "tags sections (per monitor)")
+        set-switch-on-empty        switch to the specified tag when no more clients are visible
+                                   under the active tag
+        set-title-align            active client title alignment: 0 for left-aligned, 1 for centred,
+                                   2 for right-aligned
+        set-topbar                 set to true if the bar should be at the top of the screen for
+                                   this monitor
+        tags                       array of tag-specific settings (see "tags sections (per
+                                   monitor)")
     tags sections (per monitor):
         comment                    ignored
         index                      tag index number, usually between 1 and 9
@@ -250,19 +289,23 @@ layout-file.json supported names:
         set-nmaster                number of master clients on this tag
         set-quiet-alt-tags         don't raise the bar or show over fullscreen clients on this tag
         set-showbar                whether to show the bar by default on this tag
-        set-switch-on-empty        switch to the specified tag when no more clients are visible under this tag
+        set-switch-on-empty        switch to the specified tag when no more clients are visible
+                                   under this tag
         set-tag-char               show this text instead of the default tag text
 
 rules-file.json supported names:
     comment                        ignored
-    defer-rule                     if rule matches a client excluding its title, then wait until the title changes and reapply
-    exclusive                      rule will be applied after non-exclusive rules, and other rules will not apply
+    defer-rule                     if rule matches a client excluding its title, then wait until the
+                                   title changes and reapply
+    exclusive                      rule will be applied after non-exclusive rules, and other rules
+                                   will not apply
     if-class-begins                substring matching from the start of class
     if-class-contains              substring matching on class
     if-class-ends                  substring matching from the end of class
     if-class-is                    exact full string matching on class
     if-desktop                     true if the client is a desktop window
-    if-fixed-size                  false if the client is resizable or fullscreen, true if fixed size
+    if-fixed-size                  false if the client is resizable or fullscreen, true if fixed
+                                   size
     if-has-parent                  client has a parent
     if-instance-begins             substring matching from the start of instance
     if-instance-contains           substring matching on instance
@@ -293,59 +336,86 @@ rules-file.json supported names:
     if-title-ends                  substring matching from the end of title
     if-title-is                    exact full string matching on title
     log-rule                       log when a client matches the rule
-    set-alwaysontop                this client will appear above others (only while focused if tiled)
-    set-autofocus                  whether to auto focus the client (floating clients only), defaults to true
-    set-autohide                   whether to minimize/iconify the client when it should be invisible
+    set-alwaysontop                this client will appear above others (only while focused if
+                                   tiled)
+    set-autofocus                  whether to auto focus the client (floating clients only),
+                                   defaults to true
+    set-autohide                   whether to minimize/iconify the client when it should be
+                                   invisible
     set-centred                    1 for centre of screen, 2 for centre of parent client
     set-cfact                      client scale factor, value between 0.25 and 4.0
     set-class-display              display this string instead of the class in tag bar
     set-class-group                use this string as class for alttab class switcher
     set-cursor-autohide            true to hide cursor when stationary while this client is focused
-    set-cursor-hide-on-keys        true to hide cursor when keys are pressed while this client is focused
+    set-cursor-hide-on-keys        true to hide cursor when keys are pressed while this client is
+                                   focused
     set-desktop                    true to make the client a desktop window
     set-fakefullscreen             when going fullscreen this client will be constrained to its tile
     set-floating                   override the default tiling/floating behaviour for this client
-    set-floating-width             floating client width at creation, integer for absolute width, fraction for relative width
-    set-floating-height            floating client height at creation, integer for absolute height, fraction for relative height
-    set-floating-x                 floating client initial position: fraction between 0 and 1 for relative position, OR > 1 for absolute position
-    set-floating-y                 floating client initial position: fraction between 0 and 1 for relative position, OR > 1 for absolute position
-    set-float-align-x              floating client fixed alignment: -1:not aligned, fraction between 0 and 1 for relative position
-    set-float-align-y              floating client fixed alignment: -1:not aligned, fraction between 0 and 1 for relative position
+    set-floating-width             floating client width at creation, integer for absolute width,
+                                   fraction for relative width
+    set-floating-height            floating client height at creation, integer for absolute height,
+                                   fraction for relative height
+    set-floating-x                 floating client initial position: fraction between 0 and 1 for
+                                   relative position, OR > 1 for absolute position
+    set-floating-y                 floating client initial position: fraction between 0 and 1 for
+                                   relative position, OR > 1 for absolute position
+    set-float-align-x              floating client fixed alignment: -1:not aligned, fraction between
+                                   0 and 1 for relative position
+    set-float-align-y              floating client fixed alignment: -1:not aligned, fraction between
+                                   0 and 1 for relative position
     set-focus-origin-dx            mouse warp relative to client centre - x (float)
     set-focus-origin-dy            mouse warp relative to client centre - y (float)
-    set-follow-parent              true to ensure this client's tags match its parent's, and stays on the same monitor as its parent
-    set-game                       fullscreen clients will be minimized and unminimized when they lose or gain focus (on the same monitor)
-    set-game-strict                fullscreen clients will be minimized and unminimized whenever they lose or gain focus
+    set-follow-parent              true to ensure this client's tags match its parent's, and stays
+                                   on the same monitor as its parent
+    set-game                       fullscreen clients will be minimized and unminimized when they
+                                   lose or gain focus (on the same monitor)
+    set-game-strict                fullscreen clients will be minimized and unminimized whenever
+                                   they lose or gain focus
     set-greedy-focus               client won't lose focus due to mouse movement
     set-hidden                     client will be hidden by default
-    set-icon                       the icon image file will be loaded and used instead of the client's icon
+    set-icon                       the icon image file will be loaded and used instead of the
+                                   client's icon
     set-ignored                    client will be ignored from stacking, focus, alt-tab, etc.
-    set-missing-icon               the icon image file will be loaded and used for the client instead of no icon
-    set-modal                      client will be marked as modal (useful when clients implements modality without involving the WM)
+    set-missing-icon               the icon image file will be loaded and used for the client
+                                   instead of no icon
+    set-modal                      client will be marked as modal (useful when clients implements
+                                   modality without involving the WM)
     set-monitor                    set monitor number (0+) for this client
     set-never-focus                prevent this application from being focused automatically
     set-never-fullscreen           prevent this application from being made fullscreen
     set-never-move                 prevent the application from moving the client
     set-never-parent               prevent the client from being treated as the parent to any other
     set-never-resize               prevent the application from resizing the client
-    set-newmaster                  client always created as a new master, otherwise client goes onto the stack
+    set-newmaster                  client always created as a new master, otherwise client goes onto
+                                   the stack
     set-noswallow                  never swallow this client
-    set-panel                      client is a floating panel window, whose visibility will match the bar's; excluded from mouse warp focus, stacking, alt-tab
-    set-parent-begins              treat client as if its parent is the specified window (of same class if rule is deferred) - substring match from the start
-    set-parent-contains            treat client as if its parent is the specified window (of same class if rule is deferred) - substring match
-    set-parent-ends                treat client as if its parent is the specified window (of same class if rule is deferred) - substring match from the end
-    set-parent-guess               treat client as if its parent is the client that was focused when it was mapped, or the most recently focused (use with caution)
-    set-parent-is                  treat client as if its parent is the specified window (of same class if rule is deferred) - exact name match
-    set-pause-on-invisible         client process will be sent SIGSTOP when not visible, and SIGCONT when visible, killed, or unmanaged
+    set-panel                      client is a floating panel window, whose visibility will match
+                                   the bar's; excluded from mouse warp focus, stacking, alt-tab
+    set-parent-begins              treat client as if its parent is the specified window (of same
+                                   class if rule is deferred) - substring match from the start
+    set-parent-contains            treat client as if its parent is the specified window (of same
+                                   class if rule is deferred) - substring match
+    set-parent-ends                treat client as if its parent is the specified window (of same
+                                   class if rule is deferred) - substring match from the end
+    set-parent-guess               treat client as if its parent is the client that was focused when
+                                   it was mapped, or the most recently focused (use with caution)
+    set-parent-is                  treat client as if its parent is the specified window (of same
+                                   class if rule is deferred) - exact name match
+    set-pause-on-invisible         client process will be sent SIGSTOP when not visible, and SIGCONT
+                                   when visible, killed, or unmanaged
     set-sticky                     client appears on all tags
     set-tags-mask                  sets the tag(s) mask applied to the client
     set-terminal                   true to indicate this client is a terminal
     set-title                      show the specified title in place of the client's
-    set-top-level                  true to indicate this client should be treated as top level (ultimate parent)
-    set-urgent                     clients will be focused when created, switching tag view if necessary
+    set-top-level                  true to indicate this client should be treated as top level
+                                   (ultimate parent)
+    set-urgent                     clients will be focused when created, switching tag view if
+                                   necessary
 
-usage: dwm [-h] [-v] [-r <rules-file.json>] [-l <layout-file.json>] [-u] [-n] [-s <verb> [command [args]]]
-    -h    display usage and accepted configuration parameters
+usage: dwm [-h] [-v] [-r <rules-file.json>] [-l <layout-file.json>] [-u] [-n]
+           [-s <verb> [command [args]]]
+    -h    display usage and accepted configuration paramters
     -v    display version information
     -n    disable dwm system tray functionality
     -r    use the rules defined in the specified JSON rules file
@@ -354,7 +424,8 @@ usage: dwm [-h] [-v] [-r <rules-file.json>] [-l <layout-file.json>] [-u] [-n] [-
     -s    send request to running instance via socket
 
 IPC verbs:
-    get_dwm_client [Window ID]    Return DWM client properties for the specified (or active) window
+    get_dwm_client [Window ID]    Return DWM client properties for the
+                                  specified window (defaults to the active window)
     get_layouts                   Return a list of layouts
     get_monitors                  Return monitor properties
     get_tags                      Return a list of all tags
