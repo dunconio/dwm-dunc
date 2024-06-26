@@ -304,14 +304,14 @@ static const supported_rules_json supported_rules[] = {
 	{ R_A|R_S,	"if-title-is",					"exact full string matching on title" },
 	{ R_BOOL,	"log-rule",						"log when a client matches the rule" },
 	#if PATCH_FLAG_ALWAYSONTOP
-	{ R_BOOL,	"set-alwaysontop",				"this client will appear above others (only while focused if tiled)" },
+	{ R_BOOL,	"set-alwaysontop",				"this client will appear above others; if tiled: only while focused" },
 	#endif // PATCH_FLAG_ALWAYSONTOP
 	{ R_BOOL,	"set-autofocus",				"whether to auto focus the client (floating clients only), defaults to true" },
 	#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
-	{ R_BOOL,	"set-autohide",					"whether to minimize/iconify the client when it should be invisible" },
+	{ R_BOOL,	"set-autohide",					"whether to minimize/iconify the client when it shouldn't be visible" },
 	#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 	#if PATCH_FLAG_CENTRED
-	{ R_I,		"set-centred",					"1 for centre of screen, 2 for centre of parent client" },
+	{ R_I,		"set-centred",					"1 for centre of monitor, 2 for centre of parent client" },
 	#endif // PATCH_FLAG_CENTRED
 	{ R_N,		"set-cfact",					"client scale factor, value between 0.25 and 4.0" },
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
