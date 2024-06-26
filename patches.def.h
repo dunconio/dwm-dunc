@@ -9,6 +9,7 @@
 #define PATCH_CONSTRAIN_MOUSE				1	// Toggle constraining mouse pointer within monitor bounds
 #define PATCH_SHOW_DESKTOP					1
 #define PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE	1	// Only enable show desktop while a desktop client is available;
+#define PATCH_SHOW_DESKTOP_UNMANAGED		1	// Don't manage desktop clients;
 #define PATCH_SHOW_DESKTOP_WITH_FLOATING	1	// Allow floating clients to be visible while the desktop is;
 #define PATCH_EWMH_TAGS						0	// Supports reporting workspace(tag) changes
 #define PATCH_EXTERNAL_WINDOW_ACTIVATION	1	// Behaves like spawn except will allow focus stealing for the life of the spawnee

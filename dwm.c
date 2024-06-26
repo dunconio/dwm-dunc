@@ -105,8 +105,8 @@ static const supported_json supported_layout_global[] = {
 	#endif // PATCH_ALTTAB_HIGHLIGHT
 	{ "alt-tab-monitor-format",		"printf style format of monitor identifier using %s as placeholder" },
 	{ "alt-tab-size",				"maximum size of alt-tab switcher (WxH)" },
-	{ "alt-tab-x",					"alt-tab switcher position - 0 left, 1 centre, 2 right" },
-	{ "alt-tab-y",					"alt-tab switcher position - 0 top, 1 middle, 2 bottom" },
+	{ "alt-tab-x",					"alt-tab switcher position - 0:left, 1:centre, 2:right" },
+	{ "alt-tab-y",					"alt-tab switcher position - 0:top, 1:middle, 2:bottom" },
 	#endif // PATCH_ALTTAB
 	{ "bar-layout",					"array of bar elements in order of appearance\n(TagBar, LtSymbol, WinTitle, StatusText)" },
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
@@ -127,7 +127,7 @@ static const supported_json supported_layout_global[] = {
 	{ "colours-normal",				"colour of normal elements, in the form\n[<foreground>, <background>, <border>]" },
 	{ "colours-selected",			"colour of selected elements, in the form\n[<foreground>, <background>, <border>]" },
 	#if PATCH_TWO_TONE_TITLE
-	{ "colour-selected-bg2",		"active client title background colour 2 (right side colour of gradient)" },
+	{ "colour-selected-bg2",		"active client title background colour 2 (for the gradient fill)" },
 	#endif // PATCH_TWO_TONE_TITLE
 	#if PATCH_TORCH
 	{ "colours-torch",				"torch colours, in the form\n[<foreground>, <background>, <border>]" },
@@ -161,6 +161,9 @@ static const supported_json supported_layout_global[] = {
 	{ "monitors",					"array of monitor objects (see \"monitor sections\")" },
 	#if PATCH_SHOW_DESKTOP
 	{ "show-desktop",				"true to enable management of desktop clients, and toggle desktop" },
+	#if PATCH_SHOW_DESKTOP_UNMANAGED
+	{ "show-desktop-unmanaged",		"true to ignore NetWMWindowTypeDesktop windows (if the desktop manager expects to span all monitors)" },
+	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	{ "show-desktop-when-active",	"true to only allow switching to the desktop, when a desktop client exists" },
 	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
@@ -170,14 +173,14 @@ static const supported_json supported_layout_global[] = {
 	#endif // PATCH_SHOW_DESKTOP
 	#if PATCH_SYSTRAY
 	{ "system-tray",				"true to enable system tray handling" },
-	{ "system-tray-align",			"align the system tray to side of the status area: 0 for left-aligned, 1 for right-aligned" },
+	{ "system-tray-align",			"align the system tray to side of the status area:\n0:left, 1:right" },
 	{ "system-tray-pinning",		"pin system tray to specific monitor, -1 to follow the active monitor" },
 	{ "system-tray-spacing",		"number of pixels between system tray icons" },
 	#endif // PATCH_SYSTRAY
 	#if PATCH_TERMINAL_SWALLOWING
 	{ "terminal-swallowing",		"true to enable terminal swallowing" },
 	#endif // PATCH_TERMINAL_SWALLOWING
-	{ "title-align",				"active client title alignment: 0 for left-aligned, 1 for centred, 2 for right-aligned" },
+	{ "title-align",				"active client title alignment: 0:left, 1:centred, 2:right" },
 	{ "urgency-hinting",			"disable urgency hinting for clients (doesn't affect set-urgency rule functionality)" },
 	{ "vanity-gaps",				"true for vanity gaps (default), false for no gaps between windows" },
 	{ "vanity-gaps-inner-h",		"inner horizontal gap between windows in pixels" },
@@ -225,7 +228,7 @@ static const supported_json supported_layout_mon[] = {
 	#if PATCH_SWITCH_TAG_ON_EMPTY
 	{ "set-switch-on-empty","switch to the specified tag when no more clients are visible under the active tag" },
 	#endif // PATCH_SWITCH_TAG_ON_EMPTY
-	{ "set-title-align",	"active client title alignment: 0 for left-aligned, 1 for centred, 2 for right-aligned" },
+	{ "set-title-align",	"active client title alignment: 0:left, 1:centred, 2:right" },
 	{ "set-topbar",			"set to true if the bar should be at the top of the screen for this monitor" },
 	{ "tags",				"array of tag-specific settings (see \"tags sections (per monitor)\")" },
 };
@@ -311,7 +314,7 @@ static const supported_rules_json supported_rules[] = {
 	{ R_BOOL,	"set-autohide",					"whether to minimize/iconify the client when it shouldn't be visible" },
 	#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 	#if PATCH_FLAG_CENTRED
-	{ R_I,		"set-centred",					"1 for centre of monitor, 2 for centre of parent client" },
+	{ R_I,		"set-centred",					"1:centre of monitor, 2:centre of parent client" },
 	#endif // PATCH_FLAG_CENTRED
 	{ R_N,		"set-cfact",					"client scale factor, value between 0.25 and 4.0" },
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
@@ -331,17 +334,17 @@ static const supported_rules_json supported_rules[] = {
 	{ R_BOOL,	"set-fakefullscreen",			"when going fullscreen this client will be constrained to its tile" },
 	#endif // PATCH_FLAG_FAKEFULLSCREEN
 	{ R_BOOL,	"set-floating",					"override the default tiling/floating behaviour for this client" },
-	{ R_I|R_N,	"set-floating-width",			"floating client width at creation, integer for absolute width, fraction for relative width" },
-	{ R_I|R_N,	"set-floating-height",			"floating client height at creation, integer for absolute height, fraction for relative height" },
+	{ R_I|R_N,	"set-floating-width",			"floating client width at creation, integer for absolute width, decimal fraction for relative width" },
+	{ R_I|R_N,	"set-floating-height",			"floating client height at creation, integer for absolute height, decimal fraction for relative height" },
 	#if PATCH_FLAG_FLOAT_ALIGNMENT
-	{ R_N|R_I,	"set-floating-x",				"floating client initial position: fraction between 0 and 1 for relative position, OR > 1 for absolute position" },
-	{ R_N|R_I,	"set-floating-y",				"floating client initial position: fraction between 0 and 1 for relative position, OR > 1 for absolute position" },
-	{ R_N|R_I,	"set-float-align-x",			"floating client fixed alignment: -1:not aligned, fraction between 0 and 1 for relative position" },
-	{ R_N|R_I,	"set-float-align-y",			"floating client fixed alignment: -1:not aligned, fraction between 0 and 1 for relative position" },
+	{ R_N|R_I,	"set-floating-x",				"floating client initial position: decimal fraction between 0 and 1 for relative position, OR > 1 for absolute position" },
+	{ R_N|R_I,	"set-floating-y",				"floating client initial position: decimal fraction between 0 and 1 for relative position, OR > 1 for absolute position" },
+	{ R_N|R_I,	"set-float-align-x",			"floating client fixed alignment: -1:not aligned, decimal fraction between 0 and 1 for relative position" },
+	{ R_N|R_I,	"set-float-align-y",			"floating client fixed alignment: -1:not aligned, decimal fraction between 0 and 1 for relative position" },
 	#endif // PATCH_FLAG_FLOAT_ALIGNMENT
 	#if PATCH_MOUSE_POINTER_WARPING
-	{ R_N,		"set-focus-origin-dx",			"mouse warp relative to client centre - x (float)" },
-	{ R_N,		"set-focus-origin-dy",			"mouse warp relative to client centre - y (float)" },
+	{ R_N,		"set-focus-origin-dx",			"mouse warp relative to client centre - x (decimal fraction)" },
+	{ R_N,		"set-focus-origin-dy",			"mouse warp relative to client centre - y (decimal fraction)" },
 	#endif // PATCH_MOUSE_POINTER_WARPING
 	#if PATCH_FLAG_FOLLOW_PARENT
 	{ R_BOOL,	"set-follow-parent",			"true to ensure this client's tags match its parent's, and stays on the same monitor as its parent" },
@@ -376,12 +379,12 @@ static const supported_rules_json supported_rules[] = {
 	#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS
 	#endif // PATCH_WINDOW_ICONS
 	#if PATCH_MODAL_SUPPORT
-	{ R_BOOL,	"set-modal",					"client will be marked as modal (useful when clients implements modality without involving the WM)" },
+	{ R_BOOL,	"set-modal",					"client will be marked as modal (for when clients implement modality improperly)" },
 	#endif // PATCH_MODAL_SUPPORT
 	{ R_I,		"set-monitor",					"set monitor number (0+) for this client" },
-	{ R_BOOL,	"set-never-focus",				"prevent this application from being focused automatically" },
+	{ R_BOOL,	"set-never-focus",				"prevent the client from being focused automatically" },
 	#if PATCH_FLAG_NEVER_FULLSCREEN
-	{ R_BOOL,	"set-never-fullscreen",			"prevent this application from being made fullscreen" },
+	{ R_BOOL,	"set-never-fullscreen",			"prevent the client from being made fullscreen" },
 	#endif // PATCH_FLAG_NEVER_FULLSCREEN
 	#if PATCH_FLAG_NEVER_MOVE
 	{ R_BOOL,	"set-never-move",				"prevent the application from moving the client" },
@@ -400,11 +403,11 @@ static const supported_rules_json supported_rules[] = {
 	#endif // PATCH_TERMINAL_SWALLOWING
 	{ R_BOOL,	"set-panel",					"client is a floating panel window, whose visibility will match the bar's; excluded from mouse warp focus, stacking, alt-tab" },
 	#if PATCH_FLAG_PARENT
-	{ R_A|R_S,	"set-parent-begins",			"treat client as if its parent is the specified window (of same class if rule is deferred) - substring match from the start" },
-	{ R_A|R_S,	"set-parent-contains",			"treat client as if its parent is the specified window (of same class if rule is deferred) - substring match" },
-	{ R_A|R_S,	"set-parent-ends",				"treat client as if its parent is the specified window (of same class if rule is deferred) - substring match from the end" },
+	{ R_A|R_S,	"set-parent-begins",			"treat client as if its parent is the specified window (same class if rule deferred) - substring match from the start" },
+	{ R_A|R_S,	"set-parent-contains",			"treat client as if its parent is the specified window (same class if rule deferred) - substring match" },
+	{ R_A|R_S,	"set-parent-ends",				"treat client as if its parent is the specified window (same class if rule deferred) - substring match from the end" },
 	{ R_BOOL,	"set-parent-guess",				"treat client as if its parent is the client that was focused when it was mapped, or the most recently focused (use with caution)" },
-	{ R_A|R_S,	"set-parent-is",				"treat client as if its parent is the specified window (of same class if rule is deferred) - exact name match" },
+	{ R_A|R_S,	"set-parent-is",				"treat client as if its parent is the specified window (same class if rule deferred) - exact name match" },
 	#endif // PATCH_FLAG_PARENT
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 	{ R_BOOL,	"set-pause-on-invisible",		"client process will be sent SIGSTOP when not visible, and SIGCONT when visible, killed, or unmanaged" },
@@ -412,7 +415,7 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_FLAG_STICKY
 	{ R_BOOL,	"set-sticky",					"client appears on all tags" },
 	#endif // PATCH_FLAG_STICKY
-	{ R_I,	"set-tags-mask",					"sets the tag(s) mask applied to the client" },
+	{ R_I,		"set-tags-mask",				"sets the tag mask applied to the client" },
 	#if PATCH_TERMINAL_SWALLOWING
 	{ R_BOOL,	"set-terminal",					"true to indicate this client is a terminal" },
 	#endif // PATCH_TERMINAL_SWALLOWING
@@ -1550,6 +1553,12 @@ static Window root, wmcheckwin;
 #if PATCH_FOCUS_BORDER
 static Window focuswin;
 #endif // PATCH_FOCUS_BORDER
+#if PATCH_SHOW_DESKTOP
+#if PATCH_SHOW_DESKTOP_UNMANAGED
+static Window desktopwin = None;
+static pid_t desktoppid = 0;
+#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+#endif // PATCH_SHOW_DESKTOP
 #if PATCH_TORCH
 static Window torchwin;
 #endif // PATCH_TORCH
@@ -2297,7 +2306,11 @@ applyrules(Client *c, int deferred)
 			#endif // PATCH_MOUSE_POINTER_HIDING
 
 			#if PATCH_SHOW_DESKTOP
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-desktop")) && json_isboolean(r_node)) c->isdesktop = r_node->valueint;
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-desktop")) && json_isboolean(r_node)
+				#if PATCH_SHOW_DESKTOP_UNMANAGED
+				&& !showdesktop_unmanaged
+				#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+				) c->isdesktop = r_node->valueint;
 			#endif // PATCH_SHOW_DESKTOP
 
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-autofocus")) && json_isboolean(r_node)) c->autofocus = r_node->valueint;
@@ -4048,6 +4061,16 @@ destroynotify(XEvent *e)
 	Client *c;
 	XDestroyWindowEvent *ev = &e->xdestroywindow;
 
+	#if PATCH_SHOW_DESKTOP
+	#if PATCH_SHOW_DESKTOP_UNMANAGED
+	if (showdesktop_unmanaged && desktopwin == ev->window) {
+		desktopwin = None;
+		desktoppid = 0;
+		return;
+	}
+	else
+	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+	#endif // PATCH_SHOW_DESKTOP
 	if ((c = wintoclient(ev->window)))
 		unmanage(c, 1, 0);
 	#if PATCH_SYSTRAY
@@ -5389,6 +5412,29 @@ focusin(XEvent *e)
 		return;
 	#endif // PATCH_FLAG_GAME_STRICT
 	#endif // PATCH_FLAG_GAME
+
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_SHOW_DESKTOP
+	#if PATCH_SHOW_DESKTOP_UNMANAGED
+	if (showdesktop_unmanaged && desktopwin == ev->window) {
+		Monitor *m;
+		int x, y;
+		if (!getrootptr(&x, &y))
+			return;
+		if ((m = recttomon(x, y, 1, 1)) != selmon && selmon) {
+			#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
+			unfocus(selmon->sel, 1 | (1 << 1));
+			#else
+			unfocus(selmon->sel, 1);
+			#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
+			selmon = m;
+			focus(NULL, 0);
+		}
+	}
+	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+	#endif // PATCH_SHOW_DESKTOP
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+
 	if (selmon->sel && ev->window != selmon->sel->win)
 		setfocus(selmon->sel);
 }
@@ -5929,6 +5975,14 @@ getparentclient(Client *c)
 	if(XQueryTree(dpy, c->win, &r, &parent, &children, &num_children)){
 		if (children)
 			XFree((char *)children);
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_UNMANAGED
+		if (showdesktop_unmanaged && desktopwin == parent) {
+			c->ondesktop = 1;
+			return NULL;
+		}
+		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+		#endif // PATCH_SHOW_DESKTOP
 		i = wintoclient(parent);
 		if (0
 			#if PATCH_FLAG_PARENT
@@ -5949,6 +6003,15 @@ getparentclient(Client *c)
 
 		if (!c->pid)
 			return NULL;
+
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_UNMANAGED
+		if (showdesktop_unmanaged && desktoppid && isdescprocess(desktoppid, c->pid)) {
+			c->ondesktop = 1;
+			return NULL;
+		}
+		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+		#endif // PATCH_SHOW_DESKTOP
 
 		s = (c->mon ? c->mon : selmon);
 		for (m = s; m; ) {
@@ -6349,6 +6412,14 @@ getultimateparentclient(Client *c)
 	if(XQueryTree(dpy, c->win, &r, &parent, &children, &num_children)){
 		if (children)
 			XFree((char *)children);
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_UNMANAGED
+		if (showdesktop_unmanaged && desktopwin == parent) {
+			c->ondesktop = 1;
+			return NULL;
+		}
+		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+		#endif // PATCH_SHOW_DESKTOP
 		i = wintoclient(parent);
 
 		if (i) {
@@ -7955,6 +8026,24 @@ manage(Window w, XWindowAttributes *wa)
 	c->index = 0;
 	#if PATCH_SHOW_DESKTOP
 	if (getatomprop(c, netatom[NetWMWindowType]) == netatom[NetWMWindowTypeDesktop])
+		#if PATCH_SHOW_DESKTOP_UNMANAGED
+		if (showdesktop_unmanaged) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: desktop window has been recorded as 0x%lx.\n", w);
+			if (desktopwin) {
+				logdatetime(stderr);
+				fputs("dwm: warning: more than one desktop window exists - there may be trouble ahead.\n", stderr);
+			}
+			desktopwin = w;
+			desktoppid = c->pid;
+			XSelectInput(dpy, desktopwin, EnterWindowMask|PointerMotionMask|FocusChangeMask);
+			XMapWindow(dpy, desktopwin);
+			XLowerWindow(dpy, desktopwin);
+			free(c);
+			return;
+		}
+		else
+		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 		c->wasdesktop = 1;
 	else
 		c->wasdesktop = 0;
@@ -8185,9 +8274,10 @@ manage(Window w, XWindowAttributes *wa)
 	updatewmhints(c);
 
 	#if PATCH_SHOW_DESKTOP
-	c->ondesktop = !c->isdesktop && (
-		c->isfloating && ((c->parent && (c->parent->isdesktop || c->parent->ondesktop)) || c->ultparent->isdesktop)
-	) ? 1 : 0;
+	if (!c->ondesktop)
+		c->ondesktop = !c->isdesktop && (
+			c->isfloating && ((c->parent && (c->parent->isdesktop || c->parent->ondesktop)) || c->ultparent->isdesktop)
+		) ? 1 : 0;
 	if (c->isdesktop || c->ondesktop) {
 		c->tags = 0;
 		#if PATCH_FLAG_STICKY
@@ -8911,7 +9001,13 @@ motionnotify(XEvent *e)
 		return;
 	#endif // PATCH_ALTTAB
 
-	if (ev->window != root)
+	if (ev->window != root
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_UNMANAGED
+		&& (showdesktop_unmanaged && desktopwin != ev->window)
+		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+		#endif // PATCH_SHOW_DESKTOP
+		)
 		return;
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 //	if ((m = recttomon(ev->x_root, ev->y_root, 1, 1)) != mon && mon) {
@@ -9578,6 +9674,15 @@ parselayoutjson(cJSON *layout)
 				cJSON_AddNumberToObject(unsupported, "\"show-desktop-when-active\" must contain a boolean value", 0);
 			}
 			#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+			#if PATCH_SHOW_DESKTOP_UNMANAGED
+			else if (strcmp(L->string, "show-desktop-unmanaged")==0) {
+				if (json_isboolean(L)) {
+					showdesktop_unmanaged = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"show-desktop-unmanaged\" must contain a boolean value", 0);
+			}
+			#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 			#if PATCH_SHOW_DESKTOP_WITH_FLOATING
 			else if (strcmp(L->string, "show-desktop-with-floating")==0) {
 				if (json_isboolean(L)) {
@@ -11562,6 +11667,10 @@ restack(Monitor *m)
 			}
 
 		#if PATCH_FLAG_ALWAYSONTOP
+		// marker under which to put floating alwaysontop windows;
+		if (raised && raised->isfloating && raised->alwaysontop)
+			w = wc.sibling;
+
 		// next layer up are floating alwaysontop;
 		for (c = m->stack; c; c = c->snext)
 			if (c->isfloating && ISVISIBLE(c)
@@ -11610,7 +11719,8 @@ restack(Monitor *m)
 		#endif // PATCH_FLAG_ALWAYSONTOP
 
 		// marker under which to put tiled ontop windows;
-		w = wc.sibling;
+		if (raised && !raised->isfloating)
+			w = wc.sibling;
 
 		// next layer up are floating not alwaysontop;
 		for (c = m->stack; c; c = c->snext)
@@ -11720,9 +11830,16 @@ restack(Monitor *m)
 
 	// raise the selected/highighted client if applicable;
 	if (raised) {
-		if (raised->isfloating)
+		/*
+		if (raised->isfloating
+			#if PATCH_FLAG_ALWAYSONTOP
+			&& raised->alwaysontop
+			#endif // PATCH_FLAG_ALWAYSONTOP
+			)
 			raisewin(raised->mon, raised->win, False);
-		else {
+		else
+		*/
+		{
 			wc.sibling = w;
 			XConfigureWindow(dpy, raised->win, CWSibling|CWStackMode, &wc);
 		}
@@ -12229,8 +12346,8 @@ scan(void)
 			}
 		}
 
-		arrange(NULL);
 		nonstop = 0;
+		arrange(NULL);
 
 		if (mdef) {
 			unfocus(selmon->sel, 0);
@@ -13282,7 +13399,7 @@ showhide(Client *c, int client_only)
 	if (c->isignored)
 		return;
 	#endif // PATCH_FLAG_IGNORED
-	if (ISVISIBLE(c)) {
+	if (nonstop || ISVISIBLE(c)) {
 		/* show clients top down */
 		#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 		if (c->autohide
@@ -14764,26 +14881,39 @@ toggledesktop(const Arg *arg)
 				m = selmon;
 		}
 
-	// get first desktop client, and first non-desktop client;
-	for (Client *cc = m->clients; cc; cc = cc->next) {
-		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-		if (!d && cc->isdesktop)
-			d = cc;
-		else if (showdesktop_when_active && !c && ISVISIBLEONTAG(cc, m->tagset[m->seltags]) && !cc->isdesktop && !cc->ondesktop)
-			c = cc;
-		if ((c || !showdesktop_when_active) && d)
-			break;
-		#else // NO PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-		if (cc->isdesktop) {
-			d = cc;
-			break;
+	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || !PATCH_SHOW_DESKTOP_UNMANAGED
+
+		// get first desktop client, and first non-desktop client;
+		for (Client *cc = m->clients; cc; cc = cc->next) {
+			#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+			if (!d && cc->isdesktop)
+				d = cc;
+			else if (showdesktop_when_active && !c && ISVISIBLEONTAG(cc, m->tagset[m->seltags]) && !cc->isdesktop && !cc->ondesktop)
+				c = cc;
+			if ((c || !showdesktop_when_active) && (d
+				#if PATCH_SHOW_DESKTOP_UNMANAGED
+				|| showdesktop_unmanaged
+				#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+			))
+				break;
+			#else // NO PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+			if (cc->isdesktop) {
+				d = cc;
+				break;
+			}
+			#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 		}
-		#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-	}
+
+	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || !PATCH_SHOW_DESKTOP_UNMANAGED
 
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	if (showdesktop_when_active) {
-		if ((!m->showdesktop && !d) || (m->showdesktop && !c))
+		if ((m->showdesktop && !c) || (!m->showdesktop && (
+			#if PATCH_SHOW_DESKTOP_UNMANAGED
+			showdesktop_unmanaged ? desktopwin == None :
+			#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+			!d
+		)))
 			return;
 	}
 	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
@@ -15330,6 +15460,16 @@ unmapnotify(XEvent *e)
 	Client *c;
 	XUnmapEvent *ev = &e->xunmap;
 
+	#if PATCH_SHOW_DESKTOP
+	#if PATCH_SHOW_DESKTOP_UNMANAGED
+	if (showdesktop_unmanaged && desktopwin == ev->window) {
+		desktopwin = None;
+		desktoppid = 0;
+		return;
+	}
+	else
+	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+	#endif // PATCH_SHOW_DESKTOP
 	if ((c = wintoclient(ev->window))) {
 		#if PATCH_FLAG_GAME
 		#if PATCH_FLAG_GAME_STRICT
@@ -16747,7 +16887,13 @@ wintomon(Window w)
 	Client *c;
 	Monitor *m;
 
-	if (w == root && getrootptr(&x, &y))
+	if ((w == root
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_UNMANAGED
+		|| (showdesktop_unmanaged && w == desktopwin)
+		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+		#endif // PATCH_SHOW_DESKTOP
+		) && getrootptr(&x, &y))
 		return recttomon(x, y, 1, 1);
 	#if PATCH_SYSTRAY
 	else if (systray && w == systray->win)

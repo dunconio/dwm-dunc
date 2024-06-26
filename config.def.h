@@ -59,6 +59,9 @@ static Bool fakefullscreen_by_default = False;
 
 #if PATCH_SHOW_DESKTOP
 static Bool showdesktop = True;
+#if PATCH_SHOW_DESKTOP_UNMANAGED
+static Bool showdesktop_unmanaged = True;
+#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 #if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 static Bool showdesktop_when_active	= True;
 #endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE

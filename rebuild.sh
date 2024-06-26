@@ -2,27 +2,26 @@
 
 function build() {
 
+	local OLD_REVISION=0
 	local REVISION=0
 	if [[ -f config.h ]]; then
 		diff -u0 --color config.def.h config.h
 		echo
-		REVISION=$(grep -E '^#define DWM_REVISION' config.h | sed -E 's/^#define DWM_REVISION[[:space:]]+"([0-9]+)".*$/\1/')
+		OLD_REVISION=$(grep -E '^#define DWM_REVISION' config.h | sed -E 's/^#define DWM_REVISION[[:space:]]+"([0-9]+)".*$/\1/')
 	fi
 
-	if [[ $REVISION = 0 ]]; then
+	if [[ $OLD_REVISION = 0 ]]; then
 
 		if [[ -f REVISION ]]; then
-			read REVISION <REVISION
+			read OLD_REVISION <REVISION
 		fi
 
 	fi
 
-	if [[ ! $REVISION =~ ^[0-9]+$ ]]; then
-		REVISION=0
+	if [[ ! $OLD_REVISION =~ ^[0-9]+$ ]]; then
+		OLD_REVISION=0
 	fi
-	REVISION=$((REVISION+1))
-
-	echo $REVISION >REVISION
+	REVISION=$((OLD_REVISION+1))
 
 	echo "Build revision $REVISION:"
 
@@ -31,8 +30,12 @@ function build() {
 	sed -Ei 's/^(#define DWM_REVISION[[:space:]]+")([0-9]+)(".*)$/\1'"$REVISION"'\3/' config.h
 
 	make
-
-	cp dwm $DWM_QUEUED
+	if [[ $? != 2 ]]; then
+		echo $REVISION >REVISION
+		cp dwm $DWM_QUEUED
+	else
+		sed -Ei 's/^(#define DWM_REVISION[[:space:]]+")([0-9]+)(".*)$/\1'"$OLD_REVISION"'\3/' config.h
+	fi
 }
 
 clear
