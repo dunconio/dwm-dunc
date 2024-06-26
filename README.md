@@ -17,27 +17,26 @@ This custom fork is based on dwm 6.5.
 
 ### Baked-in Patches
 The following functionality is based on specific named patches:
-* `cfacts`:	client sizing factor support in various layouts, which can be changed at run-time;
-* `dragfact` &mdash; `dragcfact` &amp; `dragmfact` combined, to give a mouse-driven way of changing master and client sizing factors;
-* `vanitygaps`:	optional gaps between clients and monitor edges;
-	-	includes layouts:
-		-	`tile`*
-		-	`monocle`*
-		-	`spiral`
-		-	`dwindle`
-		-	`deck`
-		-	`bstack`
-		-	`bstackhoriz`
-		-	`grid`
-		-	`nrowgrid`
-		-	`horizgrid`
-		-	`gaplessgrid`
-		-	`centredmaster`
-		-	`centredfloatingmaster`
+* `cfacts`:	client sizing factor support in various layouts, which can be specified via rules and also changed at run-time;
 
 ### Optional Patches
 The following are optional patches, some originally based on other patches.
 These can be enabled/disabled by editing `patches.h`
+
+| Layout Patch | Details |
+|---|---|
+| `PATCH_LAYOUT_BSTACK` |  |
+| `PATCH_LAYOUT_BSTACKHORIZ` |  |
+| `PATCH_LAYOUT_CENTREDFLOATINGMASTER` |  |
+| `PATCH_LAYOUT_CENTREDMASTER` |  |
+| `PATCH_LAYOUT_DECK` |  |
+| `PATCH_LAYOUT_DWINDLE` |  |
+| `PATCH_LAYOUT_GAPLESSGRID` |  |
+| `PATCH_LAYOUT_GRID` |  |
+| `PATCH_LAYOUT_HORIZGRID` |  |
+| `PATCH_LAYOUT_NROWGRID` |  |
+| `PATCH_LAYOUT_SPIRAL` |  |
+
 
 | Core Functionality Patch | Details |
 |---|---|
@@ -48,6 +47,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_ATTACH_BELOW_AND_NEWMASTER` | New clients will be added to the stack after the master client(s), unless their `newmaster` client flag is `true`; |
 | `PATCH_CLIENT_INDICATORS` | Add blobs to the bar tag to indicate clients visible on that tag; |
 | `PATCH_CONSTRAIN_MOUSE` | Add a toggle to constrain the mouse pointer to the current monitor; |
+| `PATCH_DRAG_FACTS` | Resize master area size and tiled clients with the mouse; |
 | `PATCH_SHOW_DESKTOP` | Add support for showing the desktop; |
 | <ul>`PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE`</ul> | Support only showing the desktop when a desktop client exists; |
 | <ul>`PATCH_SHOW_DESKTOP_WITH_FLOATING`</ul> | Allow visible floating clients to remain visible while the desktop is shown; |
@@ -75,6 +75,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_TERMINAL_SWALLOWING` | Support terminal clients (with `isterminal` flag set) being swallowed by a child client for the duration it exists; |
 | `PATCH_TORCH` | Turn all of your monitors to one of two colours (like a big torch); |
 | `PATCH_TWO_TONE_TITLE` | Support a second colour for the WinTitle bar element background, to create a gradient effect (like classic Windows 98/2000) |
+| `PATCH_VANITY_GAPS` | Optional gaps between clients and monitor edges |
 | `PATCH_WINDOW_ICONS` | Show client icon on the WinTitle bar element;<ul><li>Supports showing icons in `PATCH_ALTTAB` alt-tab switchers</li></ul> |
 | <ul>`PATCH_WINDOW_ICONS_CUSTOM_ICONS`</ul> | Enable per-client a user-specified icon; |
 | <ul>`PATCH_WINDOW_ICONS_DEFAULT_ICON`</ul> | Set a default icon for clients without; |

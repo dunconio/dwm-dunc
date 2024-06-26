@@ -88,12 +88,14 @@ static char *desktop_icon = "";
 static       unsigned int borderpx  = 3;        /* border pixel of windows */
 static const unsigned int snap      = 32;       /* snap pixel */
 
+#if PATCH_VANITY_GAPS
 static       Bool defgaps           = True;		/* vanity gaps on/off by default */
 static       unsigned int gappih    = 7;        /* horiz inner gap between windows */
 static       unsigned int gappiv    = 7;        /* vert inner gap between windows */
 static       unsigned int gappoh    = 8;        /* horiz outer gap between windows and screen edge */
 static       unsigned int gappov    = 8;        /* vert outer gap between windows and screen edge */
 static       int smartgaps          = 1;        /* 1 means no outer gap when there is only one window */
+#endif // PATCH_VANITY_GAPS
 #if PATCH_SYSTRAY
 static                int systraypinning = -1;  /* pin systray to monitor, or -1 for sloppy systray follows selected monitor */
 static       unsigned int systrayonleft  = 1;   /* 0: systray in the right corner, >0: systray on left of status text */
@@ -184,17 +186,39 @@ static const Layout layouts[] = {
 	/* symbol     arrange function */
 	{ "[]=",      tile },    /* first entry is default */
 	{ "[M]",      monocle },
+	#if PATCH_LAYOUT_SPIRAL
 	{ "[@]",      spiral },
+	#endif // PATCH_LAYOUT_SPIRAL
+	#if PATCH_LAYOUT_DWINDLE
 	{ "[\\]",     dwindle },
+	#endif // PATCH_LAYOUT_DWINDLE
+	#if PATCH_LAYOUT_DECK
 	{ "D[]",      deck },
+	#endif // PATCH_LAYOUT_DECK
+	#if PATCH_LAYOUT_BSTACK
 	{ "TTT",      bstack },
+	#endif // PATCH_LAYOUT_BSTACK
+	#if PATCH_LAYOUT_BSTACKHORIZ
 	{ "===",      bstackhoriz },
+	#endif // PATCH_LAYOUT_BSTACKHORIZ
+	#if PATCH_LAYOUT_GRID
 	{ "HHH",      grid },
+	#endif // PATCH_LAYOUT_GRID
+	#if PATCH_LAYOUT_NROWGRID
 	{ "###",      nrowgrid },
+	#endif // PATCH_LAYOUT_NROWGRID
+	#if PATCH_LAYOUT_HORIZGRID
 	{ "---",      horizgrid },
+	#endif // PATCH_LAYOUT_HORIZGRID
+	#if PATCH_LAYOUT_GAPLESSGRID
 	{ ":::",      gaplessgrid },
+	#endif // PATCH_LAYOUT_GAPLESSGRID
+	#if PATCH_LAYOUT_CENTREDMASTER
 	{ "|M|",      centredmaster },
+	#endif // PATCH_LAYOUT_CENTREDMASTER
+	#if PATCH_LAYOUT_CENTREDFLOATINGMASTER
 	{ ">M>",      centredfloatingmaster },
+	#endif // PATCH_LAYOUT_CENTREDFLOATINGMASTER
 	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ NULL,       NULL },
 };
@@ -358,6 +382,7 @@ static const Key keys[] = {
 	{ MODKEY|ControlMask|ShiftMask, XK_g,      toggleisgame,   {0} },
 #endif // PATCH_FLAG_GAME
 	{ MODKEY,                       XK_u,      clearurgency,   {0} },
+#if PATCH_VANITY_GAPS
 	{ MODKEY|ControlMask,           XK_u,      incrgaps,       {.i = +1 } },
 	{ MODKEY|ControlMask|ShiftMask, XK_u,      incrgaps,       {.i = -1 } },
 	{ MODKEY|ControlMask,           XK_i,      incrigaps,      {.i = +1 } },
@@ -374,6 +399,7 @@ static const Key keys[] = {
 	{ MODKEY|ControlMask|ShiftMask, XK_9,      incrovgaps,     {.i = -1 } },
 	{ MODKEY|ControlMask,           XK_0,      togglegaps,     {0} },
 	{ MODKEY|ControlMask|ShiftMask, XK_0,      defaultgaps,    {0} },
+#endif // PATCH_VANITY_GAPS
 	{ MODKEY,		                XK_f,      togglefullscreen, {0} },
 #if PATCH_FLAG_FAKEFULLSCREEN
 	{ MODKEY|ShiftMask,             XK_f,      togglefakefullscreen, {0} },
@@ -492,9 +518,12 @@ static const Button buttons[] = {
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 	{ ClkClientWin,       MODKEY|ShiftMask, Button2,        setcfact,       {.f =  0.00} },
 	{ ClkClientWin,MODKEY|ShiftMask|ControlMask,Button2,    setmfact,       {.f =  0.00} },
+#if PATCH_DRAG_FACTS
 	{ ClkClientWin,         MODKEY,         Button3,        resizeorfacts,  {0} },
 	{ ClkClientWin,       MODKEY|ShiftMask, Button3,        resizemouse,    {0} },
-
+#else // NO PATCH_DRAG_FACTS
+	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
+#endif // PATCH_DRAG_FACTS
 	{ ClkTagBar,            0,              Button1,        view,           {0} },
 	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
 	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },

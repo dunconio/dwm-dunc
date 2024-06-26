@@ -7,6 +7,7 @@
 #define PATCH_ATTACH_BELOW_AND_NEWMASTER	1
 #define PATCH_CLIENT_INDICATORS				1
 #define PATCH_CONSTRAIN_MOUSE				1	// Toggle constraining mouse pointer within monitor bounds
+#define PATCH_DRAG_FACTS					1
 #define PATCH_SHOW_DESKTOP					1
 #define PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE	1	// Only enable show desktop while a desktop client is available;
 #define PATCH_SHOW_DESKTOP_UNMANAGED		1	// Don't manage desktop clients;
@@ -35,10 +36,24 @@
 #define PATCH_TERMINAL_SWALLOWING			1
 #define PATCH_TORCH							1
 #define PATCH_TWO_TONE_TITLE				1
+#define PATCH_VANITY_GAPS					1
 #define PATCH_WINDOW_ICONS					1
 #define PATCH_WINDOW_ICONS_CUSTOM_ICONS		1	// Enable per-client a user-specified icon;
 #define PATCH_WINDOW_ICONS_DEFAULT_ICON		1	// Set a default icon for clients without;
 #define PATCH_WINDOW_ICONS_LEGACY_ICCCM		1	// Kludge to populate window icons the old way;
+
+// Layouts
+#define PATCH_LAYOUT_BSTACK					1
+#define PATCH_LAYOUT_BSTACKHORIZ			1
+#define PATCH_LAYOUT_CENTREDFLOATINGMASTER	1
+#define PATCH_LAYOUT_CENTREDMASTER			1
+#define PATCH_LAYOUT_DECK					1
+#define PATCH_LAYOUT_DWINDLE				1
+#define PATCH_LAYOUT_GAPLESSGRID			1
+#define PATCH_LAYOUT_GRID					1
+#define PATCH_LAYOUT_HORIZGRID				1
+#define PATCH_LAYOUT_NROWGRID				1
+#define PATCH_LAYOUT_SPIRAL					1
 
 // Workaraounds
 #define PATCH_XFTLIB_EMOJI_WORKAROUND		0	// workaround for a crash with colour emojis on some systems (set to 0 when XftLib >= 2.3.5)

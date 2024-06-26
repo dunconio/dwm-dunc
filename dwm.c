@@ -199,11 +199,13 @@ static const supported_json supported_layout_mon[] = {
 	{ "set-cursor-hide-on-keys","true to hide cursor when keys are pressed on this monitor" },
 	#endif // PATCH_MOUSE_POINTER_HIDING
 	{ "set-default",	    "set this monitor to be the default selected on startup" },
+	#if PATCH_VANITY_GAPS
 	{ "set-enable-gaps",	"set to true to enable vanity gaps between clients (default)" },
 	{ "set-gap-inner-h",	"horizontal inner gap between clients" },
 	{ "set-gap-inner-v",	"vertical inner gap between clients" },
 	{ "set-gap-outer-h",	"horizontal outer gap between clients and the screen edges" },
 	{ "set-gap-outer-v",	"vertical outer gap between clients and the screen edges" },
+	#endif // PATCH_VANITY_GAPS
 	#if PATCH_CLIENT_INDICATORS
 	{ "set-indicators-top",	"set to true to show client indicators on the top edge of the bar" },
 	#endif // PATCH_CLIENT_INDICATORS
@@ -1075,7 +1077,9 @@ static void detachor(Client *c);
 static void detachstack(Client *c);
 static void detachstackex(Client *c);
 static Monitor *dirtomon(int dir);
+#if PATCH_DRAG_FACTS
 static void dragfact(const Arg *arg);
+#endif // PATCH_DRAG_FACTS
 static void drawbar(Monitor *m, int skiptags);
 static void drawbars(void);
 #if PATCH_ALTTAB
@@ -1165,7 +1169,9 @@ static void hidewin(const Arg *arg);
 static void highlight(Client *c);
 #endif // PATCH_ALTTAB
 static void incnmaster(const Arg *arg);
+#if PATCH_DRAG_FACTS
 static int ismaster(Client *c);
+#endif // PATCH_DRAG_FACTS
 #if PATCH_MODAL_SUPPORT
 static int ismodalparent(Client *c);
 #endif // PATCH_MODAL_SUPPORT
@@ -1263,7 +1269,9 @@ static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void resizebarwin(Monitor *m);
 static void resizeclient(Client *c, int x, int y, int w, int h, int save_old);
 static void resizemouse(const Arg *arg);
+#if PATCH_DRAG_FACTS
 static void resizeorfacts(const Arg *arg);
+#endif // PATCH_DRAG_FACTS
 #if PATCH_SYSTRAY
 static void resizerequest(XEvent *e);
 #endif // PATCH_SYSTRAY
@@ -3706,10 +3714,12 @@ createmon(void)
 	#if PATCH_CLIENT_INDICATORS
 	m->client_ind_top = client_ind_top;
 	#endif // PATCH_CLIENT_INDICATORS
+	#if PATCH_VANITY_GAPS
 	m->gappih = gappih;
 	m->gappiv = gappiv;
 	m->gappoh = gappoh;
 	m->gappov = gappov;
+	#endif // PATCH_VANITY_GAPS
 	#if PATCH_ALTTAB
 	m->nTabs = 0;
 	#endif // PATCH_ALTTAB
@@ -3726,7 +3736,9 @@ createmon(void)
 	#if PATCH_LOG_DIAGNOSTICS
 	m->logallrules = 0;
 	#endif // PATCH_LOG_DIAGNOSTICS
+	#if PATCH_VANITY_GAPS
 	m->enablegaps = defgaps;
+	#endif // PATCH_VANITY_GAPS
 	#if PATCH_ALT_TAGS
 	m->alttagsquiet = 0;
 	#endif // PATCH_ALT_TAGS
@@ -3761,7 +3773,9 @@ createmon(void)
 		m->pertag->ltidxs[i][1] = m->lt[1];
 		m->pertag->sellts[i] = m->sellt;
 		m->pertag->showbars[i] = m->showbar;
+		#if PATCH_VANITY_GAPS
 		m->pertag->enablegaps[i] = m->enablegaps;
+		#endif // PATCH_VANITY_GAPS
 		#if PATCH_ALT_TAGS
 		m->pertag->alttagsquiet[i] = m->alttagsquiet;
 		#endif // PATCH_ALT_TAGS
@@ -3809,11 +3823,13 @@ createmon(void)
 			m->alttagsquiet = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-quiet-alt-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->alttagsquiet;
 			#endif // PATCH_ALT_TAGS
 			m->isdefault = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-default")) && json_isboolean(l_node)) ? l_node->valueint : m->isdefault;
+			#if PATCH_VANITY_GAPS
 			m->enablegaps = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-enable-gaps")) && json_isboolean(l_node)) ? l_node->valueint : m->enablegaps;
 			m->gappih = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-inner-h")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappih;
 			m->gappiv = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-inner-v")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappiv;
 			m->gappoh = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-outer-h")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappoh;
 			m->gappov = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-outer-v")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappov;
+			#endif // PATCH_VANITY_GAPS
 			m->mfact_def = m->mfact = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-mfact")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->mfact;
 			#if PATCH_MIRROR_LAYOUT
 			m->mirror = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-mirror-layout")) && json_isboolean(l_node)) ? l_node->valueint : m->mirror;
@@ -4158,6 +4174,7 @@ dirtomon(int dir)
 	return m;
 }
 
+#if PATCH_DRAG_FACTS
 void
 dragfact(const Arg *arg)
 {
@@ -4181,38 +4198,59 @@ dragfact(const Arg *arg)
 		return;
 
 	/* Layouts that don't observe mfact or cfact */
-	if (
-		m->lt[m->sellt]->arrange == monocle ||
-		m->lt[m->sellt]->arrange == grid ||
-		m->lt[m->sellt]->arrange == nrowgrid ||
-		m->lt[m->sellt]->arrange == gaplessgrid
+	if (m->lt[m->sellt]->arrange == monocle
+		#if PATCH_LAYOUT_GRID
+		|| m->lt[m->sellt]->arrange == grid
+		#endif // PATCH_LAYOUT_GRID
+		#if PATCH_LAYOUT_NROWGRID
+		|| m->lt[m->sellt]->arrange == nrowgrid
+		#endif // PATCH_LAYOUT_NROWGRID
+		#if PATCH_LAYOUT_GAPLESSGRID
+		|| m->lt[m->sellt]->arrange == gaplessgrid
+		#endif // PATCH_LAYOUT_GAPLESSGRID
 		)
 		return;
 	else
 	/* Add custom handling for horizontal layouts here, e.g. */
-	if (
-		m->lt[m->sellt]->arrange == bstack ||
-		m->lt[m->sellt]->arrange == bstackhoriz ||
-		m->lt[m->sellt]->arrange == horizgrid
+	if (0
+		#if PATCH_LAYOUT_BSTACK
+		|| m->lt[m->sellt]->arrange == bstack
+		#endif // PATCH_LAYOUT_BSTACK
+		#if PATCH_LAYOUT_BSTACKHORIZ
+		|| m->lt[m->sellt]->arrange == bstackhoriz
+		#endif // PATCH_LAYOUT_BSTACKHORIZ
+		#if PATCH_LAYOUT_HORIZGRID
+		|| m->lt[m->sellt]->arrange == horizgrid
+		#endif // PATCH_LAYOUT_HORIZGRID
 		)
 		horizontal = 1;
 
+	#if PATCH_LAYOUT_BSTACKHORIZ
 	if (
 		m->lt[m->sellt]->arrange == bstackhoriz && !m->nmaster
 		)
 		rotate = 1;
+	#endif // PATCH_LAYOUT_BSTACKHORIZ
 
 	/* no mfact handling in the following layouts */
-	if (
-		m->lt[m->sellt]->arrange == horizgrid
+	if (0
+		#if PATCH_LAYOUT_HORIZGRID
+		|| m->lt[m->sellt]->arrange == horizgrid
+		#endif // PATCH_LAYOUT_HORIZGRID
 		)
 		nomfact = 1;
 
 	/* no cfact handling in the following layouts */
-	if (
-		m->lt[m->sellt]->arrange == deck ||
-		m->lt[m->sellt]->arrange == dwindle ||
-		m->lt[m->sellt]->arrange == spiral
+	if (0
+		#if PATCH_LAYOUT_DECK
+		|| m->lt[m->sellt]->arrange == deck
+		#endif // PATCH_LAYOUT_DECK
+		#if PATCH_LAYOUT_DWINDLE
+		|| m->lt[m->sellt]->arrange == dwindle
+		#endif // PATCH_LAYOUT_DWINDLE
+		#if PATCH_LAYOUT_SPIRAL
+		|| m->lt[m->sellt]->arrange == spiral
+		#endif // PATCH_LAYOUT_SPIRAL
 		)
 		nocfact = 1;
 
@@ -4234,9 +4272,13 @@ dragfact(const Arg *arg)
 	}
 
 	if (
-		m->lt[m->sellt]->arrange == tile ||
-		m->lt[m->sellt]->arrange == centredmaster ||
-		m->lt[m->sellt]->arrange == centredfloatingmaster
+		m->lt[m->sellt]->arrange == tile
+		#if PATCH_LAYOUT_CENTREDMASTER
+		|| m->lt[m->sellt]->arrange == centredmaster
+		#endif // PATCH_LAYOUT_CENTREDMASTER
+		#if PATCH_LAYOUT_CENTREDFLOATINGMASTER
+		|| m->lt[m->sellt]->arrange == centredfloatingmaster
+		#endif // PATCH_LAYOUT_CENTREDFLOATINGMASTER
 		)
 		reverse_v *= -1;
 
@@ -4318,6 +4360,7 @@ dragfact(const Arg *arg)
 	XUngrabPointer(dpy, CurrentTime);
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 }
+#endif // PATCH_DRAG_FACTS
 
 int
 elementafter(Monitor *m, unsigned int el1, unsigned int el2)
@@ -7054,6 +7097,7 @@ incnmaster(const Arg *arg)
 	arrange(selmon);
 }
 
+#if PATCH_DRAG_FACTS
 int
 ismaster(Client *c)
 {
@@ -7081,6 +7125,7 @@ ismaster(Client *c)
 	}
 	return (cc && nmaster <= c->mon->nmaster) ? 1 : 0;
 }
+#endif // PATCH_DRAG_FACTS
 
 #if PATCH_MODAL_SUPPORT
 int
@@ -9855,6 +9900,7 @@ parselayoutjson(cJSON *layout)
 			}
 			#endif // PATCH_SYSTRAY
 
+			#if PATCH_VANITY_GAPS
 			else if (strcmp(L->string, "vanity-gaps")==0) {
 				if (json_isboolean(L)) {
 					defgaps = L->valueint;
@@ -9891,6 +9937,7 @@ parselayoutjson(cJSON *layout)
 				}
 				cJSON_AddNumberToObject(unsupported, "\"vanity-gaps-outer-v\" must contain a numeric value", 0);
 			}
+			#endif // PATCH_VANITY_GAPS
 
 			#if PATCH_TERMINAL_SWALLOWING
 			else if (strcmp(L->string, "terminal-swallowing")==0) {
@@ -9987,6 +10034,8 @@ parselayoutjson(cJSON *layout)
 							else if (strcmp(c->string,"set-default")==0 && !json_isboolean(c)) {
 								cJSON_AddNumberToObject(unsupported_mon, "\"set-default\" must contain a boolean value", 0);
 							}
+
+							#if PATCH_VANITY_GAPS
 							else if (strcmp(c->string,"set-enable-gaps")==0 && !json_isboolean(c)) {
 								cJSON_AddNumberToObject(unsupported_mon, "\"set-enable-gaps\" must contain a boolean value", 0);
 							}
@@ -10002,6 +10051,7 @@ parselayoutjson(cJSON *layout)
 							else if (strcmp(c->string, "set-gap-outer-v")==0 && !cJSON_IsInteger(c)) {
 								cJSON_AddNumberToObject(unsupported_mon, "\"set-gap-outer-v\" must contain a numeric value", 0);
 							}
+							#endif // PATCH_VANITY_GAPS
 
 							#if PATCH_CLIENT_INDICATORS
 							else if (strcmp(c->string,"set-indicators-top")==0 && !json_isboolean(c)) {
@@ -11456,6 +11506,7 @@ resizemouse(const Arg *arg)
 	}
 }
 
+#if PATCH_DRAG_FACTS
 void
 resizeorfacts(const Arg *arg)
 {
@@ -11469,6 +11520,7 @@ resizeorfacts(const Arg *arg)
 	else
 		dragfact(arg);
 }
+#endif // PATCH_DRAG_FACTS
 
 void
 showhidebar(Monitor *m)
