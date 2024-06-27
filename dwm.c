@@ -8416,7 +8416,7 @@ manage(Window w, XWindowAttributes *wa)
 					#endif // PATCH_FLAG_FAKEFULLSCREEN
 				case 12:
 					#if PATCH_CFACTS
-					longdata = *(data+10);
+					longdata = *(data+11);
 					if (longdata) {
 						c->cfact = (float) longdata / 100;
 						if (c->cfact > 4.0f || c->cfact < 0.25f)
@@ -8426,7 +8426,7 @@ manage(Window w, XWindowAttributes *wa)
 						c->cfact = 1.0f;
 					#endif // PATCH_CFACTS
 				case 11:
-					longdata = *(data+11);
+					longdata = *(data+10);
 					if (longdata) {
 						c->bw = longdata;
 						c->oldbw = longdata;
