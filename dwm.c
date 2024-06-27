@@ -181,6 +181,7 @@ static const supported_json supported_layout_global[] = {
 	{ "terminal-swallowing",		"true to enable terminal swallowing" },
 	#endif // PATCH_TERMINAL_SWALLOWING
 	{ "title-align",				"active client title alignment: 0:left, 1:centred, 2:right" },
+	{ "title-border-width",			"WinTitle bar element border width in pixels, for when monitor is selected without a client selected" },
 	{ "urgency-hinting",			"disable urgency hinting for clients (doesn't affect set-urgency rule functionality)" },
 	{ "vanity-gaps",				"true for vanity gaps (default), false for no gaps between windows" },
 	{ "vanity-gaps-inner-h",		"inner horizontal gap between windows in pixels" },
@@ -4958,6 +4959,7 @@ drawbar(Monitor *m, int skiptags)
 
 		m->bar[WinTitle].w = w;
 
+		Client *active = NULL;
 		if ((m->sel && !m->sel->dormant
 			#if PATCH_FLAG_PANEL
 			&& !m->sel->ispanel
@@ -4970,34 +4972,37 @@ drawbar(Monitor *m, int skiptags)
 		|| (altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m)
 		#endif // PATCH_ALTTAB
 		) {
-			Client *active =
+			active =
 				#if PATCH_ALTTAB
 				(altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) ? altTabMon->highlight :
 				#endif // PATCH_ALTTAB
-				m->sel;
-			#if PATCH_TWO_TONE_TITLE
-			if ((
-				#if PATCH_ALTTAB
-				altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
-				#endif // PATCH_ALTTAB
-				m == selmon
-			)) {
-				drw_setscheme(drw, scheme[SchemeSel]);
-				drw->bg2 = 1;
-				drw_gradient(drw, x, 0, w, bh, drw->scheme[ColBg].pixel, scheme[SchemeSel2][ColBg].pixel, !elementafter(m, WinTitle, TagBar));
-			}
-			else {
-				drw_setscheme(drw, scheme[SchemeNorm]);
-				drw->bg2 = 0;
-			}
-			#else // NO PATCH_TWO_TONE_TITLE
-			drw_setscheme(drw, scheme[(
-				#if PATCH_ALTTAB
-				altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
-				#endif // PATCH_ALTTAB
-				m == selmon) ? SchemeSel : SchemeNorm
-			]);
-			#endif // PATCH_TWO_TONE_TITLE
+				m->sel
+			;
+		}
+		#if PATCH_TWO_TONE_TITLE
+		if ((
+			#if PATCH_ALTTAB
+			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
+			#endif // PATCH_ALTTAB
+			m == selmon
+		)) {
+			drw_setscheme(drw, scheme[SchemeSel]);
+			drw->bg2 = 1;
+			drw_gradient(drw, x, 0, w, bh, drw->scheme[ColBg].pixel, scheme[SchemeSel2][ColBg].pixel, !elementafter(m, WinTitle, TagBar));
+		}
+		else {
+			drw_setscheme(drw, scheme[SchemeNorm]);
+			drw->bg2 = 0;
+		}
+		#else // NO PATCH_TWO_TONE_TITLE
+		drw_setscheme(drw, scheme[(
+			#if PATCH_ALTTAB
+			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
+			#endif // PATCH_ALTTAB
+			m == selmon) ? SchemeSel : SchemeNorm
+		]);
+		#endif // PATCH_TWO_TONE_TITLE
+		if (active) {
 			int pad = 0;
 			unsigned int tw = 0;
 			if (m->title_align) {
@@ -5081,8 +5086,15 @@ drawbar(Monitor *m, int skiptags)
 			#endif // PATCH_FLAG_ALWAYSONTOP
 			}
 		} else {
+			#if PATCH_TWO_TONE_TITLE
+			drw->bg2 = 0;
+			#endif // PATCH_TWO_TONE_TITLE
 			drw_setscheme(drw, scheme[SchemeNorm]);
-			drw_rect(drw, x, 0, w, bh, 1, 1);
+			if (m == selmon)
+				drw_rect(drw, x, (m->topbar ? 0 : titleborderpx), w, bh - titleborderpx, 1, 1);
+				//drw_rect(drw, x+titleborderpx, titleborderpx, w-2*titleborderpx, bh-2*titleborderpx, 1, 1);
+			else
+				drw_rect(drw, x, 0, w, bh, 1, 1);
 		}
 	}
 	else {
@@ -9812,6 +9824,14 @@ parselayoutjson(cJSON *layout)
 					continue;
 				}
 				cJSON_AddNumberToObject(unsupported_mon, "\"title-align\" must contain an integer value", 0);
+			}
+
+			else if (strcmp(L->string, "title-border-width")==0) {
+				if (cJSON_IsInteger(L)) {
+					titleborderpx = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"title-border-width\" must contain a numeric value", 0);
 			}
 
 			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG

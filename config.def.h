@@ -85,8 +85,9 @@ static char *desktop_icon = "";
 #endif // PATCH_WINDOW_ICONS
 
 /* appearance */
-static       unsigned int borderpx  = 3;        /* border pixel of windows */
-static const unsigned int snap      = 32;       /* snap pixel */
+static       unsigned int borderpx		= 3;        /* border pixel of windows */
+static       unsigned int titleborderpx	= 8;        /* border pixel of WinTitle bar element when monitor is active but no client is */
+static const unsigned int snap			= 32;       /* snap pixel */
 
 #if PATCH_VANITY_GAPS
 static       Bool defgaps           = True;		/* vanity gaps on/off by default */
