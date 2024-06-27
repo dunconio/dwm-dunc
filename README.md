@@ -17,7 +17,7 @@ This custom fork is based on dwm 6.5.
 
 ### Baked-in Patches
 The following functionality is based on specific named patches:
-* `cfacts`:	client sizing factor support in various layouts, which can be specified via rules and also changed at run-time;
+* TBC
 
 ### Optional Patches
 The following are optional patches, some originally based on other patches.
@@ -45,6 +45,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_ALTTAB` | Alt-tab task switcher with bells on.<ul><li>provides standard alt-tab switcher and mouse-based drop-down switcher on the WinTitle bar element;</li><li>client switching for: -</li></li><ul><li>the current tag on the current or all monitors;</li><li>clients matching the current class on the current or all monitors;</li><li>all clients on the current or all monitors;</li></ul></ul> |
 | <ul>`PATCH_ALTTAB_HIGHLIGHT`</ul> | Supports highlight of clients during alt-tab switching; |
 | `PATCH_ATTACH_BELOW_AND_NEWMASTER` | New clients will be added to the stack after the master client(s), unless their `newmaster` client flag is `true`; |
+| `PATCH_CFACTS` | Client sizing factor support in various layouts, which can be specified via rules and also changed at run-time; |
 | `PATCH_CLIENT_INDICATORS` | Add blobs to the bar tag to indicate clients visible on that tag; |
 | `PATCH_CONSTRAIN_MOUSE` | Add a toggle to constrain the mouse pointer to the current monitor; |
 | `PATCH_DRAG_FACTS` | Resize master area size and tiled clients with the mouse; |

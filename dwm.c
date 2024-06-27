@@ -318,7 +318,9 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_FLAG_CENTRED
 	{ R_I,		"set-centred",					"1:centre of monitor, 2:centre of parent client" },
 	#endif // PATCH_FLAG_CENTRED
+	#if PATCH_CFACTS
 	{ R_N,		"set-cfact",					"client scale factor, value between 0.25 and 4.0" },
+	#endif // PATCH_CFACTS
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	{ R_S,		"set-class-display",			"display this string instead of the class in tag bar" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
@@ -733,7 +735,9 @@ struct Client {
 	#endif // PATCH_MOUSE_POINTER_HIDING
 	long stackorder;
 	float mina, maxa;
+	#if PATCH_CFACTS
 	float cfact;
+	#endif // PATCH_CFACTS
 	int x, y, w, h;
 	int sfx, sfy, sfw, sfh; /* stored float geometry, used on mode revert */
 	float sfxo, sfyo; /* float origin geometry relative to parent origin */
@@ -1312,7 +1316,9 @@ static void setlayoutreplace(const Arg *arg);
 #if PATCH_EWMH_TAGS
 static void setnumdesktops(void);
 #endif // PATCH_EWMH_TAGS
+#if PATCH_CFACTS
 static void setcfact(const Arg *arg);
+#endif // PATCH_CFACTS
 static void setmfact(const Arg *arg);
 #if PATCH_FLAG_STICKY
 static void setsticky(Client *c, int sticky);
@@ -2331,7 +2337,9 @@ applyrules(Client *c, int deferred)
 			#if PATCH_FLAG_CENTRED
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-centred")) && cJSON_IsNumeric(r_node)) c->iscentred = c->iscentred_override = r_node->valueint;
 			#endif // PATCH_FLAG_CENTRED
+			#if PATCH_CFACTS
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-cfact")) && cJSON_IsNumber(r_node)) c->cfact = r_node->valuedouble;
+			#endif // PATCH_CFACTS
 			#if PATCH_TERMINAL_SWALLOWING
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-terminal")) && json_isboolean(r_node)) c->isterminal = r_node->valueint;
 			#endif // PATCH_TERMINAL_SWALLOWING
@@ -4182,12 +4190,18 @@ dragfact(const Arg *arg)
 	int px, py; // pointer coordinates
 	int lock_x = 0, lock_y = 0;
 	int dist_x, dist_y;
-	int nocfact = 0, nomfact = 0;
+	#if PATCH_CFACTS
+	int nocfact = 0;
+	int nomfact = 0;
+	#endif // PATCH_CFACTS
 	int horizontal = 0; // layout configuration
 	int reverse_h = 1 ; // reverse horizontal handling;
 	int reverse_v = 1 ; // reverse vertical handling;
 	int rotate = 0;		//
-	float mfact, cfact, cf, cw, ch, mw, mh;
+	float mfact, mw, mh;
+	#if PATCH_CFACTS
+	float cfact, cf, ch, cw;
+	#endif // PATCH_CFACTS
 	Client *c;
 	Monitor *m = selmon;
 	XEvent ev;
@@ -4197,7 +4211,7 @@ dragfact(const Arg *arg)
 	if (!(c = m->sel) || !n || !m->lt[m->sellt]->arrange)
 		return;
 
-	/* Layouts that don't observe mfact or cfact */
+	// Layouts that don't observe factors;
 	if (m->lt[m->sellt]->arrange == monocle
 		#if PATCH_LAYOUT_GRID
 		|| m->lt[m->sellt]->arrange == grid
@@ -4211,7 +4225,7 @@ dragfact(const Arg *arg)
 		)
 		return;
 	else
-	/* Add custom handling for horizontal layouts here, e.g. */
+	// Add custom handling for horizontal layouts here;
 	if (0
 		#if PATCH_LAYOUT_BSTACK
 		|| m->lt[m->sellt]->arrange == bstack
@@ -4232,15 +4246,25 @@ dragfact(const Arg *arg)
 		rotate = 1;
 	#endif // PATCH_LAYOUT_BSTACKHORIZ
 
-	/* no mfact handling in the following layouts */
+	// no mfact handling in the following layouts;
 	if (0
 		#if PATCH_LAYOUT_HORIZGRID
 		|| m->lt[m->sellt]->arrange == horizgrid
 		#endif // PATCH_LAYOUT_HORIZGRID
 		)
+		#if PATCH_CFACTS
 		nomfact = 1;
+		#else // NO PATCH_CFACTS
+		return;
+		#endif // PATCH_CFACTS
 
-	/* no cfact handling in the following layouts */
+	#if !PATCH_CFACTS
+	if (!m->nmaster)
+		return;
+	#endif // !PATCH_CFACTS
+
+	#if PATCH_CFACTS
+	// no cfact handling in the following layouts;
 	if (0
 		#if PATCH_LAYOUT_DECK
 		|| m->lt[m->sellt]->arrange == deck
@@ -4253,6 +4277,7 @@ dragfact(const Arg *arg)
 		#endif // PATCH_LAYOUT_SPIRAL
 		)
 		nocfact = 1;
+	#endif // PATCH_CFACTS
 
 	if (XGrabPointer(dpy, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
 		None, cursor[CurResize]->cursor, CurrentTime) != GrabSuccess)
@@ -4282,9 +4307,11 @@ dragfact(const Arg *arg)
 		)
 		reverse_v *= -1;
 
+	#if PATCH_CFACTS
 	cf = c->cfact;
 	ch = c->h;
 	cw = c->w;
+	#endif // PATCH_CFACTS
 	mw = m->ww * m->mfact;
 	mh = m->wh * m->mfact;
 
@@ -4305,6 +4332,7 @@ dragfact(const Arg *arg)
 			dist_y = (lock_y ? 0 : ev.xmotion.y - py);
 
 			if (!lock_x && !lock_y) {
+				#if PATCH_CFACTS
 				if (
 					(nocfact && !horizontal) ||
 					(nomfact && horizontal) ||
@@ -4315,6 +4343,7 @@ dragfact(const Arg *arg)
 					(nomfact && !horizontal) ||
 					(!m->nmaster && (!horizontal || rotate))
 				) lock_x = 1;
+				#endif // PATCH_CFACTS
 
 				if (!lock_x && !lock_y) {
 					if (abs(dist_x) > abs(dist_y))
@@ -4339,14 +4368,20 @@ dragfact(const Arg *arg)
 			}
 
 			if ((horizontal && !rotate) || (!horizontal && rotate)) {
+				#if PATCH_CFACTS
 				cfact = (float) cf * (cw + reverse_h * dist_x) / cw;
+				#endif // PATCH_CFACTS
 				mfact = (float) (mh + (reverse_v * dist_y)) / m->wh;
 			} else {
+				#if PATCH_CFACTS
 				cfact = (float) cf * (ch - (reverse_v * dist_y)) / ch;
+				#endif // PATCH_CFACTS
 				mfact = (float) (mw + reverse_h * dist_x) / m->ww;
 			}
 
+			#if PATCH_CFACTS
 			c->cfact = MAX(0.25, MIN(4.0, cfact));
+			#endif // PATCH_CFACTS
 			if (m->nmaster)
 				m->mfact = MAX(0.05, MIN(0.95, mfact));
 			arrangemon(m);
@@ -7366,8 +7401,10 @@ logdiagnostics_stacktiled(Monitor *m, const char *title, const char *indent)
 		logdiagnostics_client_common(c, indent, "    ");
 		fprintf(stderr, " (index:%i)", c->index);
 
+		#if PATCH_CFACTS
 		if (c->cfact > 0 && c->cfact != 1.0f)
 			fprintf(stderr, " cfact:%f", c->cfact);
+		#endif // PATCH_CFACTS
 
 		fprintf(stderr, " (XQuery order: %li)", c->stackorder);
 
@@ -8123,7 +8160,9 @@ manage(Window w, XWindowAttributes *wa)
 	c->w = c->oldw = wa->width;
 	c->h = c->oldh = wa->height;
 	c->oldbw = wa->border_width;
+	#if PATCH_CFACTS
 	c->cfact = 1.0;
+	#endif // PATCH_CFACTS
 
 	c->dormant = 1;	// keep things on the down low until initial setup is complete;
 
@@ -8376,12 +8415,7 @@ manage(Window w, XWindowAttributes *wa)
 						c->fakefullscreen = *(data+12);
 					#endif // PATCH_FLAG_FAKEFULLSCREEN
 				case 12:
-					longdata = *(data+11);
-					if (longdata) {
-						c->bw = longdata;
-						c->oldbw = longdata;
-					}
-				case 11:
+					#if PATCH_CFACTS
 					longdata = *(data+10);
 					if (longdata) {
 						c->cfact = (float) longdata / 100;
@@ -8390,6 +8424,13 @@ manage(Window w, XWindowAttributes *wa)
 					}
 					else
 						c->cfact = 1.0f;
+					#endif // PATCH_CFACTS
+				case 11:
+					longdata = *(data+11);
+					if (longdata) {
+						c->bw = longdata;
+						c->oldbw = longdata;
+					}
 				case 10:
 					longdata = *(data+9);
 					if (longdata) {
@@ -13041,6 +13082,7 @@ setnumdesktops(void)
 #endif // PATCH_EWMH_TAGS
 
 
+#if PATCH_CFACTS
 void
 setcfact(const Arg *arg) {
 	float f;
@@ -13066,6 +13108,7 @@ setcfact(const Arg *arg) {
 	#endif // PATCH_PERSISTENT_METADATA
 	arrange(selmon);
 }
+#endif // PATCH_CFACTS
 
 // arg > 1.0 will set mfact absolutely;
 // otherwise, the value of mfact will be snapped to the
@@ -13814,8 +13857,12 @@ setclienttagpropex(Client *c, int index)
 		(long) (c->isfloating ? c->h : c->sfh),
 		(long) (c->sfxo * 1000),
 		(long) (c->sfyo * 1000),
-		(long) (c->cfact * 100),
 		(long) (c->isfullscreen ? c->oldbw : c->bw)
+		#if PATCH_CFACTS
+		,(long) (c->cfact * 100)
+		#else // NO PATCH_CFACTS
+		,0L
+		#endif // PATCH_CFACTS
 		#if PATCH_FLAG_FAKEFULLSCREEN
 		,(long) c->fakefullscreen
 		#else // NO PATCH_FLAG_FAKEFULLSCREEN

@@ -310,9 +310,11 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_l,      setmfact,       {.f = +0.05} },
 	{ MODKEY|ControlMask,           XK_l,      setmfact,       {.f = +0.01} },
 	{ MODKEY|ControlMask,           XK_j,      setmfact,       {.f =  0.00} },
+#if PATCH_CFACTS
 	{ MODKEY|ShiftMask|ControlMask, XK_h,      setcfact,       {.f = -0.25} },
 	{ MODKEY|ShiftMask|ControlMask, XK_l,      setcfact,       {.f = +0.25} },
 	{ MODKEY|ShiftMask|ControlMask, XK_j,      setcfact,       {.f =  0.00} },
+#endif // PATCH_CFACTS
 	{ MODKEY,                       XK_Return, zoom,           {0} },
 	{ MODKEY,                       XK_KP_Enter,zoom,          {0} },
 	{ MODKEY|ShiftMask,             XK_KP_Enter,swapmon,       {.ui = 1 } },
@@ -516,7 +518,9 @@ static const Button buttons[] = {
 	{ ClkClientBorder,      0,              Button1,        moveorplace,    {.i = 1} },
 	{ ClkClientWin,         MODKEY,         Button1,        moveorplace,    {.i = 1} },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
+#if PATCH_CFACTS
 	{ ClkClientWin,       MODKEY|ShiftMask, Button2,        setcfact,       {.f =  0.00} },
+#endif // PATCH_CFACTS
 	{ ClkClientWin,MODKEY|ShiftMask|ControlMask,Button2,    setmfact,       {.f =  0.00} },
 #if PATCH_DRAG_FACTS
 	{ ClkClientWin,         MODKEY,         Button3,        resizeorfacts,  {0} },

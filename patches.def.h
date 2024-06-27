@@ -5,6 +5,7 @@
 #define PATCH_ALTTAB						1
 #define PATCH_ALTTAB_HIGHLIGHT				1	// Support for highlighting clients during alt-tab
 #define PATCH_ATTACH_BELOW_AND_NEWMASTER	1
+#define PATCH_CFACTS						1
 #define PATCH_CLIENT_INDICATORS				1
 #define PATCH_CONSTRAIN_MOUSE				1	// Toggle constraining mouse pointer within monitor bounds
 #define PATCH_DRAG_FACTS					1

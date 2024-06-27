@@ -151,15 +151,35 @@ getfacts(Monitor *m, int msize, int ssize, float *mf, float *sf, int *mr, int *s
 
 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++)
 		if (n < m->nmaster)
+			#if PATCH_CFACTS
 			mfacts += c->cfact;
+			#else // NO PATCH_CFACTS
+			mfacts += 1;
+			#endif // PATCH_CFACTS
 		else
+			#if PATCH_CFACTS
 			sfacts += c->cfact;
+			#else // NO PATCH_CFACTS
+			sfacts += 1;
+			#endif // PATCH_CFACTS
 
 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++)
 		if (n < m->nmaster)
-			mtotal += msize * (c->cfact / mfacts);
+			mtotal += msize * (
+				#if PATCH_CFACTS
+				c->cfact / mfacts
+				#else // NO PATCH_CFACTS
+				1 / mfacts
+				#endif // PATCH_CFACTS
+			);
 		else
-			stotal += ssize * (c->cfact / sfacts);
+			stotal += ssize * (
+				#if PATCH_CFACTS
+				c->cfact / sfacts
+				#else // NO PATCH_CFACTS
+				1 / sfacts
+				#endif // PATCH_CFACTS
+			);
 
 	*mf = mfacts; // total factor of master area
 	*sf = sfacts; // total factor of stack area
@@ -253,7 +273,13 @@ bstack(Monitor *m)
 				m->mirror ? (m->wy + m->wh - (my - m->wy) - (mh - (2*c->bw))) :
 				#endif // PATCH_MIRROR_LAYOUT
 				my,
-				mw * (c->cfact / mfacts) + (i < mrest ? 1 : 0) - (2*c->bw), mh - (2*c->bw), 0
+				mw * (
+					#if PATCH_CFACTS
+					c->cfact / mfacts
+					#else // NO PATCH_CFACTS
+					1 / mfacts
+					#endif // PATCH_CFACTS
+				) + (i < mrest ? 1 : 0) - (2*c->bw), mh - (2*c->bw), 0
 			);
 			mx += WIDTH(c)
 				#if PATCH_VANITY_GAPS
@@ -267,7 +293,13 @@ bstack(Monitor *m)
 				m->mirror ? (m->wy + m->wh - (sy - m->wy) - (sh - (2*c->bw))) :
 				#endif // PATCH_MIRROR_LAYOUT
 				sy,
-				sw * (c->cfact / sfacts) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw), sh - (2*c->bw), 0
+				sw * (
+					#if PATCH_CFACTS
+					c->cfact / mfacts
+					#else // NO PATCH_CFACTS
+					1 / sfacts
+					#endif // PATCH_CFACTS
+				) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw), sh - (2*c->bw), 0
 			);
 			sx += WIDTH(c)
 				#if PATCH_VANITY_GAPS
@@ -366,7 +398,13 @@ bstackhoriz(Monitor *m)
 				m->mirror ? (m->wy + m->wh - (my - m->wy) - (mh - (2*c->bw))) :
 				#endif // PATCH_MIRROR_LAYOUT
 				my,
-				mw * (c->cfact / mfacts) + (i < mrest ? 1 : 0) - (2*c->bw), mh - (2*c->bw), 0
+				mw * (
+					#if PATCH_CFACTS
+					c->cfact / mfacts
+					#else // NO PATCH_CFACTS
+					1 / mfacts
+					#endif // PATCH_CFACTS
+				) + (i < mrest ? 1 : 0) - (2*c->bw), mh - (2*c->bw), 0
 			);
 			mx += WIDTH(c)
 				#if PATCH_VANITY_GAPS
@@ -377,10 +415,22 @@ bstackhoriz(Monitor *m)
 			resize(
 				c, sx,
 				#if PATCH_MIRROR_LAYOUT
-				m->mirror ? (m->wy + m->wh - (sy - m->wy) - (sh * (c->cfact / sfacts) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw))) :
+				m->mirror ? (m->wy + m->wh - (sy - m->wy) - (sh * (
+					#if PATCH_CFACTS
+					c->cfact / sfacts
+					#else // NO PATCH_CFACTS
+					1 / sfacts
+					#endif // PATCH_CFACTS
+				) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw))) :
 				#endif // PATCH_MIRROR_LAYOUT
 				sy,
-				sw - (2*c->bw), sh * (c->cfact / sfacts) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw), 0
+				sw - (2*c->bw), sh * (
+					#if PATCH_CFACTS
+					c->cfact / sfacts
+					#else // NO PATCH_CFACTS
+					1 / sfacts
+					#endif // PATCH_CFACTS
+				) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw), 0
 			);
 			sy += HEIGHT(c)
 				#if PATCH_VANITY_GAPS
@@ -515,20 +565,56 @@ centredmaster(Monitor *m)
 	/* calculate facts */
 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++) {
 		if (!m->nmaster || n < m->nmaster)
-			mfacts += c->cfact;
+			mfacts +=
+				#if PATCH_CFACTS
+				c->cfact
+				#else // NO PATCH_CFACTS
+				1
+				#endif // PATCH_CFACTS
+			;
 		else if ((n - m->nmaster) % 2)
-			lfacts += c->cfact; // total factor of left hand stack area
+			lfacts +=
+				#if PATCH_CFACTS
+				c->cfact
+				#else // NO PATCH_CFACTS
+				1
+				#endif // PATCH_CFACTS
+			; // total factor of left hand stack area
 		else
-			rfacts += c->cfact; // total factor of right hand stack area
+			rfacts +=
+				#if PATCH_CFACTS
+				c->cfact
+				#else // NO PATCH_CFACTS
+				1
+				#endif // PATCH_CFACTS
+			; // total factor of right hand stack area
 	}
 
 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++)
 		if (!m->nmaster || n < m->nmaster)
-			mtotal += mh * (c->cfact / mfacts);
+			mtotal += mh * (
+				#if PATCH_CFACTS
+				c->cfact / mfacts
+				#else // NO PATCH_CFACTS
+				1 / mfacts
+				#endif // PATCH_CFACTS
+			);
 		else if ((n - m->nmaster) % 2)
-			ltotal += lh * (c->cfact / lfacts);
+			ltotal += lh * (
+				#if PATCH_CFACTS
+				c->cfact / lfacts
+				#else // NO PATCH_CFACTS
+				1 / lfacts
+				#endif // PATCH_CFACTS
+			);
 		else
-			rtotal += rh * (c->cfact / rfacts);
+			rtotal += rh * (
+				#if PATCH_CFACTS
+				c->cfact / rfacts
+				#else // NO PATCH_CFACTS
+				1 / rfacts
+				#endif // PATCH_CFACTS
+			);
 
 	mrest = mh - mtotal;
 	lrest = lh - ltotal;
@@ -537,7 +623,13 @@ centredmaster(Monitor *m)
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) {
 		if (!m->nmaster || i < m->nmaster) {
 			/* nmaster clients are stacked vertically, in the centre of the screen */
-			resize(c, mx, my, mw - (2*c->bw), mh * (c->cfact / mfacts) + (i < mrest ? 1 : 0) - (2*c->bw), 0);
+			resize(c, mx, my, mw - (2*c->bw), mh * (
+				#if PATCH_CFACTS
+				c->cfact / mfacts
+				#else // NO PATCH_CFACTS
+				1 / mfacts
+				#endif // PATCH_CFACTS
+			) + (i < mrest ? 1 : 0) - (2*c->bw), 0);
 			my += HEIGHT(c)
 				#if PATCH_VANITY_GAPS
 				+ iv
@@ -546,14 +638,26 @@ centredmaster(Monitor *m)
 		} else {
 			/* stack clients are stacked vertically */
 			if ((i - m->nmaster) % 2 ) {
-				resize(c, lx, ly, lw - (2*c->bw), lh * (c->cfact / lfacts) + ((i - 2*m->nmaster) < 2*lrest ? 1 : 0) - (2*c->bw), 0);
+				resize(c, lx, ly, lw - (2*c->bw), lh * (
+					#if PATCH_CFACTS
+					c->cfact / lfacts
+					#else // NO PATCH_CFACTS
+					1 / lfacts
+					#endif // PATCH_CFACTS
+				) + ((i - 2*m->nmaster) < 2*lrest ? 1 : 0) - (2*c->bw), 0);
 				ly += HEIGHT(c)
 					#if PATCH_VANITY_GAPS
 					+ iv
 					#endif // PATCH_VANITY_GAPS
 				;
 			} else {
-				resize(c, rx, ry, rw - (2*c->bw), rh * (c->cfact / rfacts) + ((i - 2*m->nmaster) < 2*rrest ? 1 : 0) - (2*c->bw), 0);
+				resize(c, rx, ry, rw - (2*c->bw), rh * (
+					#if PATCH_CFACTS
+					c->cfact / rfacts
+					#else // NO PATCH_CFACTS
+					1 / rfacts
+					#endif // PATCH_CFACTS
+				) + ((i - 2*m->nmaster) < 2*rrest ? 1 : 0) - (2*c->bw), 0);
 				ry += HEIGHT(c)
 					#if PATCH_VANITY_GAPS
 					+ iv
@@ -659,7 +763,13 @@ centredfloatingmaster(Monitor *m)
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < m->nmaster) {
 			/* nmaster clients are stacked horizontally, in the centre of the screen */
-			resize(c, mx, my, mw * (c->cfact / mfacts) + (i < mrest ? 1 : 0) - (2*c->bw), mh - (2*c->bw), 0);
+			resize(c, mx, my, mw * (
+				#if PATCH_CFACTS
+				c->cfact / mfacts
+				#else // NO PATCH_CFACTS
+				1 / mfacts
+				#endif // PATCH_CFACTS
+			) + (i < mrest ? 1 : 0) - (2*c->bw), mh - (2*c->bw), 0);
 			mx += WIDTH(c)
 				#if PATCH_VANITY_GAPS
 				+ ih*mihf
@@ -667,7 +777,13 @@ centredfloatingmaster(Monitor *m)
 			;
 		} else {
 			/* stack clients are stacked horizontally */
-			resize(c, sx, sy, sw * (c->cfact / sfacts) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw), sh - (2*c->bw), 0);
+			resize(c, sx, sy, sw * (
+				#if PATCH_CFACTS
+				c->cfact / sfacts
+				#else // NO PATCH_CFACTS
+				1 / sfacts
+				#endif // PATCH_CFACTS
+			) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw), sh - (2*c->bw), 0);
 			sx += WIDTH(c)
 				#if PATCH_VANITY_GAPS
 				+ ih
@@ -769,7 +885,13 @@ deck(Monitor *m)
 
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < m->nmaster) {
-			resize(c, mx, my, mw - (2*c->bw), mh * (c->cfact / mfacts) + (i < mrest ? 1 : 0) - (2*c->bw), 0);
+			resize(c, mx, my, mw - (2*c->bw), mh * (
+				#if PATCH_CFACTS
+				c->cfact / mfacts
+				#else // NO PATCH_CFACTS
+				1 / mfacts
+				#endif // PATCH_CFACTS
+			) + (i < mrest ? 1 : 0) - (2*c->bw), 0);
 			my += HEIGHT(c)
 				#if PATCH_VANITY_GAPS
 				+ iv
@@ -1256,29 +1378,65 @@ horizgrid(Monitor *m) {
 	/* calculate facts */
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < ntop)
-			mfacts += c->cfact;
+			mfacts +=
+				#if PATCH_CFACTS
+				c->cfact
+				#else // NO PATCH_CFACTS
+				1
+				#endif // PATCH_CFACTS
+			;
 		else
-			sfacts += c->cfact;
+			sfacts +=
+				#if PATCH_CFACTS
+				c->cfact
+				#else // NO PATCH_CFACTS
+				1
+				#endif // PATCH_CFACTS
+			;
 
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < ntop)
-			mtotal += mh * (c->cfact / mfacts);
+			mtotal += mh * (
+				#if PATCH_CFACTS
+				c->cfact / mfacts
+				#else // NO PATCH_CFACTS
+				1 / mfacts
+				#endif // PATCH_CFACTS
+			);
 		else
-			stotal += sw * (c->cfact / sfacts);
+			stotal += sw * (
+				#if PATCH_CFACTS
+				c->cfact / sfacts
+				#else // NO PATCH_CFACTS
+				1 / sfacts
+				#endif // PATCH_CFACTS
+			);
 
 	mrest = mh - mtotal;
 	srest = sw - stotal;
 
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < ntop) {
-			resize(c, mx, my, mw * (c->cfact / mfacts) + (i < mrest ? 1 : 0) - (2*c->bw), mh - (2*c->bw), 0);
+			resize(c, mx, my, mw * (
+				#if PATCH_CFACTS
+				c->cfact / mfacts
+				#else // NO PATCH_CFACTS
+				1 / mfacts
+				#endif // PATCH_CFACTS
+			) + (i < mrest ? 1 : 0) - (2*c->bw), mh - (2*c->bw), 0);
 			mx += WIDTH(c)
 				#if PATCH_VANITY_GAPS
 				+ ih
 				#endif // PATCH_VANITY_GAPS
 			;
 		} else {
-			resize(c, sx, sy, sw * (c->cfact / sfacts) + ((i - ntop) < srest ? 1 : 0) - (2*c->bw), sh - (2*c->bw), 0);
+			resize(c, sx, sy, sw * (
+				#if PATCH_CFACTS
+				c->cfact / sfacts
+				#else // NO PATCH_CFACTS
+				1 / sfacts
+				#endif // PATCH_CFACTS
+			) + ((i - ntop) < srest ? 1 : 0) - (2*c->bw), sh - (2*c->bw), 0);
 			sx += WIDTH(c)
 				#if PATCH_VANITY_GAPS
 				+ ih
@@ -1470,14 +1628,26 @@ tile(Monitor *m)
 
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < m->nmaster) {
-			resize(c, mx, my, mw - (2*c->bw), mh * (c->cfact / mfacts) + (i < mrest ? 1 : 0) - (2*c->bw), 0);
+			resize(c, mx, my, mw - (2*c->bw), mh * (
+				#if PATCH_CFACTS
+				c->cfact / mfacts
+				#else // NO PATCH_CFACTS
+				1 / mfacts
+				#endif // PATCH_CFACTS
+			) + (i < mrest ? 1 : 0) - (2*c->bw), 0);
 			my += HEIGHT(c)
 				#if PATCH_VANITY_GAPS
 				+ iv
 				#endif // PATCH_VANITY_GAPS
 			;
 		} else {
-			resize(c, sx, sy, sw - (2*c->bw), sh * (c->cfact / sfacts) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw), 0);
+			resize(c, sx, sy, sw - (2*c->bw), sh * (
+				#if PATCH_CFACTS
+				c->cfact / sfacts
+				#else // NO PATCH_CFACTS
+				1 / sfacts
+				#endif // PATCH_CFACTS
+			) + ((i - m->nmaster) < srest ? 1 : 0) - (2*c->bw), 0);
 			sy += HEIGHT(c)
 				#if PATCH_VANITY_GAPS
 				+ iv
