@@ -5090,9 +5090,11 @@ drawbar(Monitor *m, int skiptags)
 			drw->bg2 = 0;
 			#endif // PATCH_TWO_TONE_TITLE
 			drw_setscheme(drw, scheme[SchemeNorm]);
-			if (m == selmon)
-				drw_rect(drw, x, (m->topbar ? 0 : titleborderpx), w, bh - titleborderpx, 1, 1);
-				//drw_rect(drw, x+titleborderpx, titleborderpx, w-2*titleborderpx, bh-2*titleborderpx, 1, 1);
+			if (m == selmon) {
+				if (titleborderpx < bh)
+					drw_rect(drw, x, (m->topbar ? 0 : titleborderpx), w, bh - titleborderpx, 1, 1);
+					//drw_rect(drw, x+titleborderpx, titleborderpx, w-2*titleborderpx, bh-2*titleborderpx, 1, 1);
+			}
 			else
 				drw_rect(drw, x, 0, w, bh, 1, 1);
 		}
