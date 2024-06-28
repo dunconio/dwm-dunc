@@ -106,9 +106,9 @@ static                int showsystray    = 1;   /* 0 means no systray */
 #endif // PATCH_SYSTRAY
 static const Bool showbar           = True;
 static const int topbar             = 1;        /* 0 means bottom bar */
-#if PATCH_FOCUS_BORDER
-static const unsigned int fh        = 5;        /* focus window height */
-#endif // PATCH_FOCUS_BORDER
+#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+static       unsigned int fh        = 5;        /* focus window height */
+#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 #define ICONSIZE 		16	// icon size;
 #define ICONSIZE_BIG	64	// big icon size;
 #define ICONSPACING		5	// space between icon and title;
