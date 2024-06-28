@@ -54,8 +54,9 @@ These can be enabled/disabled by editing `patches.h`
 | <ul>`PATCH_SHOW_DESKTOP_WITH_FLOATING`</ul> | Allow visible floating clients to remain visible while the desktop is shown; |
 | `PATCH_EWMH_TAGS` | Supports reporting workspace(tag) changes; |
 | `PATCH_EXTERNAL_WINDOW_ACTIVATION` | Behaves like spawn except will allow focus stealing for the life of the spawnee; |
-| `PATCH_FOCUS_BORDER` | Enlarge the top border edge of focused clients; |
+| `PATCH_FOCUS_BORDER` | Enlarge the top border edge of focused clients;<br />(mutually exclusive with `PATCH_FOCUS_PIXEL`) |
 | `PATCH_FOCUS_FOLLOWS_MOUSE` | Focus clients under the mouse pointer; |
+| `PATCH_FOCUS_PIXEL` | Put a filled rectangle in the bottom right corner of focused clients;<br />(mutually exclusive with `PATCH_FOCUS_BORDER`) |
 | `PATCH_HIDE_VACANT_TAGS` | Hides vacant tabs (except the active tag); |
 | `PATCH_IPC` | Provides socket-based message handling; |
 | `PATCH_LOG_DIAGNOSTICS` | Diagnostic functions that log to `stderr`; |
