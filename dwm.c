@@ -11612,7 +11612,7 @@ resizemouse(const Arg *arg)
 			{
 				#if PATCH_FOCUS_BORDER
 				if (focuswin)
-					XMoveResizeWindow(dpy, focuswin, nx, ny, nw + 2 * c->bw, nh + 2 * c->bw);
+					XMoveResizeWindow(dpy, focuswin, nx, ny, nw + 2 * c->bw, fh);
 				XMoveResizeWindow(dpy, c->win, nx, ny + fh, nw, nh - fh);
 				#elif PATCH_FOCUS_PIXEL
 				if (focuswin)
