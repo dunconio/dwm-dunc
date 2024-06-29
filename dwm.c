@@ -2717,24 +2717,10 @@ arrange(Monitor *m)
 {
 	if (m) {
 		arrangemon(m);
-		#if PATCH_SHOW_DESKTOP
-		if (showdesktop && m->showdesktop && !nonstop) {
-			showhide(m->stack, 0);
-			restack(m);
-			return;
-		}
-		#endif // PATCH_SHOW_DESKTOP
 		restack(m);
 		showhide(m->stack, 0);
 	} else for (m = mons; m; m = m->next) {
 		arrangemon(m);
-		#if PATCH_SHOW_DESKTOP
-		if (showdesktop && m->showdesktop && !nonstop) {
-			showhide(m->stack, 0);
-			restack(m);
-			continue;
-		}
-		#endif // PATCH_SHOW_DESKTOP
 		restack(m);
 		showhide(m->stack, 0);
 	}
@@ -13713,21 +13699,31 @@ setup(void)
 		fwa.override_redirect = 1;
 		fwa.background_pixel = scheme[SchemeSel][ColBorder].pixel;
 		#if PATCH_FOCUS_BORDER
+		fwa.event_mask = BUTTONMASK;
 		focuswin = XCreateWindow(dpy, root, -1, -1, 1, 1, 0,
 			DefaultDepth(dpy, screen),
 			InputOutput, DefaultVisual(dpy, screen),
-			CWOverrideRedirect|CWBackPixel, &fwa
+			CWOverrideRedirect|CWBackPixel|CWEventMask, &fwa
 		);
-		XSelectInput(dpy, focuswin, BUTTONMASK);
 		#elif PATCH_FOCUS_PIXEL
+		fwa.border_pixel = 0x40000000L;
+		fwa.event_mask = EnterWindowMask|PointerMotionMask;
+		#if PATCH_ALPHA_CHANNEL
+		if (useargb) {
+			fwa.colormap = cmap;
+			focuswin = XCreateWindow(
+				dpy, root, -2, -2, 1, 1, 1, depth, InputOutput, visual,
+				CWOverrideRedirect|CWBackPixel|CWBorderPixel|CWColormap|CWEventMask, &fwa
+			);
+		}
+		else
+		#endif // PATCH_ALPHA_CHANNEL
 		focuswin = XCreateWindow(dpy, root, -2, -2, 1, 1, 1,
 			DefaultDepth(dpy, screen),
 			InputOutput, DefaultVisual(dpy, screen),
-			CWOverrideRedirect|CWBackPixel, &fwa
+			CWOverrideRedirect|CWBackPixel|CWBorderPixel|CWEventMask, &fwa
 		);
 		fh += 2;	// account for border of 1 px;
-		XSetWindowBorder(dpy, focuswin, 0x80000000L);
-		XSelectInput(dpy, focuswin, EnterWindowMask|PointerMotionMask);
 		#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 		XClassHint ch = {"dwm", "dwm-hud"};
 		XSetClassHint(dpy, focuswin, &ch);
