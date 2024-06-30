@@ -461,6 +461,7 @@ static const supported_rules_json supported_rules[] = {
 	#define MOVE_FLOATING_RIGHT		(1 << 1)
 	#define MOVE_FLOATING_UP		(1 << 2)
 	#define MOVE_FLOATING_DOWN		(1 << 3)
+	#define MOVE_FLOATING_BIGGER	(1 << 4)
 #endif // PATCH_MOVE_FLOATING_WINDOWS
 
 
@@ -9283,17 +9284,17 @@ movefloat(const Arg *arg)
 		#endif // PATCH_SHOW_DESKTOP
 	) return;
 
-	int x = 0, y = 0;
+	int x = 0, y = 0, step = (arg->ui & MOVE_FLOATING_BIGGER) ? MOVE_FLOATING_STEP_BIG : MOVE_FLOATING_STEP;
 
 	if (arg->ui & MOVE_FLOATING_DOWN)
-		y += MOVE_FLOATING_STEP;
+		y += step;
 	else if (arg->ui & MOVE_FLOATING_UP)
-		y -= MOVE_FLOATING_STEP;
+		y -= step;
 
 	if (arg->ui & MOVE_FLOATING_LEFT)
-		x -= MOVE_FLOATING_STEP;
+		x -= step;
 	else if (arg->ui & MOVE_FLOATING_RIGHT)
-		x += MOVE_FLOATING_STEP;
+		x += step;
 
 	if (c->x + x + c->w + c->bw*2 > (c->mon->wx + c->mon->ww))
 		c->x = (c->mon->wx + c->mon->ww) - (c->w + c->bw*2);
