@@ -1140,6 +1140,9 @@ static Client *getactivegameclient(Monitor *m);
 static Atom getatomprop(Client *c, Atom prop);
 static Atom getatompropex(Window w, Atom prop);
 static Client *getclientatcoords(int x, int y, int focusable);
+#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+static Client *getdesktopclient(Monitor *m, int *nondesktop_exists);
+#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 static Client *getfocusable(Monitor *m, Client *c, int force);		// derive next valid focusable client from the stack;
 #if PATCH_WINDOW_ICONS
 #if PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
@@ -5224,7 +5227,6 @@ void drawfocusborder(int remove)
 			#endif // PATCH_SHOW_DESKTOP
 			XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
 			XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
-			XSync(dpy, False);
 			return;
 		}
 		#endif // PATCH_FOCUS_BORDER
@@ -5575,7 +5577,11 @@ focus(Client *c, int force)
 			seturgent(c, 0);
 
 		#if PATCH_SHOW_DESKTOP
-		if (showdesktop && (!c->isfloating || c->isdesktop) && c->mon->showdesktop != c->isdesktop) {
+		if (showdesktop && c->mon->showdesktop != (c->isdesktop || c->ondesktop)
+			#if PATCH_SHOW_DESKTOP_WITH_FLOATING
+			&& (!showdesktop_floating || !c->isfloating || c->isdesktop || c->ondesktop)
+			#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
+		) {
 			c->mon->showdesktop = c->isdesktop;
 			arrange(c->mon);
 		}
@@ -5637,7 +5643,7 @@ focusin(XEvent *e)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_SHOW_DESKTOP
 	#if PATCH_SHOW_DESKTOP_UNMANAGED
-	if (showdesktop_unmanaged && desktopwin == ev->window) {
+	if (showdesktop && showdesktop_unmanaged && desktopwin == ev->window) {
 		Monitor *m;
 		int x, y;
 		if (!getrootptr(&x, &y))
@@ -6087,6 +6093,44 @@ getclientatcoords(int x, int y, int focusable)
 	return sel;
 }
 
+#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+Client *
+getdesktopclient(Monitor *m, int *nondesktop_exists)
+{
+	int c = 0;
+	Client *d = NULL;
+	// get first desktop client, and first non-desktop client;
+	for (Client *cc = m->clients; cc; cc = cc->next) {
+		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+		if (!d && cc->isdesktop)
+			d = cc;
+		else if (showdesktop_when_active && !c && ISVISIBLEONTAG(cc, m->tagset[m->seltags]) && !cc->isdesktop && !cc->ondesktop
+			#if PATCH_FLAG_PANEL
+			&& !cc->ispanel
+			#endif // PATCH_FLAG_PANEL
+			#if PATCH_FLAG_HIDDEN
+			&& !cc->ishidden
+			#endif // PATCH_FLAG_HIDDEN
+		)
+			c = 1;
+		if ((c || !showdesktop_when_active) && (d
+			#if PATCH_SHOW_DESKTOP_UNMANAGED
+			|| showdesktop_unmanaged
+			#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+		))
+			break;
+		#else // NO PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+		if (cc->isdesktop) {
+			d = cc;
+			break;
+		}
+		#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+	}
+	*nondesktop_exists = c;
+	return d;
+}
+#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+
 Client *
 getfocusable(Monitor *m, Client *c, int force)
 {
@@ -6198,7 +6242,7 @@ getparentclient(Client *c)
 			XFree((char *)children);
 		#if PATCH_SHOW_DESKTOP
 		#if PATCH_SHOW_DESKTOP_UNMANAGED
-		if (showdesktop_unmanaged && desktopwin == parent) {
+		if (showdesktop && showdesktop_unmanaged && desktopwin == parent) {
 			c->ondesktop = 1;
 			return NULL;
 		}
@@ -6227,7 +6271,7 @@ getparentclient(Client *c)
 
 		#if PATCH_SHOW_DESKTOP
 		#if PATCH_SHOW_DESKTOP_UNMANAGED
-		if (showdesktop_unmanaged && desktoppid && isdescprocess(desktoppid, c->pid)) {
+		if (showdesktop && showdesktop_unmanaged && desktoppid && isdescprocess(desktoppid, c->pid)) {
 			c->ondesktop = 1;
 			return NULL;
 		}
@@ -6635,7 +6679,7 @@ getultimateparentclient(Client *c)
 			XFree((char *)children);
 		#if PATCH_SHOW_DESKTOP
 		#if PATCH_SHOW_DESKTOP_UNMANAGED
-		if (showdesktop_unmanaged && desktopwin == parent) {
+		if (showdesktop && showdesktop_unmanaged && desktopwin == parent) {
 			c->ondesktop = 1;
 			return NULL;
 		}
@@ -7115,9 +7159,9 @@ highlight(Client *c)
 	#endif // PATCH_ALTTAB_HIGHLIGHT
 	{
 		#if PATCH_SHOW_DESKTOP
-		if (altTabMon->highlight) {
+		if (altTabMon->highlight && showdesktop) {
 			Monitor *m = altTabMon->highlight->mon;
-			if (showdesktop && m->showdesktop != m->altTabDesktop) {
+			if (m->showdesktop != m->altTabDesktop) {
 				m->showdesktop = m->altTabDesktop;
 				arrange(m);
 			}
@@ -7205,7 +7249,7 @@ highlight(Client *c)
 		}
 
 		#if PATCH_SHOW_DESKTOP
-		if (!c->isdesktop)
+		if (!showdesktop || !c->isdesktop)
 		#endif // PATCH_SHOW_DESKTOP
 		{
 			wc.stack_mode = Below;
@@ -7241,7 +7285,7 @@ void
 incnmaster(const Arg *arg)
 {
 	#if PATCH_SHOW_DESKTOP
-	if (selmon->showdesktop)
+	if (showdesktop && selmon->showdesktop)
 		return;
 	#endif // PATCH_SHOW_DESKTOP
 	#if PATCH_PERTAG
@@ -8679,7 +8723,13 @@ manage(Window w, XWindowAttributes *wa)
 			) && c->mon == selmon) && !c->isurgent)
 			takefocus = 0;
 		else if (c->mon->sel) {
-			if ((c->isfloating && c->mon->sel->isfullscreen
+			if (((
+					!c->isfloating
+					#if PATCH_FLAG_GAME
+					|| c->isgame
+					#endif // PATCH_FLAG_GAME
+				)
+					&& c->mon->sel->isfullscreen
 					#if PATCH_FLAG_FAKEFULLSCREEN
 					&& c->mon->sel->fakefullscreen != 1
 					#endif // PATCH_FLAG_FAKEFULLSCREEN
@@ -10673,6 +10723,16 @@ placemouse(const Arg *arg)
 				detachstack(c);
 				detach(c);
 				if (c->mon != r->mon) {
+					#if PATCH_SHOW_DESKTOP
+					#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+					int nc = 0;
+					if (getdesktopclient(c->mon, &nc) && !nc && !c->mon->showdesktop) {
+						c->mon->showdesktop = 1;
+						arrange(c->mon);
+					}
+					else
+					#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+					#endif // PATCH_SHOW_DESKTOP
 					arrangemon(c->mon);
 					c->tags = r->mon->tagset[r->mon->seltags];
 				}
@@ -10712,7 +10772,6 @@ placemouse(const Arg *arg)
 	if (focuswin) {
 		drawfocusborder(0);
 		XMapWindow(dpy, focuswin);
-		sleep(3);
 	}
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
@@ -12160,10 +12219,7 @@ restack(Monitor *m)
 		#if PATCH_FLAG_IGNORED
 		// next layer up are ignored alwaysontop;
 		for (c = m->stack; c; c = c->snext)
-			if (c->isignored && c->isfloating
-				#if PATCH_FLAG_ALWAYSONTOP
-				&& c->alwaysontop
-				#endif // PATCH_FLAG_ALWAYSONTOP
+			if (c->isignored && c->isfloating && c->alwaysontop
 				#if PATCH_FLAG_HIDDEN
 				&& !c->ishidden
 				#endif // PATCH_FLAG_HIDDEN
@@ -12898,7 +12954,6 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 {
 	if (c->mon == m)
 		return;
-
 	#if PATCH_SHOW_DESKTOP
 	if (c->ondesktop || c->isdesktop)
 		return;
@@ -12908,6 +12963,12 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		return;
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 
+	#if PATCH_SHOW_DESKTOP
+	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+	Monitor *mon = c->mon;
+	int nc = 0;
+	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+	#endif // PATCH_SHOW_DESKTOP
 	int sel = (leader ? (leader == c->mon->sel ? 1 : 0) : 0);
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	int px, py;
@@ -12974,6 +13035,27 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		snapchildclients(c, 1);
 		#endif // PATCH_FLAG_FOLLOW_PARENT
 	}
+
+	#if PATCH_SHOW_DESKTOP
+	if (showdesktop && m->showdesktop != mon->showdesktop) {
+		if (!c->isfloating
+			#if PATCH_SHOW_DESKTOP_WITH_FLOATING
+			|| !showdesktop_floating
+			#else // NO PATCH_SHOW_DESKTOP_WITH_FLOATING
+			|| c->isfloating
+			#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
+		)
+			m->showdesktop = c->ondesktop;
+	}
+	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+	if (showdesktop && showdesktop_when_active && getdesktopclient(mon, &nc) && !nc && !mon->showdesktop) {
+		mon->showdesktop = 1;
+		if (!sel)
+			arrange(mon);
+	}
+	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+	#endif // PATCH_SHOW_DESKTOP
+
 	if (sel) {
 		m->sel = leader;
 		selmon = m;
@@ -12996,7 +13078,6 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
 		raiseclient(c);
 	}
-
 }
 
 
@@ -13923,6 +14004,14 @@ showhide(Client *c, int client_only)
 			c->h = c->mon->wh;
 		}
 		#endif // PATCH_SHOW_DESKTOP
+		#if PATCH_FLAG_GAME
+		if (c->isgame && c->isfullscreen) {
+			XWindowAttributes wa;
+			if (!XGetWindowAttributes(dpy, c->win, &wa) || wa.x + wa.width < 0)
+				XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
+		}
+		else
+		#endif // PATCH_FLAG_GAME
 		XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
 
 		if ((!c->mon->lt[c->mon->sellt]->arrange ||	(
@@ -13944,7 +14033,12 @@ showhide(Client *c, int client_only)
 		/* hide clients bottom up */
 		if (c->snext != c && !client_only)
 			showhide(c->snext, 0);
-		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
+		#if PATCH_FLAG_GAME
+		if (c->isgame && c->isfullscreen)
+			XLowerWindow(dpy, c->win);
+		else
+		#endif // PATCH_FLAG_GAME
+		XMoveWindow(dpy, c->win, -sw, c->y);
 		#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 		if (c->autohide
 			#if PATCH_FLAG_HIDDEN
@@ -15390,7 +15484,7 @@ toggledesktop(const Arg *arg)
 
 	int i;
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-	Client *c = NULL;
+	int c = 0;
 	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	Client *d = NULL;
 	Monitor *m = selmon;
@@ -15402,28 +15496,7 @@ toggledesktop(const Arg *arg)
 		}
 
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || !PATCH_SHOW_DESKTOP_UNMANAGED
-
-		// get first desktop client, and first non-desktop client;
-		for (Client *cc = m->clients; cc; cc = cc->next) {
-			#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-			if (!d && cc->isdesktop)
-				d = cc;
-			else if (showdesktop_when_active && !c && ISVISIBLEONTAG(cc, m->tagset[m->seltags]) && !cc->isdesktop && !cc->ondesktop)
-				c = cc;
-			if ((c || !showdesktop_when_active) && (d
-				#if PATCH_SHOW_DESKTOP_UNMANAGED
-				|| showdesktop_unmanaged
-				#endif // PATCH_SHOW_DESKTOP_UNMANAGED
-			))
-				break;
-			#else // NO PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-			if (cc->isdesktop) {
-				d = cc;
-				break;
-			}
-			#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-		}
-
+	d = getdesktopclient(m, &c);
 	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || !PATCH_SHOW_DESKTOP_UNMANAGED
 
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
