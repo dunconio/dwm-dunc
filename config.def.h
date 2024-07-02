@@ -115,9 +115,13 @@ static       unsigned int fbpos		= FOCUS_BORDER_N;
 #elif PATCH_FOCUS_PIXEL
 static       unsigned int fppos		= FOCUS_PIXEL_SE;
 #endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-#define ICONSIZE 		16	// icon size;
-#define ICONSIZE_BIG	64	// big icon size;
-#define ICONSPACING		5	// space between icon and title;
+#if PATCH_WINDOW_ICONS
+static       unsigned int iconsize     = 16;	// icon size;
+#if PATCH_ALTTAB
+static       unsigned int iconsize_big = 64;	// big icon size;
+#endif // PATCH_ALTTAB
+static       unsigned int iconspacing  = 5;		// space between icon and title;
+#endif // PATCH_WINDOW_ICONS
 static const int focusedontoptiled  = 0;        /* 1 means focused tile client is always shown on top of floating windows */
 static       Bool viewontag         = True;     /* Switch view on tag switch */
 //static const char *fonts[]          = { "MesloLGS Nerd Font Mono:size=12:style=Nomral" };

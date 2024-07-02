@@ -162,6 +162,13 @@ static const supported_json supported_layout_global[] = {
 	{ "focus-pixel-size",			"width/height of box on focused client's bottom right corner, 0 to disable" },
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	{ "fonts",						"font string or array of font strings to use" },
+	#if PATCH_WINDOW_ICONS
+	{ "icon-size",					"size of window icons on the bar" },
+	#if PATCH_ALTTAB
+	{ "icon-size-big",				"size of large window icons in the alt-tab switcher" },
+	#endif // PATCH_ALTTAB
+	{ "icon-spacing",				"size of gap between icon and window title" },
+	#endif // PATCH_WINDOW_ICONS
 	#if PATCH_MIRROR_LAYOUT
 	{ "mirror-layout",				"switch master area and stack area" },
 	#endif // PATCH_MIRROR_LAYOUT
@@ -5072,14 +5079,14 @@ drawbar(Monitor *m, int skiptags)
 					TEXTW(active->name)
 					#endif // PATCH_FLAG_HIDDEN
 					#if PATCH_WINDOW_ICONS
-					+ (active->icon ? active->icw + ICONSPACING : 0)
+					+ (active->icon ? active->icw + iconspacing : 0)
 					#endif // PATCH_WINDOW_ICONS
 				;
 				if (tw >= w)
 					pad = (
 						lrpad / 2
 						#if PATCH_WINDOW_ICONS
-						+ (active->icon ? active->icw + ICONSPACING : 0)
+						+ (active->icon ? active->icw + iconspacing : 0)
 						#endif // PATCH_WINDOW_ICONS
 					);
 				else if (m->title_align == 1)
@@ -5091,7 +5098,7 @@ drawbar(Monitor *m, int skiptags)
 			pad = (
 				lrpad / 2
 				#if PATCH_WINDOW_ICONS
-				+ (active->icon ? active->icw + ICONSPACING : 0)
+				+ (active->icon ? active->icw + iconspacing : 0)
 				#endif // PATCH_WINDOW_ICONS
 			);
 			drw_text(drw, x, 0, w, bh, pad,
@@ -10178,6 +10185,32 @@ parselayoutjson(cJSON *layout)
 			}
 			#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
+			#if PATCH_WINDOW_ICONS
+			else if (strcmp(L->string, "icon-size")==0) {
+				if (cJSON_IsInteger(L)) {
+					iconsize = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"icon-size\" must contain an integer value", 0);
+			}
+			#if PATCH_ALTTAB
+			else if (strcmp(L->string, "icon-size-big")==0) {
+				if (cJSON_IsInteger(L)) {
+					iconsize_big = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"icon-size-big\" must contain an integer value", 0);
+			}
+			#endif // PATCH_ALTTAB
+			else if (strcmp(L->string, "icon-spacing")==0) {
+				if (cJSON_IsInteger(L)) {
+					iconspacing = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"icon-spacing\" must contain an integer value", 0);
+			}
+			#endif // PATCH_WINDOW_ICONS
+
 			else if (strcmp(L->string, "fonts")==0) {
 				if (cJSON_IsArray(L) || cJSON_IsString(L)) {
 					fonts_json = L;
@@ -14561,7 +14594,7 @@ drawTab(Monitor *m, int active, int first)
 		if (tabswitcher) {
 			m->maxWTab = MIN((maxWTab + 2*bw), m->mw);
 			#if PATCH_WINDOW_ICONS
-			m->maxHTab = MIN((((MAX(ICONSIZE_BIG, minbh) + lrpad*2) * m->nTabs)+2*bw), MIN((maxHTab + 2*bw), m->mh));
+			m->maxHTab = MIN((((MAX(iconsize_big, minbh) + lrpad*2) * m->nTabs)+2*bw), MIN((maxHTab + 2*bw), m->mh));
 			#else // NO PATCH_WINDOW_ICONS
 			m->maxHTab = MIN((((minbh + lrpad*2) * m->nTabs)+2*bw), MIN((maxHTab + 2*bw), m->mh));
 			#endif // PATCH_WINDOW_ICONS
@@ -14598,12 +14631,12 @@ drawTab(Monitor *m, int active, int first)
 				#if PATCH_WINDOW_ICONS
 				if (!c->alticon)
 					#if PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
-					c->alticon = geticonprop(c, c->win, &c->alticw, &c->altich, MIN((minbh - pad), ICONSIZE));
+					c->alticon = geticonprop(c, c->win, &c->alticw, &c->altich, MIN((minbh - pad), iconsize));
 					#else // NO PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
-					c->alticon = geticonprop(c->win, &c->alticw, &c->altich, MIN((minbh - pad), ICONSIZE));
+					c->alticon = geticonprop(c->win, &c->alticw, &c->altich, MIN((minbh - pad), iconsize));
 					#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 				if (!icw && c->alticon)
-					icw = c->alticw + (ICONSPACING*2);
+					icw = c->alticw + (iconspacing*2);
 				#endif // PATCH_WINDOW_ICONS
 
 				#if PATCH_FLAG_HIDDEN
@@ -14621,7 +14654,7 @@ drawTab(Monitor *m, int active, int first)
 			}
 			tw += lrpad
 				#if PATCH_WINDOW_ICONS
-				+ icw + (ICONSPACING) - lrpad
+				+ icw + (iconspacing) - lrpad
 				#endif // PATCH_WINDOW_ICONS
 			;
 			m->maxWTab = MIN(
@@ -14752,14 +14785,14 @@ drawTab(Monitor *m, int active, int first)
 			#if PATCH_WINDOW_ICONS
 			if (!c->alticon)
 				#if PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
-				c->alticon = geticonprop(c, c->win, &c->alticw, &c->altich, MIN((h - pad), (tabswitcher ? ICONSIZE_BIG : ICONSIZE)));
+				c->alticon = geticonprop(c, c->win, &c->alticw, &c->altich, MIN((h - pad), (tabswitcher ? iconsize_big : iconsize)));
 				#else // NO PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
-				c->alticon = geticonprop(c->win, &c->alticw, &c->altich, MIN((h - pad), (tabswitcher ? ICONSIZE_BIG : ICONSIZE)));
+				c->alticon = geticonprop(c->win, &c->alticw, &c->altich, MIN((h - pad), (tabswitcher ? iconsize_big : iconsize)));
 				#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 			if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon) {
-				x = TEXTW(c->mon->numstr) + (c->alticon ? c->alticw + (ICONSPACING*2) : 0);
+				x = TEXTW(c->mon->numstr) + (c->alticon ? c->alticw + (iconspacing*2) : 0);
 				drw_text(
-					drw, 0, oy, m->maxWTab, h, lrpad / 2 + (c->alticon ? c->alticw + (ICONSPACING*2) : 0),
+					drw, 0, oy, m->maxWTab, h, lrpad / 2 + (c->alticon ? c->alticw + (iconspacing*2) : 0),
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
@@ -14767,7 +14800,7 @@ drawTab(Monitor *m, int active, int first)
 				);
 			}
 			else
-				x = lrpad / 2 + (c->alticon ? c->alticw + (ICONSPACING*2) : 0);
+				x = lrpad / 2 + (c->alticon ? c->alticw + (iconspacing*2) : 0);
 			#if PATCH_FLAG_HIDDEN
 			if (c->ishidden) {
 				appendhidden(c->name, buffer, 256);
@@ -16665,9 +16698,9 @@ updateicon(Client *c)
 {
 	freeicon(c);
 	#if PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
-	c->icon = geticonprop(c, c->win, &c->icw, &c->ich, ICONSIZE);
+	c->icon = geticonprop(c, c->win, &c->icw, &c->ich, iconsize);
 	#else // NO PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
-	c->icon = geticonprop(c->win, &c->icw, &c->ich, ICONSIZE);
+	c->icon = geticonprop(c->win, &c->icw, &c->ich, iconsize);
 	#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 }
 #endif // PATCH_WINDOW_ICONS
