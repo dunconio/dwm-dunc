@@ -2808,10 +2808,45 @@ attachstack(Client *c)
 		fprintf(stderr, "debug: attachstack: ALREADY ATTACHED! c == c->mon->stack \"%s\"\n", c->name);
 		return;
 	}
-	c->sprev = NULL;
-	if ((c->snext = c->mon->stack))
-		c->snext->sprev = c;
-	c->mon->stack = c;
+
+	// attempt to keep floating clients above tiled in the stack;
+	Client *f = c->mon->stack;
+	if (!c->isfloating
+		#if PATCH_FLAG_PANEL
+		|| c->ispanel
+		#endif // PATCH_FLAG_PANEL
+	)
+		for (;
+			f && f->isfloating
+			#if PATCH_SHOW_DESKTOP
+			&& !f->isdesktop
+			#endif // PATCH_SHOW_DESKTOP
+			#if PATCH_FLAG_PANEL
+			&& !f->ispanel
+			#endif // PATCH_FLAG_PANEL
+			; f = f->snext
+		);
+
+	if (!f || f == c->mon->stack || (c->isfloating
+		#if PATCH_SHOW_DESKTOP
+		&& !c->isdesktop
+		#endif // PATCH_SHOW_DESKTOP
+		#if PATCH_FLAG_PANEL
+		&& !c->ispanel
+		#endif // PATCH_FLAG_PANEL
+	)) {
+		// default stack behaviour - client to the top;
+		c->sprev = NULL;
+		if ((c->snext = c->mon->stack))
+			c->snext->sprev = c;
+		c->mon->stack = c;
+	}
+	else {
+		if ((c->sprev = f->sprev))
+			c->sprev->snext = c;
+		if ((c->snext = f))
+			c->snext->sprev = c;
+	}
 }
 
 #if PATCH_ATTACH_BELOW_AND_NEWMASTER
@@ -2866,8 +2901,8 @@ attachstackBelow(Client *c)
 		// if there was at least 1 client on the tag,
 		// but weren't more than nmaster clients on the tag;
 		if (lastmatch) {
-//			if (lastmatch->snext)
-//				lastmatch = lastmatch->snext;
+			//if (lastmatch->snext)
+			//	lastmatch = lastmatch->snext;
 			c->snext = lastmatch->snext;
 			if (c->snext)
 				c->snext->sprev = c;
@@ -3181,6 +3216,13 @@ fprintf(stderr, "dwm: starting cleanup...\n");
 	altTabEnd();
 	#endif // PATCH_ALTTAB
 
+	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	if (focuswin) {
+		XDestroyWindow(dpy, focuswin);
+		focuswin = None;
+	}
+	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+
 	for (Monitor *m = mons; m; m = m->next) {
 		m->lt[m->sellt] = &foo;
 		viewmontag(m, ~0, 0);
@@ -3279,10 +3321,6 @@ fprintf(stderr, "dwm: done cleanupmon().\n");
 		free(scheme[i]);
 	free(scheme);
 
-	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	if (focuswin)
-		XDestroyWindow(dpy, focuswin);
-	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	XDestroyWindow(dpy, wmcheckwin);
 	drw_free(drw);
 	XSync(dpy, False);
