@@ -122,6 +122,13 @@ static       unsigned int iconsize_big = 64;	// big icon size;
 #endif // PATCH_ALTTAB
 static       unsigned int iconspacing  = 5;		// space between icon and title;
 #endif // PATCH_WINDOW_ICONS
+
+#if PATCH_CLIENT_OPACITY
+static         Bool opacityenabled  = True;
+static       double activeopacity   = 1.0f;     /* Window opacity when it's focused (0 <= opacity <= 1) */
+static       double inactiveopacity = 0.9f;     /* Window opacity when it's inactive (0 <= opacity <= 1) */
+#endif // PATCH_CLIENT_OPACITY
+
 static const int focusedontoptiled  = 0;        /* 1 means focused tile client is always shown on top of floating windows */
 static       Bool viewontag         = True;     /* Switch view on tag switch */
 //static const char *fonts[]          = { "MesloLGS Nerd Font Mono:size=12:style=Nomral" };
@@ -395,6 +402,12 @@ static const Key keys[] = {
 	{ MODKEY|ControlMask|ShiftMask, XK_g,      toggleisgame,   {0} },
 #endif // PATCH_FLAG_GAME
 	{ MODKEY,                       XK_u,      clearurgency,   {0} },
+#if PATCH_CLIENT_OPACITY
+	{ MODKEY,                       XK_equal,  changefocusopacity,   {.f = +0.025}},
+	{ MODKEY,                       XK_minus,  changefocusopacity,   {.f = -0.025}},
+	{ MODKEY|ShiftMask,             XK_equal,  changeunfocusopacity, {.f = +0.025}},
+	{ MODKEY|ShiftMask,             XK_minus,  changeunfocusopacity, {.f = -0.025}},
+#endif // PATCH_CLIENT_OPACITY
 #if PATCH_VANITY_GAPS
 	{ MODKEY|ControlMask,           XK_u,      incrgaps,       {.i = +1 } },
 	{ MODKEY|ControlMask|ShiftMask, XK_u,      incrgaps,       {.i = -1 } },
@@ -547,6 +560,12 @@ static const Button buttons[] = {
 #else // NO PATCH_DRAG_FACTS
 	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
 #endif // PATCH_DRAG_FACTS
+#if PATCH_CLIENT_OPACITY
+	{ ClkClientWin,         MODKEY,         Button4,    changefocusopacity, {.f = +0.025 }},
+	{ ClkClientWin,         MODKEY,         Button5,    changefocusopacity, {.f = -0.025} },
+	{ ClkClientWin,       MODKEY|ShiftMask, Button4,  changeunfocusopacity, {.f = +0.025} },
+	{ ClkClientWin,       MODKEY|ShiftMask, Button5,  changeunfocusopacity, {.f = -0.025 }},
+#endif // PATCH_CLIENT_OPACITY
 	{ ClkTagBar,            0,              Button1,        view,           {0} },
 	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
 	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },

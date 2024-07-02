@@ -120,6 +120,11 @@ static const supported_json supported_layout_global[] = {
 	{ "client-indicator-size",		"size in pixels of client indicators" },
 	{ "client-indicators-top",		"true to show indicators at the top of the bar, false to show indicators at the bottom" },
 	#endif // PATCH_CLIENT_INDICATORS
+	#if PATCH_CLIENT_OPACITY
+	{ "client-opacity-active",		"opacity of active clients (between 0 and 1)" },
+	{ "client-opacity-enabled",		"true to enable variable window opacity" },
+	{ "client-opacity-inactive",	"opacity of inactive clients (between 0 and 1)" },
+	#endif // PATCH_CLIENT_OPACITY
 	{ "colours-layout",				"colour of layout indicator, in the form\n[<foreground>, <background>, <border>]" },
 	#if PATCH_FLAG_HIDDEN || PATCH_SHOW_DESKTOP
 	{ "colours-hidden",				"colour of hidden elements, in the form\n[<foreground>, <background>, <border>]" },
@@ -342,6 +347,10 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_ALTTAB
 	{ R_S,		"set-class-group",				"use this string as class for alttab class switcher" },
 	#endif // PATCH_ALTTAB
+	#if PATCH_CLIENT_OPACITY
+	{ R_N|R_I,	"set-opacity-active",			"level of opacity for client when active" },
+	{ R_N|R_I,	"set-opacity-inactive",			"level of opacity for client when inactive" },
+	#endif // PATCH_CLIENT_OPACITY
 	#if PATCH_MOUSE_POINTER_HIDING
 	{ R_BOOL,	"set-cursor-autohide",			"true to hide cursor when stationary while this client is focused" },
 	{ R_BOOL,	"set-cursor-hide-on-keys",		"true to hide cursor when keys are pressed while this client is focused" },
@@ -672,6 +681,9 @@ enum {	NetSupported, NetWMName,
 		#if PATCH_MODAL_SUPPORT
 		NetWMModal,
 		#endif // PATCH_MODAL_SUPPORT
+		#if PATCH_CLIENT_OPACITY
+		NetWMWindowsOpacity,
+		#endif // PATCH_CLIENT_OPACITY
 		NetClientList, NetClientInfo, NetLast }; /* EWMH atoms */
 enum {	Manager, Xembed, XembedInfo, XLast }; /* Xembed atoms */
 enum {	WMProtocols, WMDelete, WMState, WMTakeFocus, WMWindowRole, WMLast }; /* default atoms */
@@ -774,6 +786,10 @@ struct Client {
 	int isdesktop;		// desktop client
 	int ondesktop;		// client's parent or ultimate parent is the desktop;
 	#endif // PATCH_SHOW_DESKTOP
+	#if PATCH_CLIENT_OPACITY
+	double opacity;
+	double unfocusopacity;
+	#endif // PATCH_CLIENT_OPACITY
 	int neverfocus;
 	#if PATCH_FLAG_NEVER_FOCUS
 	int neverfocus_override;
@@ -1059,6 +1075,10 @@ static void attachstackBelow(Client *c);
 #endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 static void attachstack(Client *c);
 static void buttonpress(XEvent *e);
+#if PATCH_CLIENT_OPACITY
+static void changefocusopacity(const Arg *arg);
+static void changeunfocusopacity(const Arg *arg);
+#endif // PATCH_CLIENT_OPACITY
 #if 0 //PATCH_FOCUS_FOLLOWS_MOUSE
 static void checkmouseoverclient(Client *c);
 #endif // PATCH_FOCUS_FOLLOWS_MOUSE
@@ -1261,6 +1281,9 @@ static Client *nextstack(Client *c, int isfloating);
 static Client *nexttaggedafter(Client *c, unsigned int tags);
 #endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 static Client *nexttiled(Client *c);
+#if PATCH_CLIENT_OPACITY
+static void opacity(Client *c, double opacity);
+#endif // PATCH_CLIENT_OPACITY
 static int parselayoutjson(cJSON *layout);
 static int parserulesjson(cJSON *json);
 static void placemouse(const Arg *arg);
@@ -2345,6 +2368,21 @@ applyrules(Client *c, int deferred)
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-autohide")) && json_isboolean(r_node)) c->autohide = r_node->valueint;
 			#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 
+			#if PATCH_CLIENT_OPACITY
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-active")) && cJSON_IsNumeric(r_node)) c->opacity = r_node->valuedouble;
+			if (c->opacity <= 0 || c->opacity > 1.0f) {
+				logdatetime(stderr);
+				fprintf(stderr, "dwm: warning: set-opacity-active value must be greater than 0 and less than or equal to 1.\n");
+				c->opacity = 1;
+			}
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-inactive")) && cJSON_IsNumeric(r_node)) c->unfocusopacity = r_node->valuedouble;
+			if (c->unfocusopacity <= 0 || c->unfocusopacity > 1.0f) {
+				logdatetime(stderr);
+				fprintf(stderr, "dwm: warning: set-opacity-inactive value must be greater than 0 and less than or equal to 1.\n");
+				c->unfocusopacity = 1;
+			}
+			#endif // PATCH_CLIENT_OPACITY
+
 			#if PATCH_MOUSE_POINTER_HIDING
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-cursor-autohide")) && json_isboolean(r_node)) c->cursorautohide = r_node->valueint;
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-cursor-hide-on-keys")) && json_isboolean(r_node)) c->cursorhideonkeys = r_node->valueint;
@@ -2730,10 +2768,18 @@ arrange(Monitor *m)
 		arrangemon(m);
 		restack(m);
 		showhide(m->stack, 0);
+		#if PATCH_CLIENT_OPACITY
+		if (m->sel && m->sel != selmon->sel)
+			opacity(m->sel, m->sel->opacity);
+		#endif // PATCH_CLIENT_OPACITY
 	} else for (m = mons; m; m = m->next) {
 		arrangemon(m);
 		restack(m);
 		showhide(m->stack, 0);
+		#if PATCH_CLIENT_OPACITY
+		if (m->sel && m->sel != selmon->sel)
+			opacity(m->sel, m->sel->opacity);
+		#endif // PATCH_CLIENT_OPACITY
 	}
 }
 
@@ -3112,6 +3158,30 @@ buttonpress(XEvent *e)
 		&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state))
 			buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg);
 }
+
+#if PATCH_CLIENT_OPACITY
+void
+changefocusopacity(const Arg *arg)
+{
+	if (!selmon->sel)
+		return;
+	selmon->sel->opacity+=arg->f;
+	if (selmon->sel->opacity > 1.0) selmon->sel->opacity = 1.0;
+	if (selmon->sel->opacity < 0.1) selmon->sel->opacity = 0.1;
+	opacity(selmon->sel, selmon->sel->opacity);
+}
+
+void
+changeunfocusopacity(const Arg *arg)
+{
+	if (!selmon->sel)
+		return;
+	selmon->sel->unfocusopacity+=arg->f;
+	if (selmon->sel->unfocusopacity > 1.0) selmon->sel->unfocusopacity = 1.0;
+	if (selmon->sel->unfocusopacity < 0.1) selmon->sel->unfocusopacity = 0.1;
+	opacity(selmon->sel, selmon->sel->unfocusopacity);
+}
+#endif // PATCH_CLIENT_OPACITY
 
 #if 0 //PATCH_FOCUS_FOLLOWS_MOUSE
 void
@@ -5423,7 +5493,12 @@ enternotify(XEvent *e)
 		#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 		*/
 		focusmonex(m);
-		m->sel = NULL;
+		if (m->sel && m->sel != c) {
+			#if PATCH_CLIENT_OPACITY
+			opacity(m->sel, m->sel->unfocusopacity);
+			#endif // PATCH_CLIENT_OPACITY
+			m->sel = NULL;
+		}
 	}
 
 	if (ev->window == root)
@@ -5650,6 +5725,10 @@ focus(Client *c, int force)
 			return;
 		#endif // PATCH_ALTTAB
 		setfocus(c);
+		#if PATCH_CLIENT_OPACITY
+		c->opacity = MIN(1.0, MAX(0, c->opacity));
+		opacity(c, c->opacity);
+		#endif // PATCH_CLIENT_OPACITY
 	} else {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
 		XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
@@ -5736,6 +5815,10 @@ focusmonex(Monitor *m)
 		#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 	}
 	selmon = m;
+	#if PATCH_CLIENT_OPACITY
+	if (s->sel)
+		opacity(s->sel, s->sel->opacity);
+	#endif // PATCH_CLIENT_OPACITY
 	drawbar(s, 0);
 	drawbar(m, 0);
 }
@@ -7221,6 +7304,9 @@ highlight(Client *c)
 	Client *h = altTabMon->highlight;
 	// unhighlight previous;
 	if (h && h != c) {
+		#if PATCH_CLIENT_OPACITY
+		opacity(h, h->unfocusopacity);
+		#endif // PATCH_CLIENT_OPACITY
 		XSetWindowBorder(dpy, h->win, scheme[SchemeNorm][ColBorder].pixel);
 		if (h->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
@@ -7259,6 +7345,9 @@ highlight(Client *c)
 		#endif // PATCH_FLAG_HIDDEN
 		)
 	{
+		#if PATCH_CLIENT_OPACITY
+		opacity(c, 1);
+		#endif // PATCH_CLIENT_OPACITY
 		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 
 		if (!ISVISIBLE(c))
@@ -9012,6 +9101,13 @@ DEBUGENDIF
 		focus(c->mon->sel, 0);
 	#endif // !PATCH_MOUSE_POINTER_WARPING
 
+	#if PATCH_CLIENT_OPACITY
+	if (c->mon->sel != c)
+		opacity(c, c->unfocusopacity);
+//	else if (selmon != c->mon)
+//		opacity(c, c->opacity);
+	#endif // PATCH_CLIENT_OPACITY
+
 	#if PATCH_FLAG_PANEL
 	if (c->ispanel)
 		raisewin(c->mon, c->win, 1);
@@ -9718,6 +9814,28 @@ nexttaggedafter(Client *c, unsigned int tags) {
 }
 #endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 
+#if PATCH_CLIENT_OPACITY
+void
+opacity(Client *c, double opacity)
+{
+	if(opacityenabled && opacity > 0 && opacity < 1
+		#if PATCH_FLAG_PANEL
+		&& !c->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		&& !c->isdesktop
+		#endif // PATCH_SHOW_DESKTOP
+	) {
+		unsigned long real_opacity[] = { opacity * 0xffffffff };
+		XChangeProperty(
+			dpy, c->win, netatom[NetWMWindowsOpacity], XA_CARDINAL,
+			32, PropModeReplace, (unsigned char *)real_opacity, 1
+		);
+	} else
+		XDeleteProperty(dpy, c->win, netatom[NetWMWindowsOpacity]);
+}
+#endif // PATCH_CLIENT_OPACITY
+
 #if PATCH_MOVE_TILED_WINDOWS || PATCH_FLAG_HIDDEN
 Client *
 prevtiled(Client *c)
@@ -9841,6 +9959,30 @@ parselayoutjson(cJSON *layout)
 				cJSON_AddNumberToObject(unsupported, "\"colour-selected-bg2\" must contain a string value", 0);
 			}
 			#endif // PATCH_TWO_TONE_TITLE
+
+			#if PATCH_CLIENT_OPACITY
+			else if (strcmp(L->string, "client-opacity-active")==0) {
+				if (cJSON_IsNumeric(L)) {
+					activeopacity = L->valuedouble;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"client-opacity-active\" must contain a numeric value", 0);
+			}
+			else if (strcmp(L->string, "client-opacity-enabled")==0) {
+				if (json_isboolean(L)) {
+					opacityenabled = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"client-opacity-enabled\" must contain a boolean value", 0);
+			}
+			else if (strcmp(L->string, "client-opacity-inactive")==0) {
+				if (cJSON_IsNumeric(L)) {
+					inactiveopacity = L->valuedouble;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"client-opacity-inactive\" must contain a numeric value", 0);
+			}
+			#endif // PATCH_CLIENT_OPACITY
 
 			else if (strcmp(L->string, "colours-layout")==0) {
 				if (cJSON_IsArray(L))
@@ -13277,6 +13419,10 @@ setdefaultvalues(Client *c)
 	c->ismodal = 0;
 	c->ismodal_override = -1;
 	#endif // PATCH_MODAL_SUPPORT
+	#if PATCH_CLIENT_OPACITY
+	c->opacity = activeopacity;
+	c->unfocusopacity = inactiveopacity;
+	#endif // PATCH_CLIENT_OPACITY
 	#if PATCH_FLAG_NEVER_FOCUS
 	c->neverfocus_override = -1;
 	#endif // PATCH_FLAG_NEVER_FOCUS
@@ -13806,6 +13952,9 @@ setup(void)
 	xatom[Manager] = XInternAtom(dpy, "MANAGER", False);
 	xatom[Xembed] = XInternAtom(dpy, "_XEMBED", False);
 	xatom[XembedInfo] = XInternAtom(dpy, "_XEMBED_INFO", False);
+	#if PATCH_CLIENT_OPACITY
+	netatom[NetWMWindowsOpacity] = XInternAtom(dpy, "_NET_WM_WINDOW_OPACITY", False);
+	#endif // PATCH_CLIENT_OPACITY
 	/* init cursors */
 	cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr);
 	cursor[CurResize] = drw_cur_create(drw, XC_sizing);
@@ -15155,6 +15304,10 @@ altTabStart(const Arg *arg)
 					drawfocusborder(1);
 				#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
+				#if PATCH_ALTTAB_HIGHLIGHT
+				if (tabHighlight)
+					altTabMon->highlight = selmon->sel;
+				#endif // PATCH_ALTTAB_HIGHLIGHT
 				altTab(direction, 1);
 
 				Time lasttime = 0;
@@ -15900,6 +16053,11 @@ unfocus(Client *c, int setfocus)
 	#endif // PATCH_FLAG_GAME
 
 	grabbuttons(c, 0);
+	#if PATCH_CLIENT_OPACITY
+	c->unfocusopacity = MIN(1.0, MAX(0, c->unfocusopacity));
+	opacity(c, c->unfocusopacity);
+	#endif // PATCH_CLIENT_OPACITY
+
 	//if (!solitary(c))
 	XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
 	#if PATCH_FOCUS_BORDER
@@ -15952,6 +16110,10 @@ void
 unmanage(Client *c, int destroyed, int cleanup)
 {
 	DEBUG("debug: unmanage(\"%s\", destroyed=%i, cleanup=%i)\n", c->name, destroyed, cleanup);
+
+	#if PATCH_CLIENT_OPACITY
+	opacity(c, 0);
+	#endif // PATCH_CLIENT_OPACITY
 
 	XWindowChanges wc;
 	int wasfocused = (
