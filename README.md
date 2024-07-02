@@ -23,19 +23,20 @@ The following functionality is based on specific named patches:
 The following are optional patches, some originally based on other patches.
 These can be enabled/disabled by editing `patches.h`
 
-| Layout Patch | Details |
-|---|---|
-| `PATCH_LAYOUT_BSTACK` |  |
-| `PATCH_LAYOUT_BSTACKHORIZ` |  |
-| `PATCH_LAYOUT_CENTREDFLOATINGMASTER` |  |
-| `PATCH_LAYOUT_CENTREDMASTER` |  |
-| `PATCH_LAYOUT_DECK` |  |
-| `PATCH_LAYOUT_DWINDLE` |  |
-| `PATCH_LAYOUT_GAPLESSGRID` |  |
-| `PATCH_LAYOUT_GRID` |  |
-| `PATCH_LAYOUT_HORIZGRID` |  |
-| `PATCH_LAYOUT_NROWGRID` |  |
-| `PATCH_LAYOUT_SPIRAL` |  |
+
+| Layout Patch | Symbol | Details |
+|---|:---:|---|
+| `PATCH_LAYOUT_BSTACK` | `TTT` | Top section is split horizontally between the master client(s), bottom section is split horizontally between stack clients; |
+| `PATCH_LAYOUT_BSTACKHORIZ` | `===` | Top section is split horizontally between the master client(s), bottom section is split vertically between stack clients<br>(each spans the width of the monitor); |
+| `PATCH_LAYOUT_CENTREDFLOATINGMASTER` | `>M>` | Master client(s) in the centre of the monitor (split horizontally) on a floating plane above the stack clients (split horizontally); |
+| `PATCH_LAYOUT_CENTREDMASTER` | `\|M\|` | Master client(s) in a central column (split vertically), stack clients are to the left and right sides split vertically between clients; |
+| `PATCH_LAYOUT_DECK` | `D[]` | Left section is split vertically between master client(s), right section shows a single stack client - other stack clients are 'stacked' below it; |
+| `PATCH_LAYOUT_DWINDLE` | `[\]` | The first window uses half the screen, the second the half of the remainder, etc.<br>Spiral and Dwindle are identical except for the precise order of clients; |
+| `PATCH_LAYOUT_GAPLESSGRID` | `:::` | Arranges windows in a grid, adjusting the number of windows in the first few columns to avoid empty cells;
+| `PATCH_LAYOUT_GRID` | `HHH` | Windows are arranged in a grid of equal sizes; |
+| `PATCH_LAYOUT_HORIZGRID` | `---` | Arranges windows in a grid pattern in which every window is roughly the same size, adjusted such that there are no gaps.<br>However, this layout arranges the windows in a horizontal grid, rather than a vertical grid; |
+| `PATCH_LAYOUT_NROWGRID` | `###` | This grid layout gives you the option of determining the row count, which is set by nmaster + 1. So except for giving you a customizable grid, you also get the ability to show everything in one row, or in one column (row = 1 and row = client count, respectively). When calculating the cell dimensions utilization trackers are used to make sure all pixels are utilized. The effect is that no overlays or no gaps are present, but on the other side all cells are not always of equal size. |
+| `PATCH_LAYOUT_SPIRAL` | `[@]` | The first window uses half the screen, the second the half of the remainder, etc.<br>Spiral and Dwindle are identical except for the precise order of clients; |
 
 
 | Core Functionality Patch | Details |

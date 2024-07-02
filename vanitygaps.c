@@ -295,7 +295,7 @@ bstack(Monitor *m)
 				sy,
 				sw * (
 					#if PATCH_CFACTS
-					c->cfact / mfacts
+					c->cfact / sfacts
 					#else // NO PATCH_CFACTS
 					1 / sfacts
 					#endif // PATCH_CFACTS
@@ -880,7 +880,7 @@ deck(Monitor *m)
 
 	getfacts(m, mh, sh, &mfacts, &sfacts, &mrest, &srest);
 
-	if (n - m->nmaster > 0) /* override layout symbol */
+	if ((int)n - m->nmaster > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "D [%d]", n - m->nmaster);
 
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
