@@ -7,6 +7,7 @@
 #define PATCH_ATTACH_BELOW_AND_NEWMASTER	1
 #define PATCH_CFACTS						1
 #define PATCH_CLIENT_INDICATORS				1
+#define PATCH_CLIENT_OPACITY				1
 #define PATCH_CONSTRAIN_MOUSE				1	// Toggle constraining mouse pointer within monitor bounds
 #define PATCH_DRAG_FACTS					1
 #define PATCH_SHOW_DESKTOP					1

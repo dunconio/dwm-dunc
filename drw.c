@@ -19,6 +19,8 @@ static const unsigned char utfmask[UTF_SIZ + 1] = {0xC0, 0x80, 0xE0, 0xF0, 0xF8}
 static const long utfmin[UTF_SIZ + 1] = {       0,    0,  0x80,  0x800,  0x10000};
 static const long utfmax[UTF_SIZ + 1] = {0x10FFFF, 0x7F, 0x7FF, 0xFFFF, 0x10FFFF};
 
+static const char *ellipsis = "…";	// replaces "...";
+
 static long
 utf8decodebyte(const char c, size_t *i)
 {
@@ -615,7 +617,7 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 
 	usedfont = drw->fonts;
 	if (!ellipsis_width && render)
-		ellipsis_width = drw_fontset_getwidth(drw, "...");
+		ellipsis_width = drw_fontset_getwidth(drw, ellipsis);
 	while (1) {
 		ew = ellipsis_len = utf8strlen = 0;
 		utf8str = text;
@@ -678,7 +680,7 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 				#if PATCH_CLIENT_INDICATORS
 				tpad,
 				#endif // PATCH_CLIENT_INDICATORS
-				"...", invert
+				ellipsis, invert
 			);
 
 		if (!*text || overflow) {
