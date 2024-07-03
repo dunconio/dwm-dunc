@@ -210,49 +210,53 @@ static const supported_json supported_layout_global[] = {
 	{ "view-on-tag",			    "switch view when tagging a client" },
 };
 static const supported_json supported_layout_mon[] = {
-	{ "comment",			"ignored" },
-	{ "log-rules",			"log all matching rules for this monitor" },
-	{ "monitor",			"monitor number" },
-	{ "set-bar-layout",		"array of bar elements in order of appearance (TagBar, LtSymbol, WinTitle, StatusText)" },
+	{ "comment",				"ignored" },
+	{ "log-rules",				"log all matching rules for this monitor" },
+	{ "monitor",				"monitor number" },
+	{ "set-bar-layout",			"array of bar elements in order of appearance (TagBar, LtSymbol, WinTitle, StatusText)" },
 	#if PATCH_MOUSE_POINTER_HIDING
-	{ "set-cursor-autohide","true to hide cursor when stationary on this monitor" },
+	{ "set-cursor-autohide",	"true to hide cursor when stationary on this monitor" },
 	{ "set-cursor-hide-on-keys","true to hide cursor when keys are pressed on this monitor" },
 	#endif // PATCH_MOUSE_POINTER_HIDING
-	{ "set-default",	    "set this monitor to be the default selected on startup" },
+	{ "set-default",		    "set this monitor to be the default selected on startup" },
 	#if PATCH_VANITY_GAPS
-	{ "set-enable-gaps",	"set to true to enable vanity gaps between clients (default)" },
-	{ "set-gap-inner-h",	"horizontal inner gap between clients" },
-	{ "set-gap-inner-v",	"vertical inner gap between clients" },
-	{ "set-gap-outer-h",	"horizontal outer gap between clients and the screen edges" },
-	{ "set-gap-outer-v",	"vertical outer gap between clients and the screen edges" },
+	{ "set-enable-gaps",		"set to true to enable vanity gaps between clients (default)" },
+	{ "set-gap-inner-h",		"horizontal inner gap between clients" },
+	{ "set-gap-inner-v",		"vertical inner gap between clients" },
+	{ "set-gap-outer-h",		"horizontal outer gap between clients and the screen edges" },
+	{ "set-gap-outer-v",		"vertical outer gap between clients and the screen edges" },
 	#endif // PATCH_VANITY_GAPS
 	#if PATCH_CLIENT_INDICATORS
-	{ "set-indicators-top",	"set to true to show client indicators on the top edge of the bar" },
+	{ "set-indicators-top",		"set to true to show client indicators on the top edge of the bar" },
 	#endif // PATCH_CLIENT_INDICATORS
-	{ "set-layout",			"layout number or layout symbol" },
-	{ "set-mfact",			"size of master client area for all tags on this monitor" },
+	{ "set-layout",				"layout number or layout symbol" },
+	{ "set-mfact",				"size of master client area for all tags on this monitor" },
 	#if PATCH_MIRROR_LAYOUT
-	{ "set-mirror-layout",	"switch master area and stack area on this monitor" },
+	{ "set-mirror-layout",		"switch master area and stack area on this monitor" },
 	#endif // PATCH_MIRROR_LAYOUT
-	{ "set-nmaster",		"number of master clients for all tags on this monitor" },
+	#if PATCH_CLIENT_OPACITY
+	{ "set-opacity-active",		"level of opacity for clients when active on this monitor" },
+	{ "set-opacity-inactive",	"level of opacity for clients when inactive on this monitor" },
+	#endif // PATCH_CLIENT_OPACITY
+	{ "set-nmaster",			"number of master clients for all tags on this monitor" },
 	#if PATCH_ALT_TAGS
-	{ "set-quiet-alt-tags", "don't raise the bar or show over fullscreen clients on this monitor" },
+	{ "set-quiet-alt-tags", 	"don't raise the bar or show over fullscreen clients on this monitor" },
 	#endif // PATCH_ALT_TAGS
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-	{ "set-reverse-master", "set to true if the master client class should be shown before the tag indicator" },
+	{ "set-reverse-master",		"set to true if the master client class should be shown before the tag indicator" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-	{ "set-showbar",		"whether to show the bar by default on this monitor" },
+	{ "set-showbar",			"whether to show the bar by default on this monitor" },
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-	{ "set-showmaster", 	"set to true if the master client class should be shown on each tag on the bar" },
+	{ "set-showmaster", 		"set to true if the master client class should be shown on each tag on the bar" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-	{ "set-showstatus",		"set to 1 if the status text should be displayed, -1 to ignore root window name changes" },
-	{ "set-start-tag",		"default tag to activate on startup" },
+	{ "set-showstatus",			"set to 1 if the status text should be displayed, -1 to ignore root window name changes" },
+	{ "set-start-tag",			"default tag to activate on startup" },
 	#if PATCH_SWITCH_TAG_ON_EMPTY
-	{ "set-switch-on-empty","switch to the specified tag when no more clients are visible under the active tag" },
+	{ "set-switch-on-empty",	"switch to the specified tag when no more clients are visible under the active tag" },
 	#endif // PATCH_SWITCH_TAG_ON_EMPTY
-	{ "set-title-align",	"active client title alignment: 0:left, 1:centred, 2:right" },
-	{ "set-topbar",			"set to true if the bar should be at the top of the screen for this monitor" },
-	{ "tags",				"array of tag-specific settings (see \"tags sections (per monitor)\")" },
+	{ "set-title-align",		"active client title alignment: 0:left, 1:centred, 2:right" },
+	{ "set-topbar",				"set to true if the bar should be at the top of the screen for this monitor" },
+	{ "tags",					"array of tag-specific settings (see \"tags sections (per monitor)\")" },
 };
 static const supported_json supported_layout_tag[] = {
 	{ "comment", 			"ignored" },
@@ -948,6 +952,10 @@ struct Monitor {
 	int altTabDesktop;
 	#endif // PATCH_ALTTAB
 	#endif // PATCH_SHOW_DESKTOP
+	#if PATCH_CLIENT_OPACITY
+	double activeopacity;
+	double inactiveopacity;
+	#endif // PATCH_CLIENT_OPACITY
 	#if PATCH_MOUSE_POINTER_HIDING
 	int cursorautohide; 	// autohide the cursor when stationary;
 	int cursorhideonkeys;	// autohide the cursor when keys are released;
@@ -1282,7 +1290,7 @@ static Client *nexttaggedafter(Client *c, unsigned int tags);
 #endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 static Client *nexttiled(Client *c);
 #if PATCH_CLIENT_OPACITY
-static void opacity(Client *c, double opacity);
+static void opacity(Client *c, int focused);
 #endif // PATCH_CLIENT_OPACITY
 static int parselayoutjson(cJSON *layout);
 static int parserulesjson(cJSON *json);
@@ -1350,6 +1358,9 @@ static void set_alarm(XSyncAlarm *alarm, XSyncTestType test);
 #if PATCH_FLAG_ALWAYSONTOP
 static void setalwaysontop(Client *c, int alwaysontop);
 #endif // PATCH_FLAG_ALWAYSONTOP
+#if PATCH_CFACTS
+static void setcfact(const Arg *arg);
+#endif // PATCH_CFACTS
 static void setclientstate(Client *c, long state);
 #if PATCH_PERSISTENT_METADATA
 static void setclienttagprop(Client *c);
@@ -1367,13 +1378,13 @@ static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setlayoutmouse(const Arg *arg);
 static void setlayoutreplace(const Arg *arg);
+static void setmfact(const Arg *arg);
 #if PATCH_EWMH_TAGS
 static void setnumdesktops(void);
 #endif // PATCH_EWMH_TAGS
-#if PATCH_CFACTS
-static void setcfact(const Arg *arg);
-#endif // PATCH_CFACTS
-static void setmfact(const Arg *arg);
+#if PATCH_CLIENT_OPACITY
+static void setopacity(Client *c, double opacity);
+#endif // PATCH_CLIENT_OPACITY
 #if PATCH_FLAG_STICKY
 static void setsticky(Client *c, int sticky);
 #endif // PATCH_FLAG_STICKY
@@ -2369,17 +2380,21 @@ applyrules(Client *c, int deferred)
 			#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 
 			#if PATCH_CLIENT_OPACITY
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-active")) && cJSON_IsNumeric(r_node)) c->opacity = r_node->valuedouble;
-			if (c->opacity <= 0 || c->opacity > 1.0f) {
-				logdatetime(stderr);
-				fprintf(stderr, "dwm: warning: set-opacity-active value must be greater than 0 and less than or equal to 1.\n");
-				c->opacity = 1;
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-active")) && cJSON_IsNumeric(r_node)) {
+				c->opacity = r_node->valuedouble;
+				if (c->opacity <= 0 || c->opacity > 1.0f) {
+					logdatetime(stderr);
+					fprintf(stderr, "dwm: warning: set-opacity-active value must be greater than 0 and less than or equal to 1.\n");
+					c->opacity = -1;
+				}
 			}
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-inactive")) && cJSON_IsNumeric(r_node)) c->unfocusopacity = r_node->valuedouble;
-			if (c->unfocusopacity <= 0 || c->unfocusopacity > 1.0f) {
-				logdatetime(stderr);
-				fprintf(stderr, "dwm: warning: set-opacity-inactive value must be greater than 0 and less than or equal to 1.\n");
-				c->unfocusopacity = 1;
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-inactive")) && cJSON_IsNumeric(r_node)) {
+				c->unfocusopacity = r_node->valuedouble;
+				if (c->unfocusopacity <= 0 || c->unfocusopacity > 1.0f) {
+					logdatetime(stderr);
+					fprintf(stderr, "dwm: warning: set-opacity-inactive value must be greater than 0 and less than or equal to 1.\n");
+					c->unfocusopacity = -1;
+				}
 			}
 			#endif // PATCH_CLIENT_OPACITY
 
@@ -2413,17 +2428,21 @@ applyrules(Client *c, int deferred)
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-terminal")) && json_isboolean(r_node)) c->isterminal = r_node->valueint;
 			#endif // PATCH_TERMINAL_SWALLOWING
 			#if PATCH_MOUSE_POINTER_WARPING
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dx")) && cJSON_IsNumber(r_node)) c->focusdx = r_node->valuedouble;
-			if (c->focusdx <= 0 || c->focusdx > 2) {
-				logdatetime(stderr);
-				fprintf(stderr, "dwm: warning: focus-origin-dx value must be greater than 0 and less than 2.\n");
-				c->focusdx = 1;
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dx")) && cJSON_IsNumber(r_node)) {
+				c->focusdx = r_node->valuedouble;
+				if (c->focusdx <= 0 || c->focusdx > 2) {
+					logdatetime(stderr);
+					fprintf(stderr, "dwm: warning: focus-origin-dx value must be greater than 0 and less than 2.\n");
+					c->focusdx = 1;
+				}
 			}
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dy")) && cJSON_IsNumber(r_node)) c->focusdy = r_node->valuedouble;
-			if (c->focusdy <= 0 || c->focusdy > 2) {
-				logdatetime(stderr);
-				fprintf(stderr, "dwm: warning: focus-origin-dy value must be greater than 0 and less than 2.\n");
-				c->focusdy = 1;
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dy")) && cJSON_IsNumber(r_node)) {
+				c->focusdy = r_node->valuedouble;
+				if (c->focusdy <= 0 || c->focusdy > 2) {
+					logdatetime(stderr);
+					fprintf(stderr, "dwm: warning: focus-origin-dy value must be greater than 0 and less than 2.\n");
+					c->focusdy = 1;
+				}
 			}
 			#endif // PATCH_MOUSE_POINTER_WARPING
 			#if PATCH_ATTACH_BELOW_AND_NEWMASTER
@@ -2768,18 +2787,10 @@ arrange(Monitor *m)
 		arrangemon(m);
 		restack(m);
 		showhide(m->stack, 0);
-		#if PATCH_CLIENT_OPACITY
-		if (m->sel && m->sel != selmon->sel)
-			opacity(m->sel, m->sel->opacity);
-		#endif // PATCH_CLIENT_OPACITY
 	} else for (m = mons; m; m = m->next) {
 		arrangemon(m);
 		restack(m);
 		showhide(m->stack, 0);
-		#if PATCH_CLIENT_OPACITY
-		if (m->sel && m->sel != selmon->sel)
-			opacity(m->sel, m->sel->opacity);
-		#endif // PATCH_CLIENT_OPACITY
 	}
 }
 
@@ -3165,10 +3176,12 @@ changefocusopacity(const Arg *arg)
 {
 	if (!selmon->sel)
 		return;
+	if (selmon->sel->opacity < 0)
+		selmon->sel->opacity = selmon->activeopacity;
 	selmon->sel->opacity+=arg->f;
 	if (selmon->sel->opacity > 1.0) selmon->sel->opacity = 1.0;
 	if (selmon->sel->opacity < 0.1) selmon->sel->opacity = 0.1;
-	opacity(selmon->sel, selmon->sel->opacity);
+	opacity(selmon->sel, 1);
 }
 
 void
@@ -3176,10 +3189,12 @@ changeunfocusopacity(const Arg *arg)
 {
 	if (!selmon->sel)
 		return;
+	if (selmon->sel->unfocusopacity < 0)
+		selmon->sel->unfocusopacity = selmon->inactiveopacity;
 	selmon->sel->unfocusopacity+=arg->f;
 	if (selmon->sel->unfocusopacity > 1.0) selmon->sel->unfocusopacity = 1.0;
 	if (selmon->sel->unfocusopacity < 0.1) selmon->sel->unfocusopacity = 0.1;
-	opacity(selmon->sel, selmon->sel->unfocusopacity);
+	opacity(selmon->sel, 0);
 }
 #endif // PATCH_CLIENT_OPACITY
 
@@ -3845,6 +3860,10 @@ createmon(void)
 	m->showdesktop = 0;
 	#endif // PATCH_SHOW_DESKTOP
 	m->title_align = title_align;
+	#if PATCH_CLIENT_OPACITY
+	m->activeopacity = activeopacity;
+	m->inactiveopacity = inactiveopacity;
+	#endif // PATCH_CLIENT_OPACITY
 	#if PATCH_MOUSE_POINTER_HIDING
 	m->cursorautohide = cursorautohide;
 	m->cursorhideonkeys = cursorhideonkeys;
@@ -3965,6 +3984,10 @@ createmon(void)
 			#if PATCH_ALT_TAGS
 			m->alttagsquiet = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-quiet-alt-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->alttagsquiet;
 			#endif // PATCH_ALT_TAGS
+			#if PATCH_CLIENT_OPACITY
+			m->activeopacity = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-opacity-active")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->activeopacity;
+			m->inactiveopacity = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-opacity-inactive")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->inactiveopacity;
+			#endif // PATCH_CLIENT_OPACITY
 			m->isdefault = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-default")) && json_isboolean(l_node)) ? l_node->valueint : m->isdefault;
 			#if PATCH_VANITY_GAPS
 			m->enablegaps = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-enable-gaps")) && json_isboolean(l_node)) ? l_node->valueint : m->enablegaps;
@@ -5495,7 +5518,7 @@ enternotify(XEvent *e)
 		focusmonex(m);
 		if (m->sel && m->sel != c) {
 			#if PATCH_CLIENT_OPACITY
-			opacity(m->sel, m->sel->unfocusopacity);
+			opacity(m->sel, 0);
 			#endif // PATCH_CLIENT_OPACITY
 			m->sel = NULL;
 		}
@@ -5726,8 +5749,7 @@ focus(Client *c, int force)
 		#endif // PATCH_ALTTAB
 		setfocus(c);
 		#if PATCH_CLIENT_OPACITY
-		c->opacity = MIN(1.0, MAX(0, c->opacity));
-		opacity(c, c->opacity);
+		opacity(c, 1);
 		#endif // PATCH_CLIENT_OPACITY
 	} else {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
@@ -5817,7 +5839,7 @@ focusmonex(Monitor *m)
 	selmon = m;
 	#if PATCH_CLIENT_OPACITY
 	if (s->sel)
-		opacity(s->sel, s->sel->opacity);
+		opacity(s->sel, 1);
 	#endif // PATCH_CLIENT_OPACITY
 	drawbar(s, 0);
 	drawbar(m, 0);
@@ -7305,7 +7327,7 @@ highlight(Client *c)
 	// unhighlight previous;
 	if (h && h != c) {
 		#if PATCH_CLIENT_OPACITY
-		opacity(h, h->unfocusopacity);
+		opacity(h, 0);
 		#endif // PATCH_CLIENT_OPACITY
 		XSetWindowBorder(dpy, h->win, scheme[SchemeNorm][ColBorder].pixel);
 		if (h->isfullscreen
@@ -9103,9 +9125,7 @@ DEBUGENDIF
 
 	#if PATCH_CLIENT_OPACITY
 	if (c->mon->sel != c)
-		opacity(c, c->unfocusopacity);
-//	else if (selmon != c->mon)
-//		opacity(c, c->opacity);
+		opacity(c, 0);
 	#endif // PATCH_CLIENT_OPACITY
 
 	#if PATCH_FLAG_PANEL
@@ -9816,23 +9836,21 @@ nexttaggedafter(Client *c, unsigned int tags) {
 
 #if PATCH_CLIENT_OPACITY
 void
-opacity(Client *c, double opacity)
+opacity(Client *c, int focused)
 {
-	if(opacityenabled && opacity > 0 && opacity < 1
-		#if PATCH_FLAG_PANEL
-		&& !c->ispanel
-		#endif // PATCH_FLAG_PANEL
-		#if PATCH_SHOW_DESKTOP
-		&& !c->isdesktop
-		#endif // PATCH_SHOW_DESKTOP
-	) {
-		unsigned long real_opacity[] = { opacity * 0xffffffff };
-		XChangeProperty(
-			dpy, c->win, netatom[NetWMWindowsOpacity], XA_CARDINAL,
-			32, PropModeReplace, (unsigned char *)real_opacity, 1
-		);
-	} else
-		XDeleteProperty(dpy, c->win, netatom[NetWMWindowsOpacity]);
+	setopacity(c, focused ?
+		(c->opacity < 0 ? c->mon->activeopacity : c->opacity) :
+		(c->unfocusopacity < 0 ? c->mon->inactiveopacity : c->unfocusopacity)
+	);
+	#if PATCH_MODAL_SUPPORT
+	if (ismodalparent(c) || c->ismodal)
+		for (Client *s = c->mon->stack; s; s = s->snext)
+			if (s->ultparent == c->ultparent)
+				setopacity(s, focused ?
+					(s->opacity < 0 ? s->mon->activeopacity : s->opacity) :
+					(s->unfocusopacity < 0 ? s->mon->inactiveopacity : s->unfocusopacity)
+				);
+	#endif // PATCH_MODAL_SUPPORT
 }
 #endif // PATCH_CLIENT_OPACITY
 
@@ -11808,6 +11826,28 @@ resizeclient(Client *c, int x, int y, int w, int h, int save_old)
 	}
 }
 
+#if PATCH_CLIENT_OPACITY
+void
+setopacity(Client *c, double opacity)
+{
+	if (opacityenabled && opacity > 0 && opacity < 1
+		#if PATCH_FLAG_PANEL
+		&& !c->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		&& !c->isdesktop
+		#endif // PATCH_SHOW_DESKTOP
+	) {
+		unsigned long real_opacity[] = { opacity * 0xffffffff };
+		XChangeProperty(
+			dpy, c->win, netatom[NetWMWindowsOpacity], XA_CARDINAL,
+			32, PropModeReplace, (unsigned char *)real_opacity, 1
+		);
+	} else
+		XDeleteProperty(dpy, c->win, netatom[NetWMWindowsOpacity]);
+}
+#endif // PATCH_CLIENT_OPACITY
+
 void
 snapchildclients(Client *p, int quiet)
 {
@@ -13420,8 +13460,8 @@ setdefaultvalues(Client *c)
 	c->ismodal_override = -1;
 	#endif // PATCH_MODAL_SUPPORT
 	#if PATCH_CLIENT_OPACITY
-	c->opacity = activeopacity;
-	c->unfocusopacity = inactiveopacity;
+	c->opacity = -1;
+	c->unfocusopacity = -1;
 	#endif // PATCH_CLIENT_OPACITY
 	#if PATCH_FLAG_NEVER_FOCUS
 	c->neverfocus_override = -1;
@@ -14224,6 +14264,11 @@ showhide(Client *c, int client_only)
 			c->h = c->mon->wh;
 		}
 		#endif // PATCH_SHOW_DESKTOP
+
+		#if PATCH_CLIENT_OPACITY
+		opacity(c, (c->mon->sel == c));
+		#endif // PATCH_CLIENT_OPACITY
+
 		#if PATCH_FLAG_GAME
 		if (c->isgame && c->isfullscreen) {
 			XWindowAttributes wa;
@@ -16054,8 +16099,7 @@ unfocus(Client *c, int setfocus)
 
 	grabbuttons(c, 0);
 	#if PATCH_CLIENT_OPACITY
-	c->unfocusopacity = MIN(1.0, MAX(0, c->unfocusopacity));
-	opacity(c, c->unfocusopacity);
+	opacity(c, 0);
 	#endif // PATCH_CLIENT_OPACITY
 
 	//if (!solitary(c))
@@ -16112,7 +16156,7 @@ unmanage(Client *c, int destroyed, int cleanup)
 	DEBUG("debug: unmanage(\"%s\", destroyed=%i, cleanup=%i)\n", c->name, destroyed, cleanup);
 
 	#if PATCH_CLIENT_OPACITY
-	opacity(c, 0);
+	setopacity(c, 0);
 	#endif // PATCH_CLIENT_OPACITY
 
 	XWindowChanges wc;
