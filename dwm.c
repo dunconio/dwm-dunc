@@ -9856,10 +9856,13 @@ nexttaggedafter(Client *c, unsigned int tags) {
 void
 opacity(Client *c, int focused)
 {
-	setopacity(c, focused ?
-		(c->opacity < 0 ? c->mon->activeopacity : c->opacity) :
-		(c->unfocusopacity < 0 ? c->mon->inactiveopacity : c->unfocusopacity)
-	);
+	if (c->isfullscreen)
+		setopacity(c, 0);
+	else
+		setopacity(c, focused ?
+			(c->opacity < 0 ? c->mon->activeopacity : c->opacity) :
+			(c->unfocusopacity < 0 ? c->mon->inactiveopacity : c->unfocusopacity)
+		);
 	#if PATCH_MODAL_SUPPORT
 	if (ismodalparent(c) || c->ismodal)
 		for (Client *s = c->mon->stack; s; s = s->snext)
@@ -13636,6 +13639,11 @@ setfullscreen(Client *c, int fullscreen)
 	}
 
 	c->isfullscreen = fullscreen;
+
+	#if PATCH_CLIENT_OPACITY
+	if (c->isfullscreen)
+		setopacity(c, 0);
+	#endif // PATCH_CLIENT_OPACITY
 
 	/* Some clients, e.g. firefox, will send a client message informing the window manager
 	 * that it is going into fullscreen after receiving the above signal. This has the side
