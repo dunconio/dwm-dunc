@@ -10,10 +10,6 @@
 #define PATCH_CLIENT_OPACITY				1
 #define PATCH_CONSTRAIN_MOUSE				1	// Toggle constraining mouse pointer within monitor bounds
 #define PATCH_DRAG_FACTS					1
-#define PATCH_SHOW_DESKTOP					1
-#define PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE	1	// Only enable show desktop while a desktop client is available;
-#define PATCH_SHOW_DESKTOP_UNMANAGED		1	// Don't manage desktop clients;
-#define PATCH_SHOW_DESKTOP_WITH_FLOATING	1	// Allow floating clients to be visible while the desktop is;
 #define PATCH_EWMH_TAGS						0	// Supports reporting workspace(tag) changes
 #define PATCH_EXTERNAL_WINDOW_ACTIVATION	1	// Behaves like spawn except will allow focus stealing for the life of the spawnee
 #define PATCH_FOCUS_BORDER					0
@@ -33,6 +29,10 @@
 #define PATCH_PERSISTENT_METADATA			1	// Store client metadata, restore metadata after a restart
 #define PATCH_PERTAG						1
 #define PATCH_SCAN_OVERRIDE_REDIRECTS		0	// Not usually necessary - only picks up windows during scan();
+#define PATCH_SHOW_DESKTOP					1
+#define PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE	1	// Only enable show desktop while a desktop client is available;
+#define PATCH_SHOW_DESKTOP_UNMANAGED		1	// Don't manage desktop clients;
+#define PATCH_SHOW_DESKTOP_WITH_FLOATING	1	// Allow floating clients to be visible while the desktop is;
 #define PATCH_SHOW_MASTER_CLIENT_ON_TAG		1
 #define PATCH_STATUSCMD						0
 #define PATCH_SWITCH_TAG_ON_EMPTY			1	// Enables tag switch if there are no visible clients;

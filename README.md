@@ -14,6 +14,7 @@ This custom fork is based on dwm 6.5.
 ### Key Changes from stock dwm:
 * The core Rule array is replaced by run-time rule processing logic, reading from a json file;
 * Global settings and per-monitor/tag parameters can be read from a second json file;
+* Reworked the bar to enable a custom bar layout, and adjustable title text alignment;
 
 ### Baked-in Patches
 The following functionality is based on specific named patches:
@@ -51,9 +52,6 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_CLIENT_OPACITY` | Define opacity levels (between 0 and 1) for focused and unfocused clients; |
 | `PATCH_CONSTRAIN_MOUSE` | Add a toggle to constrain the mouse pointer to the current monitor; |
 | `PATCH_DRAG_FACTS` | Resize master area size and tiled clients with the mouse; |
-| `PATCH_SHOW_DESKTOP` | Add support for showing the desktop; |
-| <ul>`PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE`</ul> | Support only showing the desktop when a desktop client exists; |
-| <ul>`PATCH_SHOW_DESKTOP_WITH_FLOATING`</ul> | Allow visible floating clients to remain visible while the desktop is shown; |
 | `PATCH_EWMH_TAGS` | Supports reporting workspace(tag) changes; |
 | `PATCH_EXTERNAL_WINDOW_ACTIVATION` | Behaves like spawn except will allow focus stealing for the life of the spawnee; |
 | `PATCH_FOCUS_BORDER` | Enlarge the top border edge of focused clients;<br />(mutually exclusive with `PATCH_FOCUS_PIXEL`) |
@@ -73,6 +71,10 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_PERSISTENT_METADATA` | Store client metadata, restore metadata after a restart; |
 | `PATCH_PERTAG` | Per-tag monitor settings; |
 | `PATCH_SCAN_OVERRIDE_REDIRECTS` | Picks up `override_redirect` windows during `scan()` for diagnostic use; |
+| `PATCH_SHOW_DESKTOP` | Add support for showing the desktop; |
+| <ul>`PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE`</ul> | Support only showing the desktop when a desktop client exists; |
+| <ul>`PATCH_SHOW_DESKTOP_UNMANAGED`</ul> | Support an unmanaged desktop that will typically span the entire screen space; |
+| <ul>`PATCH_SHOW_DESKTOP_WITH_FLOATING`</ul> | Allow visible floating clients to remain visible while the desktop is shown; |
 | `PATCH_SHOW_MASTER_CLIENT_ON_TAG` | Shows the first `master` client on each tag on the bar; |
 | `PATCH_STATUSCMD` | Supports using `dwmblocks` or similar to manage the status bar content; |
 | `PATCH_SWITCH_TAG_ON_EMPTY` | Enables tag switch if there are no visible clients; |
