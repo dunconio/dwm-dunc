@@ -459,6 +459,9 @@ static const Key keys[] = {
 	{ MODKEY,		           XK_KP_Page_Down,movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN } },
 	{ MODKEY|ShiftMask,        XK_KP_Page_Down,movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER } },
 #endif // PATCH_MOVE_FLOATING_WINDOWS
+#if PATCH_PAUSE_PROCESS
+	{ MODKEY,                       XK_Pause,  togglepause,    {0} },
+#endif // PATCH_PAUSE_PROCESS
 #if PATCH_FLAG_STICKY
 	{ MODKEY,                       XK_s,      togglesticky,   {0} },
 #endif // PATCH_FLAG_STICKY

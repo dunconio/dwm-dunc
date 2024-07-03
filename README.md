@@ -69,6 +69,7 @@ These can be enabled/disabled by editing `patches.h`
 | <ul>`PATCH_MOUSE_POINTER_WARPING_SMOOTH`</ul> | Use a fluid warping movement rather than instantaneous warping; |
 | `PATCH_MOVE_FLOATING_WINDOWS` | Move floating clients with the keyboard; |
 | `PATCH_MOVE_TILED_WINDOWS` | Move tiled clients up and down the order with the keyboard; |
+| `PATCH_PAUSE_PROCESS` | Pause/unpause client processes (doesn't necessarily affect any child processes); |
 | `PATCH_PERSISTENT_METADATA` | Store client metadata, restore metadata after a restart; |
 | `PATCH_PERTAG` | Per-tag monitor settings; |
 | `PATCH_SCAN_OVERRIDE_REDIRECTS` | Picks up `override_redirect` windows during `scan()` for diagnostic use; |

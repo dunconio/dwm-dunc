@@ -794,6 +794,9 @@ struct Client {
 	double opacity;
 	double unfocusopacity;
 	#endif // PATCH_CLIENT_OPACITY
+	#if PATCH_PAUSE_PROCESS
+	int paused;
+	#endif // PATCH_PAUSE_PROCESS
 	int neverfocus;
 	#if PATCH_FLAG_NEVER_FOCUS
 	int neverfocus_override;
@@ -1464,6 +1467,9 @@ static void toggleisgame(const Arg *arg);
 #if PATCH_MIRROR_LAYOUT
 static void togglemirror(const Arg *arg);
 #endif // PATCH_MIRROR_LAYOUT
+#if PATCH_PAUSE_PROCESS
+static void togglepause(const Arg *arg);
+#endif // PATCH_PAUSE_PROCESS
 #if PATCH_FLAG_STICKY
 static void togglesticky(const Arg *arg);
 #endif // PATCH_FLAG_STICKY
@@ -6011,12 +6017,18 @@ focusstack(const Arg *arg)
 					if (s->pauseinvisible == 1) {
 						kill (s->pid, SIGSTOP);
 						s->pauseinvisible = -1;
+						#if PATCH_PAUSE_PROCESS
+						s->paused = 1;
+						#endif // PATCH_PAUSE_PROCESS
 						DEBUG("client stopped: \"%s\".\n", s->name);
 					}
 				}
 				else if (s->pauseinvisible == -1) {
 					kill (s->pid, SIGCONT);
 					s->pauseinvisible = 1;
+					#if PATCH_PAUSE_PROCESS
+					s->paused = 0;
+					#endif // PATCH_PAUSE_PROCESS
 					DEBUG("client continued: \"%s\".\n", s->name);
 				}
 			}
@@ -7579,6 +7591,9 @@ killclient(const Arg *arg)
 	if (selmon->sel->pauseinvisible == -1 && selmon->sel->pid) {
 		kill (selmon->sel->pid, SIGCONT);
 		selmon->sel->pauseinvisible = 1;
+		#if PATCH_PAUSE_PROCESS
+		selmon->sel->paused = 0;
+		#endif // PATCH_PAUSE_PROCESS
 		DEBUG("client continued: \"%s\".\n", selmon->sel->name);
 	}
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
@@ -7674,6 +7689,9 @@ killgroup(const Arg *arg)
 			if (c->pauseinvisible == -1 && c->pid) {
 				kill (c->pid, SIGCONT);
 				c->pauseinvisible = 1;
+				#if PATCH_PAUSE_PROCESS
+				c->paused = 0;
+				#endif // PATCH_PAUSE_PROCESS
 				DEBUG("client continued: \"%s\".\n", c->name);
 			}
 			#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
@@ -12402,12 +12420,18 @@ restack(Monitor *m)
 					if (c->pauseinvisible == -1) {
 						kill (c->pid, SIGCONT);
 						c->pauseinvisible = 1;
+						#if PATCH_PAUSE_PROCESS
+						c->paused = 0;
+						#endif // PATCH_PAUSE_PROCESS
 						DEBUG("client continued: \"%s\".\n", c->name);
 					}
 				}
 				else if (c->pauseinvisible == 1) {
 					kill (c->pid, SIGSTOP);
 					c->pauseinvisible = -1;
+					#if PATCH_PAUSE_PROCESS
+					c->paused = 1;
+					#endif // PATCH_PAUSE_PROCESS
 					DEBUG("client stopped: \"%s\".\n", c->name);
 				}
 			}
@@ -13425,6 +13449,9 @@ setdefaultvalues(Client *c)
 	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 	c->newmaster = 0;
 	#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+	#if PATCH_PAUSE_PROCESS
+	c->paused = 0;
+	#endif // PATCH_PAUSE_PROCESS
 	c->isurgent = 0;
 	#if PATCH_FLAG_IGNORED
 	c->isignored = 0;
@@ -13506,6 +13533,9 @@ setfocus(Client *c)
 	if (c->pauseinvisible == -1 && c->pid) {
 		kill (c->pid, SIGCONT);
 		c->pauseinvisible = 1;
+		#if PATCH_PAUSE_PROCESS
+		c->paused = 0;
+		#endif // PATCH_PAUSE_PROCESS
 		DEBUG("client continued: \"%s\".\n", c->name);
 	}
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
@@ -15922,6 +15952,22 @@ togglemirror(const Arg *arg)
 }
 #endif // PATCH_MIRROR_LAYOUT
 
+#if PATCH_PAUSE_PROCESS
+void
+togglepause(const Arg *arg)
+{
+	Client *c;
+	if (!(c = selmon->sel) || !c->pid)
+		return;
+
+	c->paused ^= 1;
+	if (c->paused)
+		kill (c->pid, SIGSTOP);
+	else
+		kill (c->pid, SIGCONT);
+}
+#endif // PATCH_PAUSE_PROCESS
+
 #if PATCH_FLAG_STICKY
 void
 togglesticky(const Arg *arg)
@@ -16172,6 +16218,9 @@ unmanage(Client *c, int destroyed, int cleanup)
 	if (c->pauseinvisible == -1 && c->pid) {
 		kill (c->pid, SIGCONT);
 		c->pauseinvisible = 1;
+		#if PATCH_PAUSE_PROCESS
+		c->paused = 0;
+		#endif // PATCH_PAUSE_PROCESS
 	}
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
 

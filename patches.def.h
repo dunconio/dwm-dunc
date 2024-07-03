@@ -29,6 +29,7 @@
 #define PATCH_MOUSE_POINTER_WARPING_SMOOTH	1	// enable smooth warping in some instances;
 #define PATCH_MOVE_FLOATING_WINDOWS			1
 #define PATCH_MOVE_TILED_WINDOWS			1
+#define PATCH_PAUSE_PROCESS					1
 #define PATCH_PERSISTENT_METADATA			1	// Store client metadata, restore metadata after a restart
 #define PATCH_PERTAG						1
 #define PATCH_SCAN_OVERRIDE_REDIRECTS		0	// Not usually necessary - only picks up windows during scan();
