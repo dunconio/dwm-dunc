@@ -466,15 +466,18 @@ static const supported_rules_json supported_rules[] = {
 #endif // PATCH_MOUSE_POINTER_WARPING
 
 #if PATCH_ALTTAB
+	#define ALTTAB_SELMON_MASK		((1 << 8)-1)
 	/* alt-tab styles */
-	#define ALTTAB_NORMAL			(1 << 0)
-	#define ALTTAB_REVERSE			(1 << 1)
-	#define ALTTAB_SAME_CLASS		(1 << 2)
-	#define ALTTAB_ALL_TAGS			(1 << 3)
-	#define ALTTAB_ALL_MONITORS		(1 << 4)
-	#define ALTTAB_MOUSE            (1 << 7)
-	#define ALTTAB_BOTTOMBAR		(1 << 1)
-	#define ALTTAB_HIDDEN			(1 << 8)
+	#define ALTTAB_NORMAL			(1 << 8)
+	#define ALTTAB_REVERSE			(1 << 9)
+	#define ALTTAB_SAME_CLASS		(1 << 10)
+	#define ALTTAB_ALL_TAGS			(1 << 11)
+	#define ALTTAB_ALL_MONITORS		(1 << 12)
+	#define ALTTAB_MOUSE            (1 << 13)
+	#define ALTTAB_BOTTOMBAR		(1 << 9)
+#if PATCH_FLAG_HIDDEN
+	#define ALTTAB_HIDDEN			(1 << 14)
+#endif // PATCH_FLAG_HIDDEN
 #endif // PATCH_ALTTAB
 
 #if PATCH_MOVE_FLOATING_WINDOWS
@@ -14314,7 +14317,14 @@ showhide(Client *c, int client_only)
 		#endif // PATCH_SHOW_DESKTOP
 
 		#if PATCH_CLIENT_OPACITY
-		opacity(c, (c->mon->sel == c));
+		opacity(c, (
+			c->mon->sel == c
+			#if PATCH_ALTTAB
+			#if PATCH_ALTTAB_HIGHLIGHT
+			&& (!altTabMon || !altTabMon->isAlt || !altTabMon->highlight)
+			#endif // PATCH_ALTTAB_HIGHLIGHT
+			#endif // PATCH_ALTTAB
+		));
 		#endif // PATCH_CLIENT_OPACITY
 
 		#if PATCH_FLAG_GAME
@@ -14724,7 +14734,10 @@ altTab(int direction, int first)
 	highlight(next);
 
 	#if PATCH_ALTTAB_HIGHLIGHT
-	if (!(altTabMon->isAlt & ALTTAB_MOUSE) && tabHighlight) {
+	if (!(altTabMon->isAlt & ALTTAB_MOUSE) &&
+		(altTabMon->isAlt & ALTTAB_SELMON_MASK) &&
+		tabHighlight
+	) {
 		#if PATCH_MOUSE_POINTER_WARPING
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		warptoclient(next, (!first || altTabMon->sel != next) ? 1 : 0, 1);
@@ -15166,24 +15179,36 @@ altTabStart(const Arg *arg)
 	if (running != 1)
 		return;
 
+	Monitor *selm = selmon, *m = selmon;
+	Client *c, *s = NULL;
+	unsigned int mon_mask = (arg->ui & ALTTAB_SELMON_MASK);
+	if (mon_mask != ALTTAB_SELMON_MASK) {
+		for (m = mons; m; m = m->next)
+			if (m->num == mon_mask)
+				break;
+		if (!m)
+			m = selmon;
+	}
+
 	#if PATCH_MOUSE_POINTER_HIDING
 	showcursor();
 	#endif // PATCH_MOUSE_POINTER_HIDING
 
-	selmon->altsnext = NULL;
-	if (selmon->tabwin)
+	m->altsnext = NULL;
+	if (m->tabwin)
 		altTabEnd();
 
-	if (selmon->isAlt) {
+	if (m->isAlt) {
 		altTabEnd();
 	} else {
 
 		// Can't traverse similar class clients, without a starting selection;
-		if ((arg->ui & ALTTAB_SAME_CLASS) && !selmon->sel)
+		if ((arg->ui & ALTTAB_SAME_CLASS) && !m->sel)
 			return;
 
-		altTabMon = selmon;
-		altTabMon->isAlt = arg->ui;
+		altTabMon = m;
+		mon_mask = (altTabMon == selm ? 1 : 0);
+		altTabMon->isAlt = (mon_mask ? (arg->ui | ALTTAB_SELMON_MASK) : (arg->ui & ~ALTTAB_SELMON_MASK));
 		if (altTabMon->isAlt & ALTTAB_ALL_MONITORS) {
 			#if PATCH_CONSTRAIN_MOUSE && PATCH_FOCUS_FOLLOWS_MOUSE
 			if (constrained)
@@ -15212,8 +15237,7 @@ altTabStart(const Arg *arg)
 			px = 0;
 		#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 
-		Client *c, *s = NULL;
-		Monitor *m = NULL;
+		//m = NULL;
 		#if PATCH_FLAG_HIDDEN
 		unsigned int hidden = 0;
 		#endif // PATCH_FLAG_HIDDEN
@@ -15394,13 +15418,13 @@ altTabStart(const Arg *arg)
 				#endif // PATCH_SHOW_DESKTOP
 
 				#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-				if (focuswin && selmon->sel)
+				if (focuswin && (altTabMon->isAlt & ALTTAB_SELMON_MASK) && selmon->sel)
 					drawfocusborder(1);
 				#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
 				#if PATCH_ALTTAB_HIGHLIGHT
 				if (tabHighlight)
-					altTabMon->highlight = selmon->sel;
+					altTabMon->highlight = altTabMon->sel;
 				#endif // PATCH_ALTTAB_HIGHLIGHT
 				altTab(direction, 1);
 
@@ -15542,7 +15566,8 @@ altTabStart(const Arg *arg)
 
 				// if current client is fullscreen, check if we should un-fullscreen it
 				// before activating the newly selected client;
-				if (c
+				if (altTabMon->isAlt & ALTTAB_SELMON_MASK
+					&& c
 					&& c->mon->sel
 					&& c->mon->sel != c
 					&& c->mon->sel->isfullscreen
@@ -15560,7 +15585,7 @@ altTabStart(const Arg *arg)
 					#if PATCH_FLAG_GAME
 					if (c->mon->sel->isgame) {
 						#if PATCH_FLAG_GAME_STRICT
-						unfocus(c->mon->sel, 1 | (c->mon != selmon ? (1 << 1) : 0));
+						unfocus(c->mon->sel, 1 | (c->mon != selm ? (1 << 1) : 0));
 						#else // NO PATCH_FLAG_GAME_STRICT
 						unfocus(c->mon->sel, 1);
 						#endif // PATCH_FLAG_GAME_STRICT
@@ -15572,16 +15597,17 @@ altTabStart(const Arg *arg)
 
 				if (altTabMon->isAlt & ALTTAB_MOUSE) {
 					if (c) {
-						selmon = c->mon;
+						if (altTabMon->isAlt & ALTTAB_SELMON_MASK)
+							selmon = c->mon;
 						if (!ISVISIBLE(c)
 							#if PATCH_SHOW_DESKTOP
 							&& !(c->isdesktop || c->ondesktop)
 							#endif // PATCH_SHOW_DESKTOP
 						)
-							viewmontag(selmon, c->tags, 1);
+							viewmontag(c->mon, c->tags, 0);
 					}
 					else
-						selmon = altTabMon;
+						selmon = selm;
 					selmon->altTabSelTags = 0;
 				}
 				else {
@@ -15600,12 +15626,12 @@ altTabStart(const Arg *arg)
 							restack(m);
 						m->altTabSelTags = 0;
 					}
-					selmon = (c ? c->mon : altTabMon);
+					selmon = (c && (altTabMon->isAlt & ALTTAB_SELMON_MASK) ? c->mon : selm);
 
 					#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 					// if the client to be selected is the same as before the alt-tab,
 					// then restore the mouse pointer to its starting position;
-					if (same && px)
+					if (same && px && (altTabMon->isAlt & ALTTAB_SELMON_MASK))
 						XWarpPointer(dpy, None, root, 0, 0, 0, 0, px, py);
 					#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 				}
@@ -15624,10 +15650,15 @@ altTabStart(const Arg *arg)
 						arrangemon(c->mon);
 					}
 					#endif // PATCH_FLAG_HIDDEN
-					focus(c, 1);
+					if (mon_mask)
+						focus(c, 1);
+					else {
+						c->mon->sel = c;
+						arrange(c->mon);
+					}
 				}
 				#if PATCH_MOUSE_POINTER_WARPING
-				if (!isAltMouse || !same)
+				if ((!isAltMouse || !same) && mon_mask)
 					#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 					warptoclient(c, smoothwarp, 0);
 					#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
@@ -15639,7 +15670,9 @@ altTabStart(const Arg *arg)
 		} else {
 			#if PATCH_FLAG_GAME
 			if (s && s->isgame && s->isfullscreen && MINIMIZED(s) && altTabMon->nTabs == 1
-			&& (altTabMon->isAlt & ALTTAB_MOUSE) && !(altTabMon->isAlt & (ALTTAB_ALL_MONITORS | ALTTAB_ALL_TAGS | ALTTAB_SAME_CLASS))) {
+				&& (altTabMon->isAlt & (ALTTAB_SELMON_MASK | ALTTAB_MOUSE))
+				&& !(altTabMon->isAlt & (ALTTAB_ALL_MONITORS | ALTTAB_ALL_TAGS | ALTTAB_SAME_CLASS))
+			) {
 				//unfocus(s, 1);
 				focus(s, 0);
 			}
