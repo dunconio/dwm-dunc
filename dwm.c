@@ -180,6 +180,7 @@ static const supported_json supported_layout_global[] = {
 	{ "monitors",					"array of monitor objects (see \"monitor sections\")" },
 	#if PATCH_SHOW_DESKTOP
 	{ "show-desktop",				"true to enable management of desktop clients, and toggle desktop" },
+	{ "show-desktop-symbol",		"symbol to show in place of layout when the desktop is visible" },
 	#if PATCH_SHOW_DESKTOP_UNMANAGED
 	{ "show-desktop-unmanaged",		"true to ignore NetWMWindowTypeDesktop windows (if the desktop manager expects to span all monitors)" },
 	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
@@ -3127,6 +3128,13 @@ buttonpress(XEvent *e)
 				break;
 
 			case LtSymbol:
+				#if PATCH_SHOW_DESKTOP
+				if (showdesktop && m->showdesktop) {
+					if (ev->button == 1)
+						toggledesktop(0);
+				}
+				else
+				#endif // PATCH_SHOW_DESKTOP
 				click = ClkLtSymbol;
 				break;
 
@@ -5088,22 +5096,19 @@ drawbar(Monitor *m, int skiptags)
 
 		if (m->lt[m->sellt]->arrange == monocle)
 		{
-			#if 0 //PATCH_SHOW_DESKTOP
-			if (showdesktop && m->showdesktop)
-				strncpy(m->ltsymbol, "[M] [?/?]", sizeof m->ltsymbol);
-			else
-			#endif // PATCH_SHOW_DESKTOP
-			//{
-				for (c = nexttiled(m->clients), a = 0, s = 0; c; c = nexttiled(c->next), a++)
-					if (c == m->stack)
-						s = a + 1;
-				if (!s && a)
-					s = 1;
-				snprintf(m->ltsymbol, sizeof m->ltsymbol, "[M] [%d/%d]", s, a);
-			//}
+			for (c = nexttiled(m->clients), a = 0, s = 0; c; c = nexttiled(c->next), a++)
+				if (c == m->stack)
+					s = a + 1;
+			if (!s && a)
+				s = 1;
+			snprintf(m->ltsymbol, sizeof m->ltsymbol, "[M] [%d/%d]", s, a);
 		}
-
-		w = TEXTW(m->ltsymbol);
+		w =
+			#if PATCH_SHOW_DESKTOP
+			showdesktop && m->showdesktop ? TEXTW(desktopsymbol) :
+			#endif // PATCH_SHOW_DESKTOP
+			TEXTW(m->ltsymbol)
+		;
 		m->bar[LtSymbol].x = x;
 		m->bar[LtSymbol].w = w;
 		drw_setscheme(drw, scheme[SchemeLayout]);
@@ -5112,13 +5117,13 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
+				#if PATCH_SHOW_DESKTOP
+				showdesktop && m->showdesktop ? desktopsymbol :
+				#endif // PATCH_SHOW_DESKTOP
 				m->ltsymbol, 0
 			);
-
-		m->bar[WinTitle].x = x;
 	}
-	else
-		m->bar[WinTitle].x = x = m->bar[TagBar].w + m->bar[LtSymbol].w;
+	m->bar[WinTitle].x = x = m->bar[TagBar].w + m->bar[LtSymbol].w;
 
 	if ((w = m->bar[StatusText].x - x - customwidth) > bh) {
 
@@ -5513,21 +5518,9 @@ enternotify(XEvent *e)
 	}
 	Monitor *m = c ? c->mon : wintomon(ev->window);
 	if (m && m != selmon) {
-		/*
-		#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
-		if (sel)
-			unfocus(sel, (c ? 0 : 1) | (sel->mon != m ? (1 << 1) : 0));
-		#else
-		unfocus(sel, c ? 0 : 1);
-		#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
-		*/
 		focusmonex(m);
-		if (m->sel && m->sel != c) {
-			#if PATCH_CLIENT_OPACITY
-			opacity(m->sel, 0);
-			#endif // PATCH_CLIENT_OPACITY
-			m->sel = NULL;
-		}
+		if (!c)
+			focus(NULL, 0);
 	}
 
 	if (ev->window == root)
@@ -5562,12 +5555,8 @@ enternotify(XEvent *e)
 	if (!wintoclient(ev->window)) {
 		Monitor *m = wintomon(ev->window);
 		if (m && m->sel && m->sel->isgame && m->sel->isfullscreen && MINIMIZED(m->sel)) {
-			if (selmon->sel)
-				#if PATCH_FLAG_GAME_STRICT
-				unfocus(selmon->sel, (m != selmon ? (1 << 1) : 0));
-				#else // NO PATCH_FLAG_GAME_STRICT
-				unfocus(selmon->sel, 0);
-				#endif // PATCH_FLAG_GAME_STRICT
+			if (m != selmon)
+				focusmonex(m);
 			focus(m->sel, 0);
 		}
 	}
@@ -5731,7 +5720,7 @@ focus(Client *c, int force)
 			&& (!showdesktop_floating || !c->isfloating || c->isdesktop || c->ondesktop)
 			#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
 		) {
-			c->mon->showdesktop = c->isdesktop;
+			c->mon->showdesktop = (c->isdesktop || c->ondesktop);
 			arrange(c->mon);
 		}
 		#endif // PATCH_SHOW_DESKTOP
@@ -5758,6 +5747,26 @@ focus(Client *c, int force)
 		opacity(c, 1);
 		#endif // PATCH_CLIENT_OPACITY
 	} else {
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+		if (showdesktop && showdesktop_when_active && !selmon->showdesktop) {
+			for (c = selmon->clients; c; c = c->next)
+				if (ISVISIBLEONTAG(c, c->mon->tagset[c->mon->seltags])
+					#if PATCH_FLAG_PANEL
+					&& !c->ishidden
+					#endif // PATCH_FLAG_PANEL
+					#if PATCH_FLAG_PANEL
+					&& !c->ispanel
+					#endif // PATCH_FLAG_PANEL
+					&& !c->isdesktop && !c->ondesktop)
+					break;
+			if (!c) {
+				toggledesktop(0);
+				return;
+			}
+		}
+		#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+		#endif // PATCH_SHOW_DESKTOP
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
 		XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
 	}
@@ -6300,10 +6309,10 @@ getfocusable(Monitor *m, Client *c, int force)
 
 	if (!c || (
 		#if PATCH_SHOW_DESKTOP
-		showdesktop ? (
+		showdesktop && !nonstop ? (
 			m->showdesktop ?
 				(!ISVISIBLEONTAG(c, c->mon->tagset[c->mon->seltags]) && !ISVISIBLE(c)) :
-				!ISVISIBLE(c) && !c->isdesktop
+				!ISVISIBLE(c) && !(c->isdesktop || c->ondesktop)
 		) :
 		#endif // PATCH_SHOW_DESKTOP
 		!ISVISIBLE(c)
@@ -9099,9 +9108,6 @@ DEBUGENDIF
 				c->mon->sel = c;
 
 				if (1
-					#if 0 //PATCH_SHOW_DESKTOP
-					&& (showdesktop && c->mon->showdesktop && !c->ondesktop)
-					#endif // PATCH_SHOW_DESKTOP
 					#if PATCH_FLAG_PANEL
 					&& !c->ultparent->ispanel
 					#endif // PATCH_FLAG_PANEL
@@ -9451,12 +9457,7 @@ motionnotify(XEvent *e)
 		return;
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	if ((m = recttomon(ev->x_root, ev->y_root, 1, 1)) != selmon && selmon) {
-		#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
-		unfocus(selmon->sel, 1 | (1 << 1));
-		#else
-		unfocus(selmon->sel, 1);
-		#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
-		selmon = m;
+		focusmonex(m);
 		focus(NULL, 0);
 	}
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
@@ -10162,6 +10163,13 @@ parselayoutjson(cJSON *layout)
 					continue;
 				}
 				cJSON_AddNumberToObject(unsupported, "\"show-desktop\" must contain a boolean value", 0);
+			}
+			else if (strcmp(L->string, "show-desktop-symbol")==0) {
+				if (cJSON_IsString(L)) {
+					desktopsymbol = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"show-desktop-symbol\" must contain a string value", 0);
 			}
 			#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 			else if (strcmp(L->string, "show-desktop-when-active")==0) {
@@ -13676,7 +13684,7 @@ setfullscreen(Client *c, int fullscreen)
 			raiseclient(c);
 			setfocus(c);
 			#endif // PATCH_FLAG_GAME
-			drawbar(c->mon, 0);
+			drawbar(c->mon, 1);
 		}
 	} else if (restorestate && (c->oldstate & (1 << 1))) {
  		c->bw = c->oldbw;
@@ -14778,6 +14786,7 @@ altTabEnd(void)
 		altTabMon->tabwin = None;
 	}
 	altTabMon = NULL;
+	drawbars();
 }
 
 void
@@ -16342,22 +16351,6 @@ unmanage(Client *c, int destroyed, int cleanup)
 		if (cc)
 		#endif // PATCH_SWITCH_TAG_ON_EMPTY
 		{
-			#if PATCH_SHOW_DESKTOP
-			#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-			if (showdesktop && showdesktop_when_active && !c->mon->showdesktop) {
-				Client *d;
-				for (d = c->mon->clients; d; d = d->next)
-					if (ISVISIBLEONTAG(d, c->mon->tagset[c->mon->seltags]) && !d->isdesktop && !d->ondesktop)
-						break;
-				if (!d) {
-					toggledesktop(0);
-					if (!wasfocused)
-						focus(NULL, 0);
-				}
-			}
-			#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-			#endif // PATCH_SHOW_DESKTOP
-
 			Client *sel;
 			if (wasfocused) {
 				if (!(sel = guessnextfocus(c, c->mon)))

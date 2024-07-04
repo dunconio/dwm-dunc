@@ -58,6 +58,7 @@ static Bool fakefullscreen_by_default = False;
 #endif // PATCH_FLAG_FAKEFULLSCREEN
 
 #if PATCH_SHOW_DESKTOP
+static char *desktopsymbol = "Desktop";			// replace the layout symbol when desktop is showing;
 static Bool showdesktop = True;
 #if PATCH_SHOW_DESKTOP_UNMANAGED
 static Bool showdesktop_unmanaged = True;
