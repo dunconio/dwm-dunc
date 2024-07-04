@@ -7347,9 +7347,6 @@ highlight(Client *c)
 	Client *h = altTabMon->highlight;
 	// unhighlight previous;
 	if (h && h != c) {
-		#if PATCH_CLIENT_OPACITY
-		opacity(h, 0);
-		#endif // PATCH_CLIENT_OPACITY
 		XSetWindowBorder(dpy, h->win, scheme[SchemeNorm][ColBorder].pixel);
 		if (h->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
@@ -7367,6 +7364,10 @@ highlight(Client *c)
 			}
 			#endif // PATCH_FLAG_GAME
 		}
+
+		#if PATCH_CLIENT_OPACITY
+		opacity(h, 0);
+		#endif // PATCH_CLIENT_OPACITY
 
 		if ((!c || c->mon != h->mon) && ISVISIBLE(h)) {
 			Monitor *m = h->mon;
@@ -7388,9 +7389,6 @@ highlight(Client *c)
 		#endif // PATCH_FLAG_HIDDEN
 		)
 	{
-		#if PATCH_CLIENT_OPACITY
-		opacity(c, 1);
-		#endif // PATCH_CLIENT_OPACITY
 		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 
 		if (!ISVISIBLE(c))
@@ -7405,6 +7403,10 @@ highlight(Client *c)
 			}
 		}
 		#endif // PATCH_SHOW_DESKTOP
+
+		#if PATCH_CLIENT_OPACITY
+		setopacity(c, 0);
+		#endif // PATCH_CLIENT_OPACITY
 
 		raisewin(altTabMon, altTabMon->tabwin, True);
 
