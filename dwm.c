@@ -8781,9 +8781,10 @@ manage(Window w, XWindowAttributes *wa)
 					longdata = *(data+10);
 					if (longdata) {
 						--longdata;
-						c->bw = longdata;
-						c->oldbw = c->bw;
+						c->oldbw = c->bw = longdata;
 					}
+					else
+						c->oldbw = c->bw = borderpx;
 				case 10:
 					longdata = *(data+9);
 					if (longdata) {
@@ -8839,6 +8840,7 @@ manage(Window w, XWindowAttributes *wa)
 		if (n > 0)
 			XFree(data);
 	}
+
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
 
@@ -13692,7 +13694,7 @@ setfullscreen(Client *c, int fullscreen)
 			drawbar(c->mon, 1);
 		}
 	} else if (restorestate && (c->oldstate & (1 << 1))) {
- 		c->bw = c->oldbw;
+		c->bw = c->oldbw;
 		c->isfloating = c->oldstate = c->oldstate & 1;
 		if (restorefakefullscreen || c->fakefullscreen == 3)
 			c->fakefullscreen = 1;
@@ -14679,6 +14681,7 @@ setclienttagpropex(Client *c, int index)
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
 		? c->oldbw : c->bw
 	);
+
 	long data[] = {
 		(long) index,	// placeholder for index within Window array;
 		(long) c->tags,

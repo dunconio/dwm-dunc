@@ -366,7 +366,7 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask|ControlMask, XK_a,      toggledebug,    {0} },
 	#endif // DEBUGGING
 	{ MODKEY|ShiftMask|ControlMask, XK_q,      quit,           {0} },
-	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_m,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-output.sh")},
+	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_m,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-audio.sh -r")},
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_l,    spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.quit; kill $(pidof dwm.running)")},
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Home, spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.restart; kill $(pidof dwm.running);")},
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_End,  spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.shutdown; kill $(pidof dwm.running);")},
