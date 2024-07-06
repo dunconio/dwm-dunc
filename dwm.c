@@ -167,6 +167,9 @@ static const supported_json supported_layout_global[] = {
 	{ "focus-pixel-size",			"width/height of box on focused client's bottom right corner, 0 to disable" },
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	{ "fonts",						"font string or array of font strings to use" },
+	#if PATCH_HIDE_VACANT_TAGS
+	{ "hide-vacant-tags",			"hide tags with no clients" },
+	#endif // PATCH_HIDE_VACANT_TAGS
 	#if PATCH_WINDOW_ICONS
 	{ "icon-size",					"size of window icons on the bar" },
 	#if PATCH_ALTTAB
@@ -227,6 +230,9 @@ static const supported_json supported_layout_mon[] = {
 	{ "set-gap-outer-h",		"horizontal outer gap between clients and the screen edges" },
 	{ "set-gap-outer-v",		"vertical outer gap between clients and the screen edges" },
 	#endif // PATCH_VANITY_GAPS
+	#if PATCH_HIDE_VACANT_TAGS
+	{ "set-hide-vacant-tags",	"hide tags with no clients on this monitor" },
+	#endif // PATCH_HIDE_VACANT_TAGS
 	#if PATCH_CLIENT_INDICATORS
 	{ "set-indicators-top",		"set to true to show client indicators on the top edge of the bar" },
 	#endif // PATCH_CLIENT_INDICATORS
@@ -696,9 +702,17 @@ enum {	NetSupported, NetWMName,
 enum {	Manager, Xembed, XembedInfo, XLast }; /* Xembed atoms */
 enum {	WMProtocols, WMDelete, WMState, WMTakeFocus, WMWindowRole, WMLast }; /* default atoms */
 enum {	ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
-		ClkClientWin, ClkClientBorder, ClkRootWin, ClkLast }; /* clicks */
+		ClkClientWin, ClkClientBorder, ClkRootWin,
+		#if PATCH_SHOW_DESKTOP_BUTTON
+		ClkShowDesktop,
+		#endif // PATCH_SHOW_DESKTOP_BUTTON
+		ClkLast }; /* clicks */
 
-enum {	StatusText, LtSymbol, TagBar, WinTitle };	// bar structural element type;
+enum {	StatusText, LtSymbol, TagBar, WinTitle
+		#if PATCH_SHOW_DESKTOP_BUTTON
+		,ShowDesktop
+		#endif // PATCH_SHOW_DESKTOP_BUTTON
+		};	// bar structural element type;
 typedef struct {
 	const char *name;
 	unsigned int type;
@@ -708,6 +722,9 @@ static const BarElementType BarElementTypes[] = {
 	{ "LtSymbol",	LtSymbol },
 	{ "WinTitle",	WinTitle },
 	{ "StatusText",	StatusText },
+	#if PATCH_SHOW_DESKTOP_BUTTON
+	{ "ShowDesktop",ShowDesktop },
+	#endif // PATCH_SHOW_DESKTOP_BUTTON
 };
 typedef struct BarElement BarElement;
 struct BarElement {
@@ -959,6 +976,9 @@ struct Monitor {
 	int altTabDesktop;
 	#endif // PATCH_ALTTAB
 	#endif // PATCH_SHOW_DESKTOP
+	#if PATCH_HIDE_VACANT_TAGS
+	int hidevacant;
+	#endif // PATCH_HIDE_VACANT_TAGS
 	#if PATCH_CLIENT_OPACITY
 	double activeopacity;
 	double inactiveopacity;
@@ -1142,6 +1162,7 @@ static Monitor *dirtomon(int dir);
 static void dragfact(const Arg *arg);
 #endif // PATCH_DRAG_FACTS
 static void drawbar(Monitor *m, int skiptags);
+static int drawbar_elementvisible(Monitor *m, unsigned int element_type);
 static void drawbars(void);
 #if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 static void drawfocusborder(int remove);
@@ -3119,7 +3140,7 @@ buttonpress(XEvent *e)
 				do {
 					#if PATCH_HIDE_VACANT_TAGS
 					// do not reserve space for vacant tags;
-					if (!(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
+					if (m->hidevacant && !(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
 						continue;
 					#endif // PATCH_HIDE_VACANT_TAGS
 					x += selmon->tagw[i];
@@ -3167,6 +3188,14 @@ buttonpress(XEvent *e)
 				}
 				#endif // PATCH_STATUSCMD
 				break;
+
+			#if PATCH_SHOW_DESKTOP
+			#if PATCH_SHOW_DESKTOP_BUTTON
+			case ShowDesktop:
+				click = ClkShowDesktop;
+				break;
+			#endif // PATCH_SHOW_DESKTOP_BUTTON
+			#endif // PATCH_SHOW_DESKTOP
 
 			default:
 				return;
@@ -3904,6 +3933,9 @@ createmon(void)
 	#endif // PATCH_ALTTAB
 	m->defaulttag = 0;
 	m->isdefault = 0;
+	#if PATCH_HIDE_VACANT_TAGS
+	m->hidevacant = hidevacant;
+	#endif // PATCH_HIDE_VACANT_TAGS
 	#if PATCH_MIRROR_LAYOUT
 	m->mirror = mirror_layout;
 	#endif // PATCH_MIRROR_LAYOUT
@@ -3979,6 +4011,8 @@ createmon(void)
 			if (l_node && cJSON_IsArray(l_node)) {
 				int sz = cJSON_GetArraySize(l_node);
 				if (sz && sz <= LENGTH(barlayout)) {
+					for (int j = 0; j < LENGTH(m->barlayout); j++)
+						m->barlayout[j] = 0;
 					cJSON *e = NULL;
 					for (int j = 0, k, n = 0; j < sz; j++) {
 						e = cJSON_GetArrayItem(l_node, j);
@@ -4013,6 +4047,9 @@ createmon(void)
 			m->gappoh = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-outer-h")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappoh;
 			m->gappov = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-outer-v")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappov;
 			#endif // PATCH_VANITY_GAPS
+			#if PATCH_HIDE_VACANT_TAGS
+			m->hidevacant = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-hide-vacant-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->hidevacant;
+			#endif // PATCH_HIDE_VACANT_TAGS
 			m->mfact_def = m->mfact = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-mfact")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->mfact;
 			#if PATCH_MIRROR_LAYOUT
 			m->mirror = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-mirror-layout")) && json_isboolean(l_node)) ? l_node->valueint : m->mirror;
@@ -4809,476 +4846,504 @@ drawbar(Monitor *m, int skiptags)
 
 	// draw custom bar modules here;
 	// calculate module width
-	//customwidth+= m->bar[CustomModule].w = ...
-	//m->bar[CustomModule].x = m->bar[StatusText].x - m->bar[CustomModule].w;
+	//m->bar[CustomModule].w = ...
+	//m->bar[CustomModule].x = m->bar[StatusText].x - customwidth - m->bar[CustomModule].w;
+	//customwidth += m->bar[CustomModule].w;
+	#if PATCH_SHOW_DESKTOP_BUTTON
+	if (drawbar_elementvisible(m, ShowDesktop)
+		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+		&& (!showdesktop_when_active || (getdesktopclient(m, &x) || m->showdesktop))
+		#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+	) {
+		m->bar[ShowDesktop].w = drw_fontset_getwidth(drw, showdesktop_button) + lrpad/2;
+		m->bar[ShowDesktop].x = m->bar[StatusText].x - customwidth - m->bar[ShowDesktop].w;
+		customwidth += m->bar[ShowDesktop].w;
+		drw_setscheme(drw, scheme[m->showdesktop ? SchemeSel : SchemeNorm]);
+		drw_text(drw,
+			m->bar[ShowDesktop].x, 0, m->bar[ShowDesktop].w, bh, lrpad / 4,
+			#if PATCH_CLIENT_INDICATORS
+			0,
+			#endif // PATCH_CLIENT_INDICATORS
+			showdesktop_button, 0
+		);
+		//drw_rect(drw, m->bar[ShowDesktop].x, -1, m->bar[ShowDesktop].w, bh +2, 0, 0);
+	}
+	else
+		m->bar[ShowDesktop].w = 0;
+	#endif // PATCH_SHOW_DESKTOP_BUTTON
 
 	if (!skiptags || !m->bar[TagBar].w) {
 
-		skiptags = 0;
+		if (drawbar_elementvisible(m, TagBar)) {
+			skiptags = 0;
 
-		for (i = 0; i < LENGTH(tags); i++) {
-			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			masterclientontag[i] = NULL;
-			masterclientontagmem[i] = 0;
-			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			#if PATCH_FLAG_HIDDEN
-			visible[i] = 0;
-			#endif // PATCH_FLAG_HIDDEN
-			#if PATCH_CLIENT_INDICATORS
-			total[i] = 0;
-			#if PATCH_FLAG_STICKY
-			sticky[i] = 0;
-			#endif // PATCH_FLAG_STICKY
-			#endif // PATCH_CLIENT_INDICATORS
-			m->tagw[i] = 0;
-		}
-
-		for (c = m->clients; c; c = c->next) {
-			if (c->dormant
-				#if PATCH_FLAG_IGNORED
-				|| c->isignored
-				#endif // PATCH_FLAG_IGNORED
-				#if PATCH_FLAG_PANEL
-				|| c->ispanel
-				|| c->ultparent->ispanel
-				#endif // PATCH_FLAG_PANEL
-				) continue;
-			//occ |= c->tags == TAGMASK ? 0 : c->tags;
-			if (c->tags != TAGMASK)
-				occ |= c->tags;
-			if (c->isurgent && urgency)
-				urg |= c->tags;
-
-			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			if (m->showmaster) {
-				for (i = 0; i < LENGTH(tags); i++)
-					if (!masterclientontag[i] && c->tags & (1<<i)
-						#if PATCH_SHOW_DESKTOP
-						&& !(c->isdesktop || c->ondesktop)
-						#endif // PATCH_SHOW_DESKTOP
-					) {
-						if (c->dispclass)
-							masterclientontag[i] = c->dispclass;
-						else {
-							XClassHint ch = { NULL, NULL };
-							XGetClassHint(dpy, c->win, &ch);
-							if (ch.res_class) {
-								masterclientontag[i] = ch.res_class;
-								masterclientontagmem[i] = 1;
-							}
-							else
-								masterclientontag[i] = (char *)broken;
-							if (ch.res_name)
-								XFree(ch.res_name);
-						}
-					}
-			}
-			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			#if PATCH_FLAG_HIDDEN || PATCH_CLIENT_INDICATORS
 			for (i = 0; i < LENGTH(tags); i++) {
-				if (
-					#if 0// PATCH_SHOW_DESKTOP
-					showdesktop ? desktopvalidex(c, 1<<i, 0) :
-					#endif // PATCH_SHOW_DESKTOP
-					c->tags & (1<<i)
-				) {
-					#if PATCH_CLIENT_INDICATORS
-					++total[i];
-					#endif // PATCH_CLIENT_INDICATORS
-					#if PATCH_FLAG_HIDDEN
-					visible[i] += (c->ishidden ? -1 : 1);
-					#endif // PATCH_FLAG_HIDDEN
-				}
-				#if PATCH_FLAG_STICKY && PATCH_CLIENT_INDICATORS
-				else if (c->issticky)
-					++sticky[i];
-				#endif // PATCH_FLAG_STICKY && PATCH_CLIENT_INDICATORS
-			}
-			#endif // PATCH_FLAG_HIDDEN || PATCH_CLIENT_INDICATORS
-		}
-
-		#if PATCH_FLAG_PANEL
-		x = px;
-		#else // NO PATCH_FLAG_PANEL
-		x = 0;
-		#endif // PATCH_FLAG_PANEL
-		m->bar[TagBar].x = x;
-		for (i = 0; i < LENGTH(tags); i++) {
-			#if PATCH_HIDE_VACANT_TAGS
-			/* do not draw vacant tags */
-			if (!(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
-				continue;
-			#endif // PATCH_HIDE_VACANT_TAGS
-
-			#if PATCH_ALT_TAGS
-			snprintf(tagdisp, 64, "%s", m->tags[i]);
-			tagw = TEXTW(tagdisp);
-			snprintf(tagdisp, 64, "%s", tags[i]);
-			alttagw = TEXTW(tagdisp);
-			if (tagw > alttagw)
-				tagw = (m->alttags ? (tagw - alttagw) : 0);
-			else
-				tagw = (!m->alttags ? (alttagw - tagw) : 0);
-			#else // NO PATCH_ALT_TAGS
-			snprintf(tagdisp, 64, "%s", tags[i]);
-			#endif // PATCH_ALT_TAGS
-
-			//
-			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			if (masterclientontag[i]) {
-				size_t k = strlen(masterclientontag[i]);
-				if (k > sizeof masterclientbuff)
-					k = sizeof masterclientbuff;
-				if (lcaselbl) {
-					for (size_t j = k; j; --j)
-						masterclientbuff[j - 1] = tolower(masterclientontag[i][j - 1]);
-				}
-				else
-					strncpy(masterclientbuff, masterclientontag[i], k);
-				masterclientbuff[k] = '\0';
-				if (masterclientontagmem[i])
-					XFree(masterclientontag[i]);
-			#if PATCH_ALT_TAGS
-				if (m->reversemaster)
-					snprintf(tagdisp, 64, ptagf, masterclientbuff, m->alttags ? tags[i] : m->tags[i]);
-				else
-					snprintf(tagdisp, 64, ptagf, m->alttags ? tags[i] : m->tags[i], masterclientbuff);
-			}
-			else
-				snprintf(tagdisp, 64, (m->showmaster ? etagf : "%s"), m->alttags ? tags[i] : m->tags[i]);
-			m->tagw[i] = w = (TEXTW(tagdisp) + tagw);
-			if (tagw > 0) {
-				drw_setscheme(drw, scheme[SchemeNorm]);
-				drw_rect(drw, x, 0, w, bh, 1, 1);
-			}
-			#else // NO PATCH_ALT_TAGS
-				snprintf(tagdisp, 64, ptagf, tags[i], masterclientbuff);
-			}
-			else
-				snprintf(tagdisp, 64, (m->showmaster ? etagf : "%s"), tags[i]);
-			m->tagw[i] = w = TEXTW(tagdisp);
-			#endif // PATCH_ALT_TAGS
-			#else // NO PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			#if PATCH_ALT_TAGS
-			snprintf(tagdisp, 64, "%s", m->alttags ? tags[i] : m->tags[i]);
-			m->tagw[i] = w = (TEXTW(tagdisp) + tagw);
-			#else // NO PATCH_ALT_TAGS
-			m->tagw[i] = w = TEXTW(tagdisp);
-			#endif // PATCH_ALT_TAGS
-			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			drw_setscheme(drw, scheme[
-				(urg & 1 << i) ? SchemeUrg :
-					m->tagset[m->seltags] & 1 << i
-					#if PATCH_SHOW_DESKTOP
-					&& !m->showdesktop
-					#endif // PATCH_SHOW_DESKTOP
-					? SchemeSel :
-					#if PATCH_FLAG_HIDDEN
-					visible[i] < 0
-					#if PATCH_SHOW_DESKTOP
-					|| (m->showdesktop && m->tagset[m->seltags] & 1 << i)
-					#endif // PATCH_SHOW_DESKTOP
-					? SchemeHide :
-					#endif // PATCH_FLAG_HIDDEN
-					SchemeNorm
-			]);
-
-			drw_text(
-				drw, x, 0, w, bh,
-				(lrpad / 2)
-				#if PATCH_ALT_TAGS
-				+ (
-					#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-					m->showmaster && m->reversemaster ? 0 :
-					m->showmaster ? tagw : 
-					#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-					(tagw / 2)
-				)
-				#endif // PATCH_ALT_TAGS
-				,
+				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				masterclientontag[i] = NULL;
+				masterclientontagmem[i] = 0;
+				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				#if PATCH_FLAG_HIDDEN
+				visible[i] = 0;
+				#endif // PATCH_FLAG_HIDDEN
 				#if PATCH_CLIENT_INDICATORS
-				(total[i]
-					#if PATCH_FLAG_STICKY
-					+ sticky[i]
-					#endif // PATCH_FLAG_STICKY
-				) ? offsety : 0,
+				total[i] = 0;
+				#if PATCH_FLAG_STICKY
+				sticky[i] = 0;
+				#endif // PATCH_FLAG_STICKY
 				#endif // PATCH_CLIENT_INDICATORS
-				tagdisp, 0
-			);
+				m->tagw[i] = 0;
+			}
 
-			#if PATCH_CLIENT_INDICATORS
-			if (client_ind && (
-					total[i]
-					#if PATCH_FLAG_STICKY
-					+ sticky[i]
-					#endif // PATCH_FLAG_STICKY
-				)
-				#if 0// PATCH_SHOW_DESKTOP
-				&& (!showdesktop || !m->showdesktop)
-				#endif // PATCH_SHOW_DESKTOP
-			) {
-				int indn_gapi = (client_ind_size > 4 ? 4 : client_ind_size);	// inner gap between indicators;
-				int indn_gapo = 2;												// outer gap around indicators;
-				int indn_width = client_ind_size;
-				if (client_ind_size > 28)
-					indn_width = client_ind_size / 2;							// scale horizontal size by 1/2 if greater than 28;
-				else if (client_ind_size >= 16)
-					indn_width = (client_ind_size * 2 / 3);						// scale horizontal size by 2/3 if between 16 and 28;
-				int indn_max = (w / (indn_width + indn_gapi));
-				if (
-					#if PATCH_FLAG_STICKY
-					sticky[i] +
-					#endif // PATCH_FLAG_STICKY
-					total[i] < indn_max)
-					indn_max = total[i]
+			for (c = m->clients; c; c = c->next) {
+				if (c->dormant
+					#if PATCH_FLAG_IGNORED
+					|| c->isignored
+					#endif // PATCH_FLAG_IGNORED
+					#if PATCH_FLAG_PANEL
+					|| c->ispanel
+					|| c->ultparent->ispanel
+					#endif // PATCH_FLAG_PANEL
+					) continue;
+				//occ |= c->tags == TAGMASK ? 0 : c->tags;
+				if (c->tags != TAGMASK)
+					occ |= c->tags;
+				if (c->isurgent && urgency)
+					urg |= c->tags;
+
+				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				if (m->showmaster) {
+					for (i = 0; i < LENGTH(tags); i++)
+						if (!masterclientontag[i] && c->tags & (1<<i)
+							#if PATCH_SHOW_DESKTOP
+							&& !(c->isdesktop || c->ondesktop)
+							#endif // PATCH_SHOW_DESKTOP
+						) {
+							if (c->dispclass)
+								masterclientontag[i] = c->dispclass;
+							else {
+								XClassHint ch = { NULL, NULL };
+								XGetClassHint(dpy, c->win, &ch);
+								if (ch.res_class) {
+									masterclientontag[i] = ch.res_class;
+									masterclientontagmem[i] = 1;
+								}
+								else
+									masterclientontag[i] = (char *)broken;
+								if (ch.res_name)
+									XFree(ch.res_name);
+							}
+						}
+				}
+				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				#if PATCH_FLAG_HIDDEN || PATCH_CLIENT_INDICATORS
+				for (i = 0; i < LENGTH(tags); i++) {
+					if (
+						#if 0// PATCH_SHOW_DESKTOP
+						showdesktop ? desktopvalidex(c, 1<<i, 0) :
+						#endif // PATCH_SHOW_DESKTOP
+						c->tags & (1<<i)
+					) {
+						#if PATCH_CLIENT_INDICATORS
+						++total[i];
+						#endif // PATCH_CLIENT_INDICATORS
+						#if PATCH_FLAG_HIDDEN
+						visible[i] += (c->ishidden ? -1 : 1);
+						#endif // PATCH_FLAG_HIDDEN
+					}
+					#if PATCH_FLAG_STICKY && PATCH_CLIENT_INDICATORS
+					else if (c->issticky)
+						++sticky[i];
+					#endif // PATCH_FLAG_STICKY && PATCH_CLIENT_INDICATORS
+				}
+				#endif // PATCH_FLAG_HIDDEN || PATCH_CLIENT_INDICATORS
+			}
+
+			#if PATCH_FLAG_PANEL
+			x = px;
+			#else // NO PATCH_FLAG_PANEL
+			x = 0;
+			#endif // PATCH_FLAG_PANEL
+			m->bar[TagBar].x = x;
+			for (i = 0; i < LENGTH(tags); i++) {
+				#if PATCH_HIDE_VACANT_TAGS
+				/* do not draw vacant tags */
+				if (m->hidevacant && !(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
+					continue;
+				#endif // PATCH_HIDE_VACANT_TAGS
+
+				#if PATCH_ALT_TAGS
+				snprintf(tagdisp, 64, "%s", m->tags[i]);
+				tagw = TEXTW(tagdisp);
+				snprintf(tagdisp, 64, "%s", tags[i]);
+				alttagw = TEXTW(tagdisp);
+				if (tagw > alttagw)
+					tagw = (m->alttags ? (tagw - alttagw) : 0);
+				else
+					tagw = (!m->alttags ? (alttagw - tagw) : 0);
+				#else // NO PATCH_ALT_TAGS
+				snprintf(tagdisp, 64, "%s", tags[i]);
+				#endif // PATCH_ALT_TAGS
+
+				//
+				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				if (masterclientontag[i]) {
+					size_t k = strlen(masterclientontag[i]);
+					if (k > sizeof masterclientbuff)
+						k = sizeof masterclientbuff;
+					if (lcaselbl) {
+						for (size_t j = k; j; --j)
+							masterclientbuff[j - 1] = tolower(masterclientontag[i][j - 1]);
+					}
+					else
+						strncpy(masterclientbuff, masterclientontag[i], k);
+					masterclientbuff[k] = '\0';
+					if (masterclientontagmem[i])
+						XFree(masterclientontag[i]);
+				#if PATCH_ALT_TAGS
+					if (m->reversemaster)
+						snprintf(tagdisp, 64, ptagf, masterclientbuff, m->alttags ? tags[i] : m->tags[i]);
+					else
+						snprintf(tagdisp, 64, ptagf, m->alttags ? tags[i] : m->tags[i], masterclientbuff);
+				}
+				else
+					snprintf(tagdisp, 64, (m->showmaster ? etagf : "%s"), m->alttags ? tags[i] : m->tags[i]);
+				m->tagw[i] = w = (TEXTW(tagdisp) + tagw);
+				if (tagw > 0) {
+					drw_setscheme(drw, scheme[SchemeNorm]);
+					drw_rect(drw, x, 0, w, bh, 1, 1);
+				}
+				#else // NO PATCH_ALT_TAGS
+					snprintf(tagdisp, 64, ptagf, tags[i], masterclientbuff);
+				}
+				else
+					snprintf(tagdisp, 64, (m->showmaster ? etagf : "%s"), tags[i]);
+				m->tagw[i] = w = TEXTW(tagdisp);
+				#endif // PATCH_ALT_TAGS
+				#else // NO PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				#if PATCH_ALT_TAGS
+				snprintf(tagdisp, 64, "%s", m->alttags ? tags[i] : m->tags[i]);
+				m->tagw[i] = w = (TEXTW(tagdisp) + tagw);
+				#else // NO PATCH_ALT_TAGS
+				m->tagw[i] = w = TEXTW(tagdisp);
+				#endif // PATCH_ALT_TAGS
+				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				drw_setscheme(drw, scheme[
+					(urg & 1 << i) ? SchemeUrg :
+						m->tagset[m->seltags] & 1 << i
+						#if PATCH_SHOW_DESKTOP
+						&& !m->showdesktop
+						#endif // PATCH_SHOW_DESKTOP
+						? SchemeSel :
+						#if PATCH_FLAG_HIDDEN
+						visible[i] < 0
+						#if PATCH_SHOW_DESKTOP
+						|| (m->showdesktop && m->tagset[m->seltags] & 1 << i)
+						#endif // PATCH_SHOW_DESKTOP
+						? SchemeHide :
+						#endif // PATCH_FLAG_HIDDEN
+						SchemeNorm
+				]);
+
+				drw_text(
+					drw, x, 0, w, bh,
+					(lrpad / 2)
+					#if PATCH_ALT_TAGS
+					+ (
+						#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+						m->showmaster && m->reversemaster ? 0 :
+						m->showmaster ? tagw : 
+						#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+						(tagw / 2)
+					)
+					#endif // PATCH_ALT_TAGS
+					,
+					#if PATCH_CLIENT_INDICATORS
+					(total[i]
 						#if PATCH_FLAG_STICKY
 						+ sticky[i]
 						#endif // PATCH_FLAG_STICKY
-					;
-
-				drw_rect(drw,
-					x - indn_gapo + (w - (indn_max * (indn_width + indn_gapi))) / 2,
-					m->client_ind_top ? 0 : (bh - client_ind_size - 2),
-					(indn_max * (indn_width + indn_gapi)) + (2 * indn_gapo),
-					client_ind_size + indn_gapo, 1, 1
+					) ? offsety : 0,
+					#endif // PATCH_CLIENT_INDICATORS
+					tagdisp, 0
 				);
 
-				for (int j = 0; j < indn_max; j++) {
-					#if PATCH_FLAG_STICKY
-					int iw = indn_width;
-					int ih = client_ind_size;
-					if (j >= total[i]) {
-						if (indn_width >= 7) {
-							iw = iw * 2 / 3;
-							ih = ih * 2 / 3;
-						}
-						else if (indn_width >= 5) {
-							iw -= 2;
-							ih -= 2;
-						}
-						else
-							ih /= 2;
-						if (!iw) iw = 1;
-						if (!ih) ih = 1;
-					}
-					#endif // PATCH_FLAG_STICKY
-					if (indn_width >= 7)
-						drw_ellipse(drw,
-							#if PATCH_FLAG_STICKY
-							(indn_width - iw) / 2 +
-							#endif // PATCH_FLAG_STICKY
-							x + (j * (indn_width + indn_gapi)) + (w - (indn_max * (indn_width + indn_gapi) - indn_gapi)) / 2,
-							(m->client_ind_top ? 1 : (bh - client_ind_size - 1))
-							#if PATCH_FLAG_STICKY
-							+ (client_ind_size - ih) / 2, iw, ih, j < total[i] ? 1 : 0,
-							#else // NO PATCH_FLAG_STICKY
-							, indn_width, client_ind_size, 1,
-							#endif // PATCH_FLAG_STICKY
-							0
-						);
-					else
-						drw_rect(drw,
-							#if PATCH_FLAG_STICKY
-							(indn_width - iw) / 2 +
-							#endif // PATCH_FLAG_STICKY
-							x + (j * (indn_width + indn_gapi)) + (w - (indn_max * (indn_width + indn_gapi) - indn_gapi)) / 2,
-							(m->client_ind_top ? 1 : (bh - client_ind_size - 1))
-							#if PATCH_FLAG_STICKY
-							+ (client_ind_size - ih) / 2, iw, ih,
-							#else // NO PATCH_FLAG_STICKY
-							, indn_width, client_ind_size,
-							#endif // PATCH_FLAG_STICKY
-							1, 0
-						);
-				}
-			}
-			#endif // PATCH_CLIENT_INDICATORS
-			x += w;
-		}
-		m->bar[TagBar].w = (x - m->bar[TagBar].x);
-
-		if (m->lt[m->sellt]->arrange == monocle)
-		{
-			for (c = nexttiled(m->clients), a = 0, s = 0; c; c = nexttiled(c->next), a++)
-				if (c == m->stack)
-					s = a + 1;
-			if (!s && a)
-				s = 1;
-			snprintf(m->ltsymbol, sizeof m->ltsymbol, "[M] [%d/%d]", s, a);
-		}
-		w =
-			#if PATCH_SHOW_DESKTOP
-			showdesktop && m->showdesktop ? TEXTW(desktopsymbol) :
-			#endif // PATCH_SHOW_DESKTOP
-			TEXTW(m->ltsymbol)
-		;
-		m->bar[LtSymbol].x = x;
-		m->bar[LtSymbol].w = w;
-		drw_setscheme(drw, scheme[SchemeLayout]);
-		x = drw_text(
-				drw, x, 0, w, bh, lrpad / 2,
 				#if PATCH_CLIENT_INDICATORS
-				0,
+				if (client_ind && (
+						total[i]
+						#if PATCH_FLAG_STICKY
+						+ sticky[i]
+						#endif // PATCH_FLAG_STICKY
+					)
+					#if 0// PATCH_SHOW_DESKTOP
+					&& (!showdesktop || !m->showdesktop)
+					#endif // PATCH_SHOW_DESKTOP
+				) {
+					int indn_gapi = (client_ind_size > 4 ? 4 : client_ind_size);	// inner gap between indicators;
+					int indn_gapo = 2;												// outer gap around indicators;
+					int indn_width = client_ind_size;
+					if (client_ind_size > 28)
+						indn_width = client_ind_size / 2;							// scale horizontal size by 1/2 if greater than 28;
+					else if (client_ind_size >= 16)
+						indn_width = (client_ind_size * 2 / 3);						// scale horizontal size by 2/3 if between 16 and 28;
+					int indn_max = (w / (indn_width + indn_gapi));
+					if (
+						#if PATCH_FLAG_STICKY
+						sticky[i] +
+						#endif // PATCH_FLAG_STICKY
+						total[i] < indn_max)
+						indn_max = total[i]
+							#if PATCH_FLAG_STICKY
+							+ sticky[i]
+							#endif // PATCH_FLAG_STICKY
+						;
+
+					drw_rect(drw,
+						x - indn_gapo + (w - (indn_max * (indn_width + indn_gapi))) / 2,
+						m->client_ind_top ? 0 : (bh - client_ind_size - 2),
+						(indn_max * (indn_width + indn_gapi)) + (2 * indn_gapo),
+						client_ind_size + indn_gapo, 1, 1
+					);
+
+					for (int j = 0; j < indn_max; j++) {
+						#if PATCH_FLAG_STICKY
+						int iw = indn_width;
+						int ih = client_ind_size;
+						if (j >= total[i]) {
+							if (indn_width >= 7) {
+								iw = iw * 2 / 3;
+								ih = ih * 2 / 3;
+							}
+							else if (indn_width >= 5) {
+								iw -= 2;
+								ih -= 2;
+							}
+							else
+								ih /= 2;
+							if (!iw) iw = 1;
+							if (!ih) ih = 1;
+						}
+						#endif // PATCH_FLAG_STICKY
+						if (indn_width >= 7)
+							drw_ellipse(drw,
+								#if PATCH_FLAG_STICKY
+								(indn_width - iw) / 2 +
+								#endif // PATCH_FLAG_STICKY
+								x + (j * (indn_width + indn_gapi)) + (w - (indn_max * (indn_width + indn_gapi) - indn_gapi)) / 2,
+								(m->client_ind_top ? 1 : (bh - client_ind_size - 1))
+								#if PATCH_FLAG_STICKY
+								+ (client_ind_size - ih) / 2, iw, ih, j < total[i] ? 1 : 0,
+								#else // NO PATCH_FLAG_STICKY
+								, indn_width, client_ind_size, 1,
+								#endif // PATCH_FLAG_STICKY
+								0
+							);
+						else
+							drw_rect(drw,
+								#if PATCH_FLAG_STICKY
+								(indn_width - iw) / 2 +
+								#endif // PATCH_FLAG_STICKY
+								x + (j * (indn_width + indn_gapi)) + (w - (indn_max * (indn_width + indn_gapi) - indn_gapi)) / 2,
+								(m->client_ind_top ? 1 : (bh - client_ind_size - 1))
+								#if PATCH_FLAG_STICKY
+								+ (client_ind_size - ih) / 2, iw, ih,
+								#else // NO PATCH_FLAG_STICKY
+								, indn_width, client_ind_size,
+								#endif // PATCH_FLAG_STICKY
+								1, 0
+							);
+					}
+				}
 				#endif // PATCH_CLIENT_INDICATORS
+				x += w;
+			}
+			m->bar[TagBar].w = (x - m->bar[TagBar].x);
+		}
+
+		if (drawbar_elementvisible(m, LtSymbol)) {
+			if (m->lt[m->sellt]->arrange == monocle)
+			{
+				for (c = nexttiled(m->clients), a = 0, s = 0; c; c = nexttiled(c->next), a++)
+					if (c == m->stack)
+						s = a + 1;
+				if (!s && a)
+					s = 1;
+				snprintf(m->ltsymbol, sizeof m->ltsymbol, "[M] [%d/%d]", s, a);
+			}
+			w =
 				#if PATCH_SHOW_DESKTOP
-				showdesktop && m->showdesktop ? desktopsymbol :
+				showdesktop && m->showdesktop ? TEXTW(desktopsymbol) :
 				#endif // PATCH_SHOW_DESKTOP
-				m->ltsymbol, 0
-			);
+				TEXTW(m->ltsymbol)
+			;
+			m->bar[LtSymbol].x = x;
+			m->bar[LtSymbol].w = w;
+			drw_setscheme(drw, scheme[SchemeLayout]);
+			x = drw_text(
+					drw, x, 0, w, bh, lrpad / 2,
+					#if PATCH_CLIENT_INDICATORS
+					0,
+					#endif // PATCH_CLIENT_INDICATORS
+					#if PATCH_SHOW_DESKTOP
+					showdesktop && m->showdesktop ? desktopsymbol :
+					#endif // PATCH_SHOW_DESKTOP
+					m->ltsymbol, 0
+				);
+		}
 	}
 	m->bar[WinTitle].x = x = m->bar[TagBar].w + m->bar[LtSymbol].w;
 
-	if ((w = m->bar[StatusText].x - x - customwidth) > bh) {
+	if (drawbar_elementvisible(m, WinTitle)) {
+		if ((w = m->bar[StatusText].x - x - customwidth) > bh) {
 
-		m->bar[WinTitle].w = w;
+			m->bar[WinTitle].w = w;
 
-		Client *active = NULL;
-		if ((m->sel && !m->sel->dormant
-			#if PATCH_FLAG_PANEL
-			&& !m->sel->ispanel
-			#endif // PATCH_FLAG_PANEL
-			#if PATCH_FLAG_IGNORED
-			&& !m->sel->isignored
-			#endif // PATCH_FLAG_IGNORED
-		)
-		#if PATCH_ALTTAB
-		|| (altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m)
-		#endif // PATCH_ALTTAB
-		) {
-			active =
-				#if PATCH_ALTTAB
-				(altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) ? altTabMon->highlight :
-				#endif // PATCH_ALTTAB
-				m->sel
-			;
-		}
-		#if PATCH_TWO_TONE_TITLE
-		if ((
+			Client *active = NULL;
+			if ((m->sel && !m->sel->dormant
+				#if PATCH_FLAG_PANEL
+				&& !m->sel->ispanel
+				#endif // PATCH_FLAG_PANEL
+				#if PATCH_FLAG_IGNORED
+				&& !m->sel->isignored
+				#endif // PATCH_FLAG_IGNORED
+			)
 			#if PATCH_ALTTAB
-			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
+			|| (altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m)
 			#endif // PATCH_ALTTAB
-			m == selmon
-		)) {
-			drw_setscheme(drw, scheme[SchemeSel]);
-			drw->bg2 = 1;
-			drw_gradient(drw, x, 0, w, bh, drw->scheme[ColBg].pixel, scheme[SchemeSel2][ColBg].pixel, !elementafter(m, WinTitle, TagBar));
-		}
-		else {
-			drw_setscheme(drw, scheme[SchemeNorm]);
-			drw->bg2 = 0;
-		}
-		#else // NO PATCH_TWO_TONE_TITLE
-		drw_setscheme(drw, scheme[(
-			#if PATCH_ALTTAB
-			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
-			#endif // PATCH_ALTTAB
-			m == selmon) ? SchemeSel : SchemeNorm
-		]);
-		#endif // PATCH_TWO_TONE_TITLE
-		if (active) {
-			int pad = 0;
-			unsigned int tw = 0;
-			if (m->title_align) {
-				tw =
-					#if PATCH_FLAG_HIDDEN
-					TEXTW(active->ishidden ? "window hidden" : active->name)
-					#else // NO PATCH_FLAG_HIDDEN
-					TEXTW(active->name)
-					#endif // PATCH_FLAG_HIDDEN
-					#if PATCH_WINDOW_ICONS
-					+ (active->icon ? active->icw + iconspacing : 0)
-					#endif // PATCH_WINDOW_ICONS
+			) {
+				active =
+					#if PATCH_ALTTAB
+					(altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) ? altTabMon->highlight :
+					#endif // PATCH_ALTTAB
+					m->sel
 				;
-				if (tw >= w)
-					pad = (
-						lrpad / 2
+			}
+			#if PATCH_TWO_TONE_TITLE
+			if ((
+				#if PATCH_ALTTAB
+				altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
+				#endif // PATCH_ALTTAB
+				m == selmon
+			)) {
+				drw_setscheme(drw, scheme[SchemeSel]);
+				drw->bg2 = 1;
+				drw_gradient(drw, x, 0, w, bh, drw->scheme[ColBg].pixel, scheme[SchemeSel2][ColBg].pixel, !elementafter(m, WinTitle, TagBar));
+			}
+			else {
+				drw_setscheme(drw, scheme[SchemeNorm]);
+				drw->bg2 = 0;
+			}
+			#else // NO PATCH_TWO_TONE_TITLE
+			drw_setscheme(drw, scheme[(
+				#if PATCH_ALTTAB
+				altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
+				#endif // PATCH_ALTTAB
+				m == selmon) ? SchemeSel : SchemeNorm
+			]);
+			#endif // PATCH_TWO_TONE_TITLE
+			if (active) {
+				int pad = 0;
+				unsigned int tw = 0;
+				if (m->title_align) {
+					tw =
+						#if PATCH_FLAG_HIDDEN
+						TEXTW(active->ishidden ? "window hidden" : active->name)
+						#else // NO PATCH_FLAG_HIDDEN
+						TEXTW(active->name)
+						#endif // PATCH_FLAG_HIDDEN
 						#if PATCH_WINDOW_ICONS
 						+ (active->icon ? active->icw + iconspacing : 0)
 						#endif // PATCH_WINDOW_ICONS
-					);
-				else if (m->title_align == 1)
-					pad = (w - tw)/2 + lrpad;
-				else if (m->title_align == 2)
-					pad = w - tw + 3*lrpad/2;
-			}
-			else
-			pad = (
-				lrpad / 2
+					;
+					if (tw >= w)
+						pad = (
+							lrpad / 2
+							#if PATCH_WINDOW_ICONS
+							+ (active->icon ? active->icw + iconspacing : 0)
+							#endif // PATCH_WINDOW_ICONS
+						);
+					else if (m->title_align == 1)
+						pad = (w - tw)/2 + lrpad;
+					else if (m->title_align == 2)
+						pad = w - tw + 3*lrpad/2;
+				}
+				else
+				pad = (
+					lrpad / 2
+					#if PATCH_WINDOW_ICONS
+					+ (active->icon ? active->icw + iconspacing : 0)
+					#endif // PATCH_WINDOW_ICONS
+				);
+				drw_text(drw, x, 0, w, bh, pad,
+					#if PATCH_CLIENT_INDICATORS
+					0,
+					#endif // PATCH_CLIENT_INDICATORS
+					#if PATCH_FLAG_HIDDEN
+					active->ishidden ? "window hidden" :
+					#endif // PATCH_FLAG_HIDDEN
+					active->name,
+					0
+				);
+				#if PATCH_TWO_TONE_TITLE
+				drw->bg2 = 0;
+				#endif // PATCH_TWO_TONE_TITLE
 				#if PATCH_WINDOW_ICONS
-				+ (active->icon ? active->icw + iconspacing : 0)
-				#endif // PATCH_WINDOW_ICONS
-			);
-			drw_text(drw, x, 0, w, bh, pad,
-				#if PATCH_CLIENT_INDICATORS
-				0,
-				#endif // PATCH_CLIENT_INDICATORS
-				#if PATCH_FLAG_HIDDEN
-				active->ishidden ? "window hidden" :
-				#endif // PATCH_FLAG_HIDDEN
-				active->name,
-				0
-			);
-			#if PATCH_TWO_TONE_TITLE
-			drw->bg2 = 0;
-			#endif // PATCH_TWO_TONE_TITLE
-			#if PATCH_WINDOW_ICONS
-			if (active->icon) {
-				if (m->title_align && tw < w) {
-					if (m->title_align == 1)
-						drw_pic(drw, x + pad - active->icw - lrpad/4, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
+				if (active->icon) {
+					if (m->title_align && tw < w) {
+						if (m->title_align == 1)
+							drw_pic(drw, x + pad - active->icw - lrpad/4, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
+						else
+							drw_pic(drw, x + pad - active->icw - lrpad/3, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
+					}
 					else
-						drw_pic(drw, x + pad - active->icw - lrpad/3, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
+						drw_pic(drw, x + lrpad / 2, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
 				}
-				else
-					drw_pic(drw, x + lrpad / 2, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
-			}
-			#endif // PATCH_WINDOW_ICONS
-			if (active->isfloating) {
-				drw_rect(drw, x + boxs, boxs, boxw, boxw, active->isfixed, 0);
-				#if PATCH_MODAL_SUPPORT
-				if (active->ismodal) {
-					drw_setscheme(drw, scheme[SchemeUrg]);
-					drw_rect(drw, x + boxs, boxs + (bh - boxw - 4), boxw, boxw, 1,
-						#if PATCH_FLAG_ALWAYSONTOP
-						!active->alwaysontop
-						#else // NO PATCH_FLAG_ALWAYSONTOP
-						0
-						#endif // PATCH_FLAG_ALWAYSONTOP
-					);
+				#endif // PATCH_WINDOW_ICONS
+				if (active->isfloating) {
+					drw_rect(drw, x + boxs, boxs, boxw, boxw, active->isfixed, 0);
+					#if PATCH_MODAL_SUPPORT
+					if (active->ismodal) {
+						drw_setscheme(drw, scheme[SchemeUrg]);
+						drw_rect(drw, x + boxs, boxs + (bh - boxw - 4), boxw, boxw, 1,
+							#if PATCH_FLAG_ALWAYSONTOP
+							!active->alwaysontop
+							#else // NO PATCH_FLAG_ALWAYSONTOP
+							0
+							#endif // PATCH_FLAG_ALWAYSONTOP
+						);
+					}
+					#endif // PATCH_MODAL_SUPPORT
+				#if PATCH_FLAG_ALWAYSONTOP
+					#if PATCH_MODAL_SUPPORT
+					else
+					#endif // PATCH_MODAL_SUPPORT
+					if (active->alwaysontop)
+						drw_rect(drw, x + boxs, boxs + (bh - boxw - 4), boxw, boxw, 0, 0);
 				}
-				#endif // PATCH_MODAL_SUPPORT
-			#if PATCH_FLAG_ALWAYSONTOP
-				#if PATCH_MODAL_SUPPORT
-				else
-				#endif // PATCH_MODAL_SUPPORT
-				if (active->alwaysontop)
+				else if (active->alwaysontop) {
 					drw_rect(drw, x + boxs, boxs + (bh - boxw - 4), boxw, boxw, 0, 0);
+				#endif // PATCH_FLAG_ALWAYSONTOP
+				}
+			} else {
+				#if PATCH_TWO_TONE_TITLE
+				drw->bg2 = 0;
+				#endif // PATCH_TWO_TONE_TITLE
+				drw_setscheme(drw, scheme[SchemeNorm]);
+				if (m == selmon) {
+					if (titleborderpx < bh)
+						drw_rect(drw, x, (m->topbar ? 0 : titleborderpx), w, bh - titleborderpx, 1, 1);
+						//drw_rect(drw, x+titleborderpx, titleborderpx, w-2*titleborderpx, bh-2*titleborderpx, 1, 1);
+				}
+				else
+					drw_rect(drw, x, 0, w, bh, 1, 1);
 			}
-			else if (active->alwaysontop) {
-				drw_rect(drw, x + boxs, boxs + (bh - boxw - 4), boxw, boxw, 0, 0);
-			#endif // PATCH_FLAG_ALWAYSONTOP
-			}
-		} else {
-			#if PATCH_TWO_TONE_TITLE
-			drw->bg2 = 0;
-			#endif // PATCH_TWO_TONE_TITLE
-			drw_setscheme(drw, scheme[SchemeNorm]);
-			if (m == selmon) {
-				if (titleborderpx < bh)
-					drw_rect(drw, x, (m->topbar ? 0 : titleborderpx), w, bh - titleborderpx, 1, 1);
-					//drw_rect(drw, x+titleborderpx, titleborderpx, w-2*titleborderpx, bh-2*titleborderpx, 1, 1);
-			}
-			else
-				drw_rect(drw, x, 0, w, bh, 1, 1);
+		}
+		else {
+			#if PATCH_SYSTRAY
+			w -= m->stw;
+			#endif // PATCH_SYSTRAY
+			m->bar[WinTitle].w = w;
 		}
 	}
-	else {
-		#if PATCH_SYSTRAY
-		w -= m->stw;
-		#endif // PATCH_SYSTRAY
-		m->bar[WinTitle].w = w;
-	}
-
 	#if PATCH_SYSTRAY
 	if (m->stw && systrayonleft) {
 		drw_setscheme(drw, scheme[SchemeNorm]);
@@ -5325,6 +5390,15 @@ drawbar(Monitor *m, int skiptags)
 	#if PATCH_TORCH
 	if (torchwin) XRaiseWindow(dpy, torchwin);
 	#endif // PATCH_TORCH
+}
+
+int
+drawbar_elementvisible(Monitor *m, unsigned int element_type)
+{
+	for (int i = 0; i < LENGTH(m->barlayout); i++)
+		if (m->barlayout[i] == element_type)
+			return 1;
+	return 0;
 }
 
 void
@@ -5753,17 +5827,8 @@ focus(Client *c, int force)
 		#if PATCH_SHOW_DESKTOP
 		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 		if (showdesktop && showdesktop_when_active && !selmon->showdesktop) {
-			for (c = selmon->clients; c; c = c->next)
-				if (ISVISIBLEONTAG(c, c->mon->tagset[c->mon->seltags])
-					#if PATCH_FLAG_PANEL
-					&& !c->ishidden
-					#endif // PATCH_FLAG_PANEL
-					#if PATCH_FLAG_PANEL
-					&& !c->ispanel
-					#endif // PATCH_FLAG_PANEL
-					&& !c->isdesktop && !c->ondesktop)
-					break;
-			if (!c) {
+			int nondesktop = 0;
+			if (getdesktopclient(selmon, &nondesktop)) {
 				toggledesktop(0);
 				return;
 			}
@@ -8452,6 +8517,9 @@ manage(Window w, XWindowAttributes *wa)
 	int aligned = 0;
 	#endif // PATCH_FLAG_CENTRED
 	#endif // PATCH_FLAG_FLOAT_ALIGNMENT
+	#if PATCH_SHOW_DESKTOP
+	int nondesktop = 0;
+	#endif // PATCH_SHOW_DESKTOP
 
 	c = ecalloc(1, sizeof(Client));
 	c->win = w;
@@ -8634,6 +8702,12 @@ manage(Window w, XWindowAttributes *wa)
 		|| c->isdesktop
 		#endif // PATCH_SHOW_DESKTOP
 	) {
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+		if (showdesktop && showdesktop_when_active && c->isdesktop
+			&& (getdesktopclient(c->mon, &nondesktop) || nondesktop))
+		#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+		#endif // PATCH_SHOW_DESKTOP
 		c->autofocus = 0;
 		c->bw = 0;
 	}
@@ -8883,8 +8957,12 @@ manage(Window w, XWindowAttributes *wa)
 		// prevent new clients from taking focus from an active fullscreen game client;
 		|| ((t = getactivegameclient(c->mon)) && t != c)
 		#endif // PATCH_FLAG_GAME
-		#if PATCH_SHOW_DESKTOP
-		|| c->isdesktop
+		#if 0 //PATCH_SHOW_DESKTOP
+		|| (c->isdesktop
+			#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+			&& (!showdesktop_when_active || getdesktopclient(c->mon, &nondesktop) || nondesktop)
+			#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+			)
 		#endif // PATCH_SHOW_DESKTOP
 		))
 		takefocus = 0;
@@ -8906,6 +8984,7 @@ manage(Window w, XWindowAttributes *wa)
 		|| (c->isgame && c->isfullscreen)
 		#endif // PATCH_FLAG_GAME
 	)) {
+
 		if (!((ISVISIBLE(c)
 			#if PATCH_SHOW_DESKTOP
 			|| ISVISIBLEONTAG(c, c->mon->tagset[c->mon->seltags])
@@ -8930,6 +9009,7 @@ manage(Window w, XWindowAttributes *wa)
 				)
 				takefocus = 0;
 		}
+
 	}
 
 	#if PATCH_SHOW_DESKTOP
@@ -10212,6 +10292,8 @@ parselayoutjson(cJSON *layout)
 					int sz = cJSON_GetArraySize(L);
 					if (sz && sz <= LENGTH(barlayout)) {
 						cJSON *e = NULL;
+						for (int j = 0; j < LENGTH(barlayout); j++)
+							barlayout[j] = 0;
 						for (int j = 0, k, n = 0; j < sz; j++) {
 							e = cJSON_GetArrayItem(L, j);
 							if (cJSON_IsString(e)) {
@@ -10414,6 +10496,15 @@ parselayoutjson(cJSON *layout)
 				}
 				cJSON_AddNumberToObject(unsupported, "\"fonts\" must contain a string value or array of string values", 0);
 			}
+			#if PATCH_HIDE_VACANT_TAGS
+			else if (strcmp(L->string, "hide-vacant-tags")==0) {
+				if (json_isboolean(L)) {
+					hidevacant = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"hide-vacant-tags\" must contain a boolean value", 0);
+			}
+			#endif // PATCH_HIDE_VACANT_TAGS
 
 			#if PATCH_MIRROR_LAYOUT
 			else if (strcmp(L->string, "mirror-layout")==0) {
@@ -15260,14 +15351,27 @@ altTabStart(const Arg *arg)
 						|| c->ispanel
 						#endif // PATCH_FLAG_PANEL
 						#if PATCH_SHOW_DESKTOP
-						|| (c->isdesktop && (!(altTabMon->isAlt & ALTTAB_MOUSE) || !showdesktop))
+						|| (c->isdesktop && (!(altTabMon->isAlt & ALTTAB_MOUSE) || !showdesktop
+							#if PATCH_SHOW_DESKTOP_BUTTON
+							|| (!m->showdesktop && drawbar_elementvisible(m, ShowDesktop))
+							#endif // PATCH_SHOW_DESKTOP_BUTTON
+						))
 						#endif // PATCH_SHOW_DESKTOP
 					) continue;
 					if (
 						#if PATCH_SHOW_DESKTOP
 						(
 							!showdesktop ? !ISVISIBLE(c) :
-							(m->showdesktop ? !desktopvalidex(c, m->tagset[m->seltags], -1) : (!ISVISIBLE(c) && !c->isdesktop))
+							(
+								m->showdesktop ?
+								!desktopvalidex(c, m->tagset[m->seltags], -1) :
+								(
+									(!ISVISIBLE(c) && !c->isdesktop)
+									#if PATCH_SHOW_DESKTOP_BUTTON
+									|| (c->isdesktop && drawbar_elementvisible(m, ShowDesktop))
+									#endif // PATCH_SHOW_DESKTOP_BUTTON
+								)
+							)
 						)
 						#else // NO PATCH_SHOW_DESKTOP
 						!ISVISIBLE(c)
@@ -15325,14 +15429,27 @@ altTabStart(const Arg *arg)
 						|| c->ispanel
 						#endif // PATCH_FLAG_PANEL
 						#if PATCH_SHOW_DESKTOP
-						|| (c->isdesktop && (!(altTabMon->isAlt & ALTTAB_MOUSE) || !showdesktop))
+						|| (c->isdesktop && (!(altTabMon->isAlt & ALTTAB_MOUSE) || !showdesktop
+							#if PATCH_SHOW_DESKTOP_BUTTON
+							|| (!m->showdesktop && drawbar_elementvisible(m, ShowDesktop))
+							#endif // PATCH_SHOW_DESKTOP_BUTTON
+						))
 						#endif // PATCH_SHOW_DESKTOP
 					) continue;
 					if (
 						#if PATCH_SHOW_DESKTOP
 						(
 							!showdesktop ? !ISVISIBLE(c) :
-							(m->showdesktop ? !desktopvalidex(c, m->tagset[m->seltags], -1) : (!ISVISIBLE(c) && !c->isdesktop))
+							(
+								m->showdesktop ?
+								!desktopvalidex(c, m->tagset[m->seltags], -1) :
+								(
+									(!ISVISIBLE(c) && !c->isdesktop)
+									#if PATCH_SHOW_DESKTOP_BUTTON
+									|| (c->isdesktop && drawbar_elementvisible(m, ShowDesktop))
+									#endif // PATCH_SHOW_DESKTOP_BUTTON
+								)
+							)
 						)
 						#else // NO PATCH_SHOW_DESKTOP
 						!ISVISIBLE(c)
@@ -15855,7 +15972,7 @@ toggledesktop(const Arg *arg)
 
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	if (showdesktop_when_active) {
-		if ((m->showdesktop && !c) || (!m->showdesktop && (
+		if ((d && m->showdesktop && !c) || (!m->showdesktop && (
 			#if PATCH_SHOW_DESKTOP_UNMANAGED
 			showdesktop_unmanaged ? desktopwin == None :
 			#endif // PATCH_SHOW_DESKTOP_UNMANAGED
@@ -16373,16 +16490,23 @@ unmanage(Client *c, int destroyed, int cleanup)
 	}
 
 	if (!cleanup) {
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+		if (showdesktop && showdesktop_when_active && c->isdesktop && c->mon->showdesktop)
+			c->mon->showdesktop = 0;
+		#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+		#endif // PATCH_SHOW_DESKTOP
 		arrange(c->mon);
 
 		#if PATCH_SWITCH_TAG_ON_EMPTY
 		Client *cc = c;
 		if (c->mon->switchonempty && ((c->tags & c->mon->tagset[c->mon->seltags]) || c->issticky)) {
-			#if PATCH_SHOW_DESKTOP
-			for (cc = c->mon->clients; cc && (!ISVISIBLEONTAG(cc, c->tags) || cc->isdesktop); cc = cc->next);
-			#else // NO PATCH_SHOW_DESKTOP
-			for (cc = c->mon->clients; cc && !ISVISIBLEONTAG(cc, c->tags); cc = cc->next);
-			#endif // PATCH_SHOW_DESKTOP
+			for (cc = c->mon->clients; cc && (
+				!ISVISIBLEONTAG(cc, c->tags)
+				#if PATCH_SHOW_DESKTOP
+				|| cc->isdesktop
+				#endif // PATCH_SHOW_DESKTOP
+			); cc = cc->next);
 			if (!cc)
 				viewmontag(c->mon, (1 << (c->mon->switchonempty - 1)), 0);
 		}

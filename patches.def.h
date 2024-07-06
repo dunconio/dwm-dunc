@@ -30,6 +30,7 @@
 #define PATCH_PERTAG						1
 #define PATCH_SCAN_OVERRIDE_REDIRECTS		0	// Not usually necessary - only picks up windows during scan();
 #define PATCH_SHOW_DESKTOP					1
+#define PATCH_SHOW_DESKTOP_BUTTON			1
 #define PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE	1	// Only enable show desktop while a desktop client is available;
 #define PATCH_SHOW_DESKTOP_UNMANAGED		1	// Don't manage desktop clients;
 #define PATCH_SHOW_DESKTOP_WITH_FLOATING	1	// Allow floating clients to be visible while the desktop is;

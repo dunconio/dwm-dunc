@@ -24,6 +24,10 @@ static               Bool tabHighlight      = True;	// highlight clients during 
 #endif // PATCH_ALTTAB_HIGHLIGHT
 #endif // PATCH_ALTTAB
 
+#if PATCH_HIDE_VACANT_TAGS
+static Bool hidevacant = True;
+#endif // PATCH_HIDE_VACANT_TAGS
+
 #if PATCH_CLIENT_INDICATORS
 static         Bool client_ind				= True;
 static unsigned int client_ind_size			= 3;
@@ -60,6 +64,9 @@ static Bool fakefullscreen_by_default = False;
 #if PATCH_SHOW_DESKTOP
 static char *desktopsymbol = "Desktop";			// replace the layout symbol when desktop is showing;
 static Bool showdesktop = True;
+#if PATCH_SHOW_DESKTOP_BUTTON
+static char *showdesktop_button = "💻";
+#endif // PATCH_SHOW_DESKTOP_BUTTON
 #if PATCH_SHOW_DESKTOP_UNMANAGED
 static Bool showdesktop_unmanaged = True;
 #endif // PATCH_SHOW_DESKTOP_UNMANAGED
@@ -199,6 +206,11 @@ static unsigned int barlayout[] = {
 	LtSymbol,
 	WinTitle,
 	StatusText,
+	#if PATCH_SHOW_DESKTOP
+	#if PATCH_SHOW_DESKTOP_BUTTON
+	ShowDesktop,
+	#endif // PATCH_SHOW_DESKTOP_BUTTON
+	#endif // PATCH_SHOW_DESKTOP
 };
 
 static const Layout layouts[] = {
@@ -575,4 +587,9 @@ static const Button buttons[] = {
 	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
 	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
 	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
+#if PATCH_SHOW_DESKTOP
+#if PATCH_SHOW_DESKTOP_BUTTON
+	{ ClkShowDesktop,       0,              Button1,        toggledesktop,  {.i = -1 } },
+#endif // PATCH_SHOW_DESKTOP_BUTTON
+#endif // PATCH_SHOW_DESKTOP
 };

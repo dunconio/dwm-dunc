@@ -72,6 +72,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_PERTAG` | Per-tag monitor settings; |
 | `PATCH_SCAN_OVERRIDE_REDIRECTS` | Picks up `override_redirect` windows during `scan()` for diagnostic use; |
 | `PATCH_SHOW_DESKTOP` | Add support for showing the desktop; |
+| <ul>`PATCH_SHOW_DESKTOP_BUTTON`</ul> | Add a bar element to act as a 'show desktop' button; |
 | <ul>`PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE`</ul> | Support only showing the desktop when a desktop client exists; |
 | <ul>`PATCH_SHOW_DESKTOP_UNMANAGED`</ul> | Support an unmanaged desktop that will typically span the entire screen space; |
 | <ul>`PATCH_SHOW_DESKTOP_WITH_FLOATING`</ul> | Allow visible floating clients to remain visible while the desktop is shown; |
