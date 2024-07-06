@@ -4855,12 +4855,12 @@ drawbar(Monitor *m, int skiptags)
 		&& (!showdesktop_when_active || (getdesktopclient(m, &x) || m->showdesktop))
 		#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	) {
-		m->bar[ShowDesktop].w = drw_fontset_getwidth(drw, showdesktop_button) + lrpad/2;
+		m->bar[ShowDesktop].w = TEXTW(showdesktop_button);
 		m->bar[ShowDesktop].x = m->bar[StatusText].x - customwidth - m->bar[ShowDesktop].w;
 		customwidth += m->bar[ShowDesktop].w;
 		drw_setscheme(drw, scheme[m->showdesktop ? SchemeSel : SchemeNorm]);
 		drw_text(drw,
-			m->bar[ShowDesktop].x, 0, m->bar[ShowDesktop].w, bh, lrpad / 4,
+			m->bar[ShowDesktop].x, 0, m->bar[ShowDesktop].w, bh, lrpad / 2,
 			#if PATCH_CLIENT_INDICATORS
 			0,
 			#endif // PATCH_CLIENT_INDICATORS
@@ -13692,7 +13692,7 @@ setfocus(Client *c)
 		#if PATCH_FLAG_PANEL
 		&& !c->ispanel
 		#endif // PATCH_FLAG_PANEL
-		) {
+	) {
 		XSetInputFocus(dpy, c->win, RevertToPointerRoot, CurrentTime);
 		XChangeProperty(dpy, root, netatom[NetActiveWindow],
 			XA_WINDOW, 32, PropModeReplace,
@@ -14072,7 +14072,7 @@ setup(void)
 	if (!fonts_json || !drw_fontset_create_json(drw, fonts_json))
 		if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
 			die("no fonts could be loaded.");
-	lrpad = drw->fonts->h;
+	lrpad = 3 * drw->fonts->h / 4;
 	minbh = drw->fonts->h + 2;
 	bh = minbh
 		#if PATCH_CLIENT_INDICATORS
@@ -14648,6 +14648,89 @@ spawnex(const void *v)
 {
 	struct sigaction sa;
 	pid_t pid;
+	char buffer[256];
+	int x, y;
+	Monitor *m = selmon;
+
+	if (m) {
+		snprintf(buffer, sizeof buffer, "%u", bh); setenv("BAR_HEIGHT", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%i", m->topbar ? 0 : m->mh - bh); setenv("BAR_Y", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%u", m->num); setenv("MONITOR", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%u", m->mh); setenv("MONITOR_HEIGHT", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%u", m->mw); setenv("MONITOR_WIDTH", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%i", m->mx); setenv("MONITOR_X", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%i", m->my); setenv("MONITOR_Y", buffer, 1);
+	} else {
+		setenv("BAR_HEIGHT", "", 1);
+		setenv("BAR_Y", "", 1);
+		setenv("MONITOR", "", 1);
+		setenv("MONITOR_HEIGHT", "", 1);
+		setenv("MONITOR_WIDTH", "", 1);
+		setenv("MONITOR_X", "", 1);
+		setenv("MONITOR_Y", "", 1);
+	}
+	if (m && m->sel) {
+		#if PATCH_FLAG_ALWAYSONTOP
+		setenv("CLIENT_ALWAYSONTOP", m->sel->alwaysontop ? "1" : "0", 1);
+		#endif // PATCH_FLAG_ALWAYSONTOP
+		setenv("CLIENT_FLOATING", m->sel->isfloating ? "1" : "0", 1);
+		#if PATCH_FLAG_GAME
+		setenv("CLIENT_GAME", m->sel->isgame ? "1" : "0", 1);
+		#endif // PATCH_FLAG_GAME
+		#if PATCH_SHOW_DESKTOP
+		setenv("CLIENT_DESKTOP", m->sel->isdesktop ? "1" : "0", 1);
+		setenv("CLIENT_ONDESKTOP", m->sel->ondesktop ? "1" : "0", 1);
+		#endif // PATCH_SHOW_DESKTOP
+		setenv("CLIENT_NAME", m->sel->name, 1);
+		#if PATCH_FLAG_PANEL
+		setenv("CLIENT_PANEL", m->sel->ispanel ? "1" : "0", 1);
+		#endif // PATCH_FLAG_PANEL
+		snprintf(buffer, sizeof buffer, "%u", m->sel->pid); setenv("CLIENT_PID", buffer, 1);
+		#if PATCH_FLAG_STICKY
+		setenv("CLIENT_STICKY", m->sel->issticky ? "1" : "0", 1);
+		#endif // PATCH_FLAG_STICKY
+		snprintf(buffer, sizeof buffer, "%u", m->sel->w); setenv("CLIENT_WIDTH", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%u", m->sel->h); setenv("CLIENT_HEIGHT", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%i", (m->sel->x - m->mx)); setenv("CLIENT_X", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%i", (m->sel->y - m->my)); setenv("CLIENT_Y", buffer, 1);
+		snprintf(buffer, sizeof buffer, "0x%lx", m->sel->win); setenv("WINDOW", buffer, 1);
+	} else {
+		#if PATCH_FLAG_ALWAYSONTOP
+		setenv("CLIENT_ALWAYSONTOP", "", 1);
+		#endif // PATCH_FLAG_ALWAYSONTOP
+		setenv("CLIENT_FLOATING", "", 1);
+		#if PATCH_FLAG_GAME
+		setenv("CLIENT_GAME", "", 1);
+		#endif // PATCH_FLAG_GAME
+		#if PATCH_SHOW_DESKTOP
+		setenv("CLIENT_DESKTOP", "", 1);
+		setenv("CLIENT_ONDESKTOP", "", 1);
+		#endif // PATCH_SHOW_DESKTOP
+		setenv("CLIENT_NAME", "", 1);
+		#if PATCH_FLAG_PANEL
+		setenv("CLIENT_PANEL", "", 1);
+		#endif // PATCH_FLAG_PANEL
+		setenv("CLIENT_PID", "", 1);
+		#if PATCH_FLAG_STICKY
+		setenv("CLIENT_STICKY", "", 1);
+		#endif // PATCH_FLAG_STICKY
+		setenv("CLIENT_HEIGHT", "", 1);
+		setenv("CLIENT_WIDTH", "", 1);
+		setenv("CLIENT_X", "", 1);
+		setenv("CLIENT_Y", "", 1);
+		setenv("WINDOW", "", 1);
+	}
+	if (getrootptr(&x, &y)) {
+		if (m) {
+			x -= m->mx;
+			y -= m->my;
+		}
+		snprintf(buffer, sizeof buffer, "%i", x); setenv("CURSOR_X", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%i", y); setenv("CURSOR_Y", buffer, 1);
+	} else {
+		setenv("CURSOR_X", "", 1);
+		setenv("CURSOR_Y", "", 1);
+	}
 
 	if (v == dmenucmd)
 		dmenumon[0] = '0' + selmon->num;
