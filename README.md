@@ -57,7 +57,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_FOCUS_BORDER` | Enlarge the top border edge of focused clients;<br />(mutually exclusive with `PATCH_FOCUS_PIXEL`) |
 | `PATCH_FOCUS_FOLLOWS_MOUSE` | Focus clients under the mouse pointer; |
 | `PATCH_FOCUS_PIXEL` | Put a filled rectangle in the bottom right corner of focused clients;<br />(mutually exclusive with `PATCH_FOCUS_BORDER`) |
-| `PATCH_HIDE_VACANT_TAGS` | Hides vacant tabs (except the active tag); |
+| `PATCH_HIDE_VACANT_TAGS` | Hides vacant tags (except the current active tag); |
 | `PATCH_IPC` | Provides socket-based message handling; |
 | `PATCH_LOG_DIAGNOSTICS` | Diagnostic functions that log to `stderr`; |
 | `PATCH_MIRROR_LAYOUT` | Swap the master and stack areas where applicable; |
