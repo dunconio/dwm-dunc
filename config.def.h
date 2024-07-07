@@ -314,7 +314,7 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask,             XK_v,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/select-audio-output.sh -1")},
 	{ MODKEY|ControlMask,           XK_v,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/select-audio-output.sh -2")},
 	{ MODKEY,                       XK_t,      spawn,          SHCMD("konsole >/dev/null 2>&1")},
-	{ MODKEY|ControlMask|ShiftMask, XK_t,      spawn,          SHCMD("echo -e \"monitor: $MONITOR (${MONITOR_WIDTH}x${MONITOR_HEIGHT}+${MONITOR_X}x${MONITOR_Y}) cursor @ ${CURSOR_X}x${CURSOR_Y}\n    bar: ${MONITOR_WIDTH}x${BAR_HEIGHT}+${MONITOR_X}x${BAR_Y}\n window: $WINDOW (${CLIENT_WIDTH}x${CLIENT_HEIGHT}+${CLIENT_X}x${CLIENT_Y})\n    pid: $CLIENT_PID\n   name: $CLIENT_NAME\n\n$(xprop -id $WINDOW)\" | zenity --width 960 --height 720 --text-info --font='FiraCode NF 11' --title=\"xprop: $CLIENT_NAME\" 2>/dev/null")},
+	{ MODKEY|ControlMask|ShiftMask, XK_t,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/xprop.sh")},
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
 	{ MODKEY|ShiftMask,             XK_x,      spawn,          SHCMD("firefox >/dev/null 2>&1")},
 	{ MODKEY|ShiftMask|ControlMask, XK_x,      spawn,          SHCMD("firefox --private-window >/dev/null 2>&1")},

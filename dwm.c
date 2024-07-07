@@ -14649,6 +14649,7 @@ spawnex(const void *v)
 	struct sigaction sa;
 	pid_t pid;
 	char buffer[256];
+	XClassHint ch = { NULL, NULL };
 	int x, y;
 	Monitor *m = selmon;
 
@@ -14670,51 +14671,68 @@ spawnex(const void *v)
 		setenv("MONITOR_Y", "", 1);
 	}
 	if (m && m->sel) {
+		XGetClassHint(dpy, m->sel->win, &ch);
 		#if PATCH_FLAG_ALWAYSONTOP
 		setenv("CLIENT_ALWAYSONTOP", m->sel->alwaysontop ? "1" : "0", 1);
 		#endif // PATCH_FLAG_ALWAYSONTOP
+		setenv("CLIENT_CLASS", ch.res_class ? ch.res_class : "", 1);
+		#if PATCH_SHOW_DESKTOP
+		setenv("CLIENT_DESKTOP", m->sel->isdesktop ? "1" : "0", 1);
+		#endif // PATCH_SHOW_DESKTOP
 		setenv("CLIENT_FLOATING", m->sel->isfloating ? "1" : "0", 1);
 		#if PATCH_FLAG_GAME
 		setenv("CLIENT_GAME", m->sel->isgame ? "1" : "0", 1);
 		#endif // PATCH_FLAG_GAME
+		snprintf(buffer, sizeof buffer, "%u", m->sel->h); setenv("CLIENT_HEIGHT", buffer, 1);
+		setenv("CLIENT_INSTANCE", ch.res_name ? ch.res_name : "", 1);
+		setenv("CLIENT_NAME", m->sel->name, 1);
 		#if PATCH_SHOW_DESKTOP
-		setenv("CLIENT_DESKTOP", m->sel->isdesktop ? "1" : "0", 1);
 		setenv("CLIENT_ONDESKTOP", m->sel->ondesktop ? "1" : "0", 1);
 		#endif // PATCH_SHOW_DESKTOP
-		setenv("CLIENT_NAME", m->sel->name, 1);
 		#if PATCH_FLAG_PANEL
 		setenv("CLIENT_PANEL", m->sel->ispanel ? "1" : "0", 1);
 		#endif // PATCH_FLAG_PANEL
 		snprintf(buffer, sizeof buffer, "%u", m->sel->pid); setenv("CLIENT_PID", buffer, 1);
+		gettextprop(m->sel->win, wmatom[WMWindowRole], buffer, sizeof buffer); setenv("CLIENT_ROLE", buffer, 1);
 		#if PATCH_FLAG_STICKY
 		setenv("CLIENT_STICKY", m->sel->issticky ? "1" : "0", 1);
 		#endif // PATCH_FLAG_STICKY
+		snprintf(buffer, sizeof buffer, "%u", m->sel->tags); setenv("CLIENT_TAGS", buffer, 1);
 		snprintf(buffer, sizeof buffer, "%u", m->sel->w); setenv("CLIENT_WIDTH", buffer, 1);
-		snprintf(buffer, sizeof buffer, "%u", m->sel->h); setenv("CLIENT_HEIGHT", buffer, 1);
 		snprintf(buffer, sizeof buffer, "%i", (m->sel->x - m->mx)); setenv("CLIENT_X", buffer, 1);
 		snprintf(buffer, sizeof buffer, "%i", (m->sel->y - m->my)); setenv("CLIENT_Y", buffer, 1);
 		snprintf(buffer, sizeof buffer, "0x%lx", m->sel->win); setenv("WINDOW", buffer, 1);
+		if (ch.res_class)
+			XFree(ch.res_class);
+		if (ch.res_name)
+			XFree(ch.res_name);
 	} else {
 		#if PATCH_FLAG_ALWAYSONTOP
 		setenv("CLIENT_ALWAYSONTOP", "", 1);
 		#endif // PATCH_FLAG_ALWAYSONTOP
+		setenv("CLIENT_CLASS", "", 1);
+		#if PATCH_SHOW_DESKTOP
+		setenv("CLIENT_DESKTOP", "", 1);
+		#endif // PATCH_SHOW_DESKTOP
 		setenv("CLIENT_FLOATING", "", 1);
 		#if PATCH_FLAG_GAME
 		setenv("CLIENT_GAME", "", 1);
 		#endif // PATCH_FLAG_GAME
+		setenv("CLIENT_HEIGHT", "", 1);
+		setenv("CLIENT_INSTANCE", "", 1);
+		setenv("CLIENT_NAME", "", 1);
 		#if PATCH_SHOW_DESKTOP
-		setenv("CLIENT_DESKTOP", "", 1);
 		setenv("CLIENT_ONDESKTOP", "", 1);
 		#endif // PATCH_SHOW_DESKTOP
-		setenv("CLIENT_NAME", "", 1);
 		#if PATCH_FLAG_PANEL
 		setenv("CLIENT_PANEL", "", 1);
 		#endif // PATCH_FLAG_PANEL
 		setenv("CLIENT_PID", "", 1);
+		setenv("CLIENT_ROLE", "", 1);
 		#if PATCH_FLAG_STICKY
 		setenv("CLIENT_STICKY", "", 1);
 		#endif // PATCH_FLAG_STICKY
-		setenv("CLIENT_HEIGHT", "", 1);
+		setenv("CLIENT_TAGS", "", 1);
 		setenv("CLIENT_WIDTH", "", 1);
 		setenv("CLIENT_X", "", 1);
 		setenv("CLIENT_Y", "", 1);
