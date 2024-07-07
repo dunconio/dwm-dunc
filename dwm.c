@@ -4907,7 +4907,11 @@ drawbar(Monitor *m, int skiptags)
 				//occ |= c->tags == TAGMASK ? 0 : c->tags;
 				if (c->tags != TAGMASK)
 					occ |= c->tags;
-				if (c->isurgent && urgency)
+				if (c->isurgent && urgency
+					#if PATCH_FLAG_HIDDEN
+					&& !c->ishidden
+					#endif // PATCH_FLAG_HIDDEN
+					)
 					urg |= c->tags;
 
 				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
