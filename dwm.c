@@ -2935,6 +2935,9 @@ attachstack(Client *c)
 		if ((c->snext = c->mon->stack))
 			c->snext->sprev = c;
 		c->mon->stack = c;
+
+		if (c->mon != selmon)
+			c->mon->sel = c;
 	}
 	else {
 		if ((c->sprev = f->sprev))
@@ -5928,7 +5931,7 @@ focusmonex(Monitor *m)
 	if (s->sel)
 		opacity(s->sel, 1);
 	#endif // PATCH_CLIENT_OPACITY
-	drawbar(s, 0);
+	restack(s);
 	drawbar(m, 0);
 }
 
@@ -6480,7 +6483,7 @@ getparentclient(Client *c)
 		return NULL;
 	#endif // PATCH_SHOW_DESKTOP
 
-	if(XQueryTree(dpy, c->win, &r, &parent, &children, &num_children)){
+	if (XQueryTree(dpy, c->win, &r, &parent, &children, &num_children)) {
 		if (children)
 			XFree((char *)children);
 		#if PATCH_SHOW_DESKTOP
@@ -8605,8 +8608,13 @@ manage(Window w, XWindowAttributes *wa)
 			free(c);
 			return;
 		}
-		if (!c->tags && c->parent == t && t->mon == c->mon)
+		if (!c->tags && c->parent == t && t->mon == c->mon) {
+			#if PATCH_FLAG_STICKY
+			if (t->issticky)
+				c->issticky = 1;
+			#endif // PATCH_FLAG_STICKY
 			c->tags = t->tags;
+		}
 		c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : c->mon->tagset[c->mon->seltags];
 		c->isfloating_override = -1;
 	} else {
@@ -8624,9 +8632,24 @@ manage(Window w, XWindowAttributes *wa)
 			return;
 		}
 		if (c->parent && c->parent == t && !c->tags && !c->mon) {
+			#if PATCH_FLAG_STICKY
+			if (t->issticky
+				#if PATCH_MODAL_SUPPORT
+				&& !c->ismodal
+				#endif // PATCH_MODAL_SUPPORT
+				)
+				c->tags = t->mon->tagset[t->mon->seltags];
+			else
+			#endif // PATCH_FLAG_STICKY
 			c->tags = t->tags;
 			c->mon = t->mon;
 			c->monindex = t->monindex;
+			#if PATCH_FLAG_STICKY
+			#if PATCH_MODAL_SUPPORT
+			if (t->issticky && c->ismodal)
+				c->issticky = 1;
+			#endif // PATCH_MODAL_SUPPORT
+			#endif // PATCH_FLAG_STICKY
 		}
 		if (c->parent) {
 			if (!c->mon) {
@@ -12464,13 +12487,20 @@ restack(Monitor *m)
 	}
 	*/
 
-	raised = m->sel && (
+	raised = m->sel && ((m == selmon && (
 		focusedontoptiled
 		|| m->sel->isfloating
 		#if PATCH_FLAG_ALWAYSONTOP
 		|| m->sel->alwaysontop
 		#endif // PATCH_FLAG_ALWAYSONTOP
-		|| (
+		) && (1
+			#if PATCH_FLAG_PANEL
+			&& !m->sel->ispanel
+			#endif // PATCH_FLAG_PANEL
+			#if PATCH_SHOW_DESKTOP
+			&& !m->sel->isdesktop
+			#endif // PATCH_SHOW_DESKTOP
+		)) || (
 			m->sel->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			&& !m->sel->fakefullscreen
@@ -12481,16 +12511,6 @@ restack(Monitor *m)
 		#endif // PATCH_FLAG_GAME
 	) ? m->sel : NULL;
 
-	if (raised && (
-		(!raised->isfloating && raised->mon != selmon)
-		#if PATCH_FLAG_PANEL
-		|| raised->ispanel
-		#endif // PATCH_FLAG_PANEL
-		#if PATCH_SHOW_DESKTOP
-		|| raised->isdesktop
-		#endif // PATCH_SHOW_DESKTOP
-		))
-		raised = NULL;
 	#if PATCH_ALTTAB
 	#if PATCH_ALTTAB_HIGHLIGHT
 	if (tabHighlight && altTabMon && altTabMon->isAlt) {
@@ -16256,6 +16276,10 @@ togglesticky(const Arg *arg)
 	if (c->isdesktop || c->ondesktop)
 		return;
 	#endif // PATCH_SHOW_DESKTOP
+	#if PATCH_MODAL_SUPPORT
+	if (c->ismodal)
+		return;
+	#endif // PATCH_MODAL_SUPPORT
     setsticky(c, !c->issticky);
 	arrange(selmon);
 	if (!ISVISIBLE(c)) {
