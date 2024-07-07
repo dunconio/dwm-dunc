@@ -2936,7 +2936,20 @@ attachstack(Client *c)
 			c->snext->sprev = c;
 		c->mon->stack = c;
 
-		if (c->mon != selmon)
+		if (c->mon != selmon && ISVISIBLE(c)
+			#if PATCH_FLAG_HIDDEN
+			&& !c->ishidden
+			#endif // PATCH_FLAG_HIDDEN
+			#if PATCH_FLAG_IGNORED
+			&& !c->isignored
+			#endif // PATCH_FLAG_IGNORED
+			#if PATCH_FLAG_PANEL
+			&& !c->ispanel
+			#endif // PATCH_FLAG_PANEL
+			#if PATCH_SHOW_DESKTOP
+			&& !c->isdesktop
+			#endif // PATCH_SHOW_DESKTOP
+			)
 			c->mon->sel = c;
 	}
 	else {
