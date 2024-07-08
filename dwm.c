@@ -5447,124 +5447,128 @@ drawbars(void)
 void drawfocusborder(int remove)
 {
 	XWindowChanges wc;
-	if (focuswin) {
-		Client *c;
-		if (!selmon || !(c = selmon->sel)
-			#if PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
-			|| remove
-			#endif // PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
-			#if PATCH_SHOW_DESKTOP
-			|| c->isdesktop
-			#endif // PATCH_SHOW_DESKTOP
-			|| (c->isfullscreen
+	Client *c;
+	if (!focuswin)
+		return;
+	if (!selmon || !(c = selmon->sel)
+		#if PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
+		|| remove
+		#endif // PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
+		#if PATCH_FLAG_PANEL
+		|| c->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		|| c->isdesktop
+		#endif // PATCH_SHOW_DESKTOP
+		|| (c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			&& c->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
-		)) {
-			#if PATCH_FOCUS_PIXEL
-			fpcurpos = 0;
-			#endif // PATCH_FOCUS_PIXEL
-			XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
-			return;
+		)
+	) {
+		#if PATCH_FOCUS_PIXEL
+		fpcurpos = 0;
+		#endif // PATCH_FOCUS_PIXEL
+		XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
+		return;
+	}
+	#if PATCH_FOCUS_BORDER
+	if (remove) {
+		#if PATCH_SHOW_DESKTOP
+		if (desktopvalid(c))
+		#endif // PATCH_SHOW_DESKTOP
+		XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
+		XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
+		return;
+	}
+	#endif // PATCH_FOCUS_BORDER
+	XWindowAttributes wa;
+	if (!XGetWindowAttributes(dpy, c->win, &wa))
+		return;
+	#if PATCH_FOCUS_BORDER
+	if (wa.border_width) {
+		unsigned int size = 0;
+		switch (fbpos) {
+			case FOCUS_BORDER_E:
+				if (!c->isfloating || c->x + WIDTH(c) < c->mon->wx + c->mon->ww) {
+					size = c->isfloating ? MIN(fh, MAX(c->mon->wx + c->mon->ww - WIDTH(c) - c->x, 1)) : fh;
+					XMoveResizeWindow(dpy, focuswin, c->x + WIDTH(c) - (!c->isfloating ? size : 0), c->y, size, HEIGHT(c));
+					if (!c->isfloating)
+						XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w - fh, c->h);
+				}
+				break;
+			case FOCUS_BORDER_S:
+				if (!c->isfloating || c->y + HEIGHT(c) < c->mon->wy + c->mon->wh) {
+					size = c->isfloating ? MIN(fh, MAX(c->mon->wy + c->mon->wh - HEIGHT(c) - c->y, 1)) : fh;
+					XMoveResizeWindow(dpy, focuswin, c->x, c->y + HEIGHT(c) - (!c->isfloating ? size : 0), WIDTH(c), size);
+					if (!c->isfloating)
+						XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h - fh);
+				}
+				break;
+			case FOCUS_BORDER_W:
+				if (!c->isfloating || c->x > c->mon->wx) {
+					size = c->isfloating ? MIN(fh, MAX(c->mon->wx + c->mon->ww - WIDTH(c) - c->x, 1)) : fh;
+					XMoveResizeWindow(dpy, focuswin, c->x - (c->isfloating ? size : 0), c->y, size, HEIGHT(c));
+					if (!c->isfloating)
+						XMoveResizeWindow(dpy, c->win, c->x + fh, c->y, c->w - fh, c->h);
+				}
+				break;
+			default:
+			case FOCUS_BORDER_N:
+				if (!c->isfloating || c->y > c->mon->wy) {
+					size = c->isfloating ? MIN(fh, MAX(c->mon->wy + c->mon->wh - HEIGHT(c) - c->y, 1)) : fh;
+					XMoveResizeWindow(dpy, focuswin, c->x, c->y - (c->isfloating ? size : 0), WIDTH(c), size);
+					if (!c->isfloating)
+						XMoveResizeWindow(dpy, c->win, c->x, c->y + fh, c->w, c->h - fh);
+				}
 		}
-		#if PATCH_FOCUS_BORDER
-		if (remove) {
-			#if PATCH_SHOW_DESKTOP
-			if (desktopvalid(c))
-			#endif // PATCH_SHOW_DESKTOP
-			XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
-			XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
-			return;
-		}
-		#endif // PATCH_FOCUS_BORDER
-		XWindowAttributes wa;
-		if (!XGetWindowAttributes(dpy, c->win, &wa))
-			return;
-		#if PATCH_FOCUS_BORDER
-		if (wa.border_width) {
-			unsigned int size = 0;
-			switch (fbpos) {
-				case FOCUS_BORDER_E:
-					if (!c->isfloating || c->x + WIDTH(c) < c->mon->wx + c->mon->ww) {
-						size = c->isfloating ? MIN(fh, MAX(c->mon->wx + c->mon->ww - WIDTH(c) - c->x, 1)) : fh;
-						XMoveResizeWindow(dpy, focuswin, c->x + WIDTH(c) - (!c->isfloating ? size : 0), c->y, size, HEIGHT(c));
-						if (!c->isfloating)
-							XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w - fh, c->h);
-					}
-					break;
-				case FOCUS_BORDER_S:
-					if (!c->isfloating || c->y + HEIGHT(c) < c->mon->wy + c->mon->wh) {
-						size = c->isfloating ? MIN(fh, MAX(c->mon->wy + c->mon->wh - HEIGHT(c) - c->y, 1)) : fh;
-						XMoveResizeWindow(dpy, focuswin, c->x, c->y + HEIGHT(c) - (!c->isfloating ? size : 0), WIDTH(c), size);
-						if (!c->isfloating)
-							XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h - fh);
-					}
-					break;
-				case FOCUS_BORDER_W:
-					if (!c->isfloating || c->x > c->mon->wx) {
-						size = c->isfloating ? MIN(fh, MAX(c->mon->wx + c->mon->ww - WIDTH(c) - c->x, 1)) : fh;
-						XMoveResizeWindow(dpy, focuswin, c->x - (c->isfloating ? size : 0), c->y, size, HEIGHT(c));
-						if (!c->isfloating)
-							XMoveResizeWindow(dpy, c->win, c->x + fh, c->y, c->w - fh, c->h);
-					}
-					break;
-				default:
-				case FOCUS_BORDER_N:
-					if (!c->isfloating || c->y > c->mon->wy) {
-						size = c->isfloating ? MIN(fh, MAX(c->mon->wy + c->mon->wh - HEIGHT(c) - c->y, 1)) : fh;
-						XMoveResizeWindow(dpy, focuswin, c->x, c->y - (c->isfloating ? size : 0), WIDTH(c), size);
-						if (!c->isfloating)
-							XMoveResizeWindow(dpy, c->win, c->x, c->y + fh, c->w, c->h - fh);
-					}
-			}
-			if (size) {
-				wc.stack_mode = Above;
-				wc.sibling = c->win;
-				XConfigureWindow(dpy, focuswin, CWSibling|CWStackMode, &wc);
-			}
-			else
-				XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
+		if (size) {
+			wc.stack_mode = Above;
+			wc.sibling = c->win;
+			XConfigureWindow(dpy, focuswin, CWSibling|CWStackMode, &wc);
 		}
 		else
 			XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
-		#elif PATCH_FOCUS_PIXEL
-		if (!fpcurpos)
-			fpcurpos = fppos;
-		switch (fpcurpos) {
-			case FOCUS_PIXEL_SW:
-				XMoveResizeWindow(dpy, focuswin,
-					c->x + wa.border_width,
-					c->y + c->h + wa.border_width - fh - 2,
-					fh, fh
-				);
-				break;
-			case FOCUS_PIXEL_NW:
-				XMoveResizeWindow(dpy, focuswin,
-					c->x + wa.border_width,
-					c->y + wa.border_width,
-					fh, fh
-				);
-				break;
-			case FOCUS_PIXEL_NE:
-				XMoveResizeWindow(dpy, focuswin,
-					c->x + c->w + wa.border_width - fh - 2,
-					c->y + wa.border_width,
-					fh, fh
-				);
-				break;
-			default:
-			case FOCUS_PIXEL_SE:
-				XMoveResizeWindow(dpy, focuswin,
-					c->x + c->w + wa.border_width - fh - 2,
-					c->y + c->h + wa.border_width - fh - 2,
-					fh, fh
-				);
-		}
-		wc.stack_mode = Above;
-		wc.sibling = c->win;
-		XConfigureWindow(dpy, focuswin, CWSibling|CWStackMode, &wc);
-		#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	}
+	else
+		XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
+	#elif PATCH_FOCUS_PIXEL
+	if (!fpcurpos)
+		fpcurpos = fppos;
+	switch (fpcurpos) {
+		case FOCUS_PIXEL_SW:
+			XMoveResizeWindow(dpy, focuswin,
+				c->x + wa.border_width,
+				c->y + c->h + wa.border_width - fh - 2,
+				fh, fh
+			);
+			break;
+		case FOCUS_PIXEL_NW:
+			XMoveResizeWindow(dpy, focuswin,
+				c->x + wa.border_width,
+				c->y + wa.border_width,
+				fh, fh
+			);
+			break;
+		case FOCUS_PIXEL_NE:
+			XMoveResizeWindow(dpy, focuswin,
+				c->x + c->w + wa.border_width - fh - 2,
+				c->y + wa.border_width,
+				fh, fh
+			);
+			break;
+		default:
+		case FOCUS_PIXEL_SE:
+			XMoveResizeWindow(dpy, focuswin,
+				c->x + c->w + wa.border_width - fh - 2,
+				c->y + c->h + wa.border_width - fh - 2,
+				fh, fh
+			);
+	}
+	wc.stack_mode = Above;
+	wc.sibling = c->win;
+	XConfigureWindow(dpy, focuswin, CWSibling|CWStackMode, &wc);
+	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 }
 #endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
