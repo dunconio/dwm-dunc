@@ -2936,7 +2936,8 @@ attachstack(Client *c)
 			c->snext->sprev = c;
 		c->mon->stack = c;
 
-		if (c->mon != selmon && ISVISIBLE(c)
+		// floating client on top of stack, will probably want to be the new selection;
+		if (c->mon != selmon && ISVISIBLE(c) && !c->neverfocus && c->isfloating
 			#if PATCH_FLAG_HIDDEN
 			&& !c->ishidden
 			#endif // PATCH_FLAG_HIDDEN
