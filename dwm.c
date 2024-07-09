@@ -15917,6 +15917,8 @@ altTabStart(const Arg *arg)
 						focus(c, 1);
 					else {
 						c->mon->sel = c;
+						detachstackex(c);
+						attachstack(c);
 						arrange(c->mon);
 					}
 				}
