@@ -5609,12 +5609,20 @@ enternotify(XEvent *e)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *sel = selmon->sel;
 	Client *c = wintoclient(ev->window);
-	if ((c && c->neverfocus && c != sel)
+	if (c && c == sel) {
+		while (XCheckMaskEvent(dpy, EnterWindowMask, &xev));
+		return;
+	}
+	else if ((c && c->neverfocus)
 		#if PATCH_FLAG_GREEDY_FOCUS
 		|| (sel && sel->isgreedy)
 		#endif // PATCH_FLAG_GREEDY_FOCUS
 	) {
-		while (XCheckMaskEvent(dpy, EnterWindowMask, &xev));
+		if (ev->window != root)
+			while (XCheckMaskEvent(dpy, EnterWindowMask, &xev));
+		#if PATCH_FLAG_GAME
+		if (sel->isgame && sel != game)
+		#endif // PATCH_FLAG_GAME
 		focus(sel, 1);
 		return;
 	}
@@ -5651,7 +5659,7 @@ enternotify(XEvent *e)
 		#endif // PATCH_FLAG_IGNORED
 		)
 		focus(NULL, 0);
-
+	/*
 	#else // NO PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_FLAG_GAME
 	if (!wintoclient(ev->window)) {
@@ -5663,8 +5671,8 @@ enternotify(XEvent *e)
 		}
 	}
 	#endif // PATCH_FLAG_GAME
+	*/
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
-	//XSync(dpy, False);
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &xev));
 }
 
@@ -5871,6 +5879,7 @@ focus(Client *c, int force)
 	if (focuswin)
 		drawfocusborder(0);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+
 	restack(selmon);
 }
 
@@ -7005,7 +7014,11 @@ grabbuttons(Client *c, int focused)
 		unsigned int i, j;
 		unsigned int modifiers[] = { 0, LockMask, numlockmask, numlockmask|LockMask };
 		XUngrabButton(dpy, AnyButton, AnyModifier, c->win);
-		if (!focused)
+		if (!focused
+			#if PATCH_FLAG_GAME
+			|| (c->isgame && c->isfullscreen)
+			#endif // PATCH_FLAG_GAME
+			)
 			XGrabButton(dpy, AnyButton, AnyModifier, c->win, False,
 				BUTTONMASK, GrabModeSync, GrabModeSync, None, None);
 		for (i = 0; i < LENGTH(buttons); i++) {
@@ -8974,6 +8987,11 @@ manage(Window w, XWindowAttributes *wa)
 	c->sfy = c->y;
 	if (c->sfw == -1) c->sfw = c->w;
 	if (c->sfh == -1) c->sfh = c->h;
+	#if PATCH_FLAG_GAME
+	if (c->isgame)
+		XSelectInput(dpy, w, FocusChangeMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
+	else
+	#endif // PATCH_FLAG_GAME
 	XSelectInput(dpy, w, EnterWindowMask|FocusChangeMask|LeaveWindowMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
 	grabbuttons(c, 0);
 
@@ -13824,6 +13842,8 @@ setfullscreen(Client *c, int fullscreen)
 				unfocus(selmon->sel, 0);
 			c->mon->sel = c;
 			raiseclient(c);
+			if (c->isgame)
+				grabbuttons(c, 1);	// re-grab in case of modified status;
 			setfocus(c);
 			#endif // PATCH_FLAG_GAME
 			drawbar(c->mon, 1);
@@ -13858,6 +13878,11 @@ setfullscreen(Client *c, int fullscreen)
 				return;
 			arrange(c->mon);
 		}
+		#if PATCH_FLAG_GAME
+		if (c->isgame)
+			grabbuttons(c, selmon->sel == c ? 1 : 0);	// re-grab in case of modified status;
+		#endif // PATCH_FLAG_GAME
+
 	} else if (ISVISIBLE(c)) {
 		unsigned int bw = (solitary(c) ? c->bw : 0);
 		resizeclient(c, c->x, c->y, c->w - 2*bw, c->h - 2*bw, 0);
@@ -13886,6 +13911,10 @@ setfullscreen(Client *c, int fullscreen)
 			if (c->dormant || MINIMIZED(c) || running != 1)
 				return;
 
+			#if PATCH_FLAG_GAME
+			if (c->isgame)
+				grabbuttons(c, 1);	// re-grab in case of modified status;
+			#endif // PATCH_FLAG_GAME
 			setfocus(c);
 			raiseclient(c);
 		}
@@ -13906,6 +13935,10 @@ setfullscreen(Client *c, int fullscreen)
 			return;
 
 		arrange(c->mon);
+		#if PATCH_FLAG_GAME
+		if (c->isgame)
+			grabbuttons(c, selmon->sel == c ? 1 : 0);	// re-grab in case of modified status;
+		#endif // PATCH_FLAG_GAME
 	}
 	#endif // PATCH_FLAG_FAKEFULLSCREEN
 
@@ -17868,7 +17901,7 @@ warptoclient(Client *c, int force)
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		;
 	else if (force < 1 && px >= tx && px <= (tx + tw) && py >= ty && py <= (ty + th)) {
-		if (c)
+		if (c && selmon->sel != c)
 			focus(c, 0);
 		return;
 	}
@@ -17877,7 +17910,8 @@ warptoclient(Client *c, int force)
 	if ((c && !c->isfloating && c->mon->lt[c->mon->sellt]->arrange == monocle && c->mon->showbar)
 		|| pointoverbar(px, py, force == -1 ? 0 : 1)
 	) {
-		focus(c, 0);
+		if (selmon->sel != c)
+			focus(c, 0);
 		return;
 	}
 
@@ -17903,7 +17937,8 @@ warptoclient(Client *c, int force)
 		th_data->force = force;
 		th_data->grab = (smoothly && force == 1) ? 0 : 1;
 		pthread_create(&th, NULL, warppointer, th_data);
-		focus(c, 0);
+		if (selmon->sel != c)
+			focus(c, 0);
 		return;
 	}
 	else
@@ -17914,7 +17949,8 @@ warptoclient(Client *c, int force)
 		else
 			XWarpPointer(dpy, None, root, 0, 0, 0, 0, tpx, tpy);
 		XSync(dpy, False);
-		focus(c, 0);
+		if (selmon->sel != c)
+			focus(c, 0);
 	}
 }
 #endif // PATCH_MOUSE_POINTER_WARPING
