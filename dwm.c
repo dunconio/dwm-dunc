@@ -5606,10 +5606,6 @@ enternotify(XEvent *e)
 
 	if ((ev->mode != NotifyNormal || ev->detail == NotifyInferior) && ev->window != root)
 		return;
-	#if PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
-	if (focuswin && ev->window == focuswin)
-		repelfocusborder();
-	#endif // PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *sel = selmon->sel;
 	Client *c = wintoclient(ev->window);
@@ -14241,7 +14237,7 @@ setup(void)
 		);
 		#elif PATCH_FOCUS_PIXEL
 		fwa.border_pixel = 0x40000000L;
-		fwa.event_mask = EnterWindowMask|PointerMotionMask;
+		fwa.event_mask = PointerMotionMask;
 		#if PATCH_ALPHA_CHANNEL
 		if (useargb) {
 			fwa.colormap = cmap;
