@@ -3221,10 +3221,8 @@ buttonpress(XEvent *e)
 		}
 
 	} else if ((c = wintoclient(ev->window))) {
-		if (selmon->sel != c) {
+		if (selmon->sel != c)
 			focus(c, 1);
-			//restack(selmon);
-		}
 		XAllowEvents(dpy, ReplayPointer, CurrentTime);
 		//click = (ev->x >= 0 && ev->x <= c->w && ev->y >= 0 && ev->y <= c->h) ? ClkClientWin : ClkClientBorder;
 		click = ClkClientWin;
@@ -4652,7 +4650,7 @@ drawbar(Monitor *m, int skiptags)
 		#if PATCH_TORCH
 		|| torchwin
 		#endif // PATCH_TORCH
-	)
+		)
 		return;
 
 	#if PATCH_CLIENT_INDICATORS
@@ -6523,15 +6521,14 @@ getparentclient(Client *c)
 		}
 		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 		#endif // PATCH_SHOW_DESKTOP
-		i = wintoclient(parent);
-		if (0
+		if (!parent || parent == root || !(i = wintoclient(parent))
 			#if PATCH_FLAG_PARENT
-			|| (i && i->neverparent)
+			|| i->neverparent
 			#endif // PATCH_FLAG_PARENT
 			#if PATCH_FLAG_HIDDEN
-			|| (i && i->ishidden)
+			|| i->ishidden
 			#endif // PATCH_FLAG_HIDDEN
-		)
+			)
 			i = NULL;
 		else if (!i && parent && parent != root) {
 			logdatetime(stderr);
