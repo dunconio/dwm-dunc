@@ -17568,14 +17568,14 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 			#endif // PATCH_SHOW_DESKTOP
 		}
 		arrange(m);
-
+		/*
 		if (m->sel
 			#if PATCH_ALTTAB
 			&& !altTabMon
 			#endif // PATCH_ALTTAB
 			)
 			focus(m->sel, 0);
-
+		*/
 		#if PATCH_EWMH_TAGS
 		if (m == selmon)
 			updatecurrentdesktop();
