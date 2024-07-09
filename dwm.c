@@ -1662,9 +1662,9 @@ static Window root, wmcheckwin;
 #if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 static Window focuswin = None;
 #endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-#if PATCH_FOCUS_PIXEL
+#if PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
 static unsigned int fpcurpos = 0;
-#endif // PATCH_FOCUS_PIXEL
+#endif // PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
 #if PATCH_SHOW_DESKTOP
 #if PATCH_SHOW_DESKTOP_UNMANAGED
 static Window desktopwin = None;
@@ -5451,13 +5451,13 @@ drawbars(void)
 void drawfocusborder(int remove)
 {
 	XWindowChanges wc;
-	Client *c;
+	Client *c = NULL;
 	if (!focuswin)
 		return;
 	if (!selmon || !(c = selmon->sel)
-		#if PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
+		#if PATCH_FOCUS_PIXEL || PATCH_FOCUS_BORDER
 		|| remove
-		#endif // PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
+		#endif // PATCH_FOCUS_PIXEL || PATCH_FOCUS_BORDER
 		#if PATCH_FLAG_PANEL
 		|| c->ispanel
 		#endif // PATCH_FLAG_PANEL
@@ -5470,22 +5470,19 @@ void drawfocusborder(int remove)
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		)
 	) {
-		#if PATCH_FOCUS_PIXEL
+		#if PATCH_FOCUS_BORDER
+		if (c) {
+			#if PATCH_SHOW_DESKTOP
+			if (desktopvalid(c))
+			#endif // PATCH_SHOW_DESKTOP
+			XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
+		}
+		#elif PATCH_FOCUS_PIXEL
 		fpcurpos = 0;
-		#endif // PATCH_FOCUS_PIXEL
+		#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 		XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
 		return;
 	}
-	#if PATCH_FOCUS_BORDER
-	if (remove) {
-		#if PATCH_SHOW_DESKTOP
-		if (desktopvalid(c))
-		#endif // PATCH_SHOW_DESKTOP
-		XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
-		XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
-		return;
-	}
-	#endif // PATCH_FOCUS_BORDER
 	XWindowAttributes wa;
 	if (!XGetWindowAttributes(dpy, c->win, &wa))
 		return;
@@ -5874,11 +5871,16 @@ focus(Client *c, int force)
 	#if PATCH_ALTTAB
 	if (!altTabMon)
 	#endif // PATCH_ALTTAB
-	selmon->sel = c;
-	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	if (focuswin)
-		drawfocusborder(0);
-	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	{
+		#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+		if (focuswin) {
+			selmon->sel = c;
+			drawfocusborder(0);
+		}
+		else
+		#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+		selmon->sel = c;
+	}
 
 	restack(selmon);
 }
@@ -5958,6 +5960,9 @@ focusmonex(Monitor *m)
 	if (s->sel)
 		opacity(s->sel, 1);
 	#endif // PATCH_CLIENT_OPACITY
+	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	drawfocusborder(m->sel && ISVISIBLE(m->sel) ? 0 : 1);
+	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	restack(s);
 	drawbar(m, 0);
 }
@@ -9587,6 +9592,9 @@ motionnotify(XEvent *e)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	Monitor *m;
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
+	XEvent xev;
+	#endif // PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
 	XMotionEvent *ev = &e->xmotion;
 
 	#if PATCH_ALTTAB
@@ -9596,7 +9604,11 @@ motionnotify(XEvent *e)
 
 	#if PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
 	if (focuswin && ev->window == focuswin)
+	{
+		while (XCheckMaskEvent(dpy, PointerMotionMask, &xev));
 		repelfocusborder();
+		return;
+	}
 	#endif // PATCH_FOCUS_PIXEL && !PATCH_FOCUS_BORDER
 
 	if (ev->window != root
@@ -11782,9 +11794,6 @@ removesystrayicon(Client *i)
 void
 repelfocusborder(void)
 {
-	//Client *c;
-	//if (!focuswin || !(c = selmon->sel))
-	//	return;
 	switch (fpcurpos) {
 		case FOCUS_PIXEL_NE:
 			fpcurpos = FOCUS_PIXEL_SE;
