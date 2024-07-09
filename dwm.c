@@ -14729,6 +14729,7 @@ spawnex(const void *v)
 	XClassHint ch = { NULL, NULL };
 	int x, y;
 	Monitor *m = selmon;
+	Client *c = NULL;
 
 	if (m) {
 		snprintf(buffer, sizeof buffer, "%u", bh); setenv("BAR_HEIGHT", buffer, 1);
@@ -14738,6 +14739,7 @@ spawnex(const void *v)
 		snprintf(buffer, sizeof buffer, "%u", m->mw); setenv("MONITOR_WIDTH", buffer, 1);
 		snprintf(buffer, sizeof buffer, "%i", m->mx); setenv("MONITOR_X", buffer, 1);
 		snprintf(buffer, sizeof buffer, "%i", m->my); setenv("MONITOR_Y", buffer, 1);
+		c = m->sel;
 	} else {
 		setenv("BAR_HEIGHT", "", 1);
 		setenv("BAR_Y", "", 1);
@@ -14747,38 +14749,38 @@ spawnex(const void *v)
 		setenv("MONITOR_X", "", 1);
 		setenv("MONITOR_Y", "", 1);
 	}
-	if (m && m->sel) {
-		XGetClassHint(dpy, m->sel->win, &ch);
+	if (m && c) {
+		XGetClassHint(dpy, c->win, &ch);
 		#if PATCH_FLAG_ALWAYSONTOP
-		setenv("CLIENT_ALWAYSONTOP", m->sel->alwaysontop ? "1" : "0", 1);
+		setenv("CLIENT_ALWAYSONTOP", c->alwaysontop ? "1" : "0", 1);
 		#endif // PATCH_FLAG_ALWAYSONTOP
 		setenv("CLIENT_CLASS", ch.res_class ? ch.res_class : "", 1);
 		#if PATCH_SHOW_DESKTOP
-		setenv("CLIENT_DESKTOP", m->sel->isdesktop ? "1" : "0", 1);
+		setenv("CLIENT_DESKTOP", c->isdesktop ? "1" : "0", 1);
 		#endif // PATCH_SHOW_DESKTOP
-		setenv("CLIENT_FLOATING", m->sel->isfloating ? "1" : "0", 1);
+		setenv("CLIENT_FLOATING", c->isfloating ? "1" : "0", 1);
 		#if PATCH_FLAG_GAME
-		setenv("CLIENT_GAME", m->sel->isgame ? "1" : "0", 1);
+		setenv("CLIENT_GAME", c->isgame ? "1" : "0", 1);
 		#endif // PATCH_FLAG_GAME
-		snprintf(buffer, sizeof buffer, "%u", m->sel->h); setenv("CLIENT_HEIGHT", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%u", c->h); setenv("CLIENT_HEIGHT", buffer, 1);
 		setenv("CLIENT_INSTANCE", ch.res_name ? ch.res_name : "", 1);
-		setenv("CLIENT_NAME", m->sel->name, 1);
+		setenv("CLIENT_NAME", c->name, 1);
 		#if PATCH_SHOW_DESKTOP
-		setenv("CLIENT_ONDESKTOP", m->sel->ondesktop ? "1" : "0", 1);
+		setenv("CLIENT_ONDESKTOP", c->ondesktop ? "1" : "0", 1);
 		#endif // PATCH_SHOW_DESKTOP
 		#if PATCH_FLAG_PANEL
-		setenv("CLIENT_PANEL", m->sel->ispanel ? "1" : "0", 1);
+		setenv("CLIENT_PANEL", c->ispanel ? "1" : "0", 1);
 		#endif // PATCH_FLAG_PANEL
-		snprintf(buffer, sizeof buffer, "%u", m->sel->pid); setenv("CLIENT_PID", buffer, 1);
-		gettextprop(m->sel->win, wmatom[WMWindowRole], buffer, sizeof buffer); setenv("CLIENT_ROLE", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%u", c->pid); setenv("CLIENT_PID", buffer, 1);
+		gettextprop(c->win, wmatom[WMWindowRole], buffer, sizeof buffer); setenv("CLIENT_ROLE", buffer, 1);
 		#if PATCH_FLAG_STICKY
-		setenv("CLIENT_STICKY", m->sel->issticky ? "1" : "0", 1);
+		setenv("CLIENT_STICKY", c->issticky ? "1" : "0", 1);
 		#endif // PATCH_FLAG_STICKY
-		snprintf(buffer, sizeof buffer, "%u", m->sel->tags); setenv("CLIENT_TAGS", buffer, 1);
-		snprintf(buffer, sizeof buffer, "%u", m->sel->w); setenv("CLIENT_WIDTH", buffer, 1);
-		snprintf(buffer, sizeof buffer, "%i", (m->sel->x - m->mx)); setenv("CLIENT_X", buffer, 1);
-		snprintf(buffer, sizeof buffer, "%i", (m->sel->y - m->my)); setenv("CLIENT_Y", buffer, 1);
-		snprintf(buffer, sizeof buffer, "0x%lx", m->sel->win); setenv("WINDOW", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%u", c->tags); setenv("CLIENT_TAGS", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%u", c->w); setenv("CLIENT_WIDTH", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%i", (c->x - m->mx)); setenv("CLIENT_X", buffer, 1);
+		snprintf(buffer, sizeof buffer, "%i", (c->y - m->my)); setenv("CLIENT_Y", buffer, 1);
+		snprintf(buffer, sizeof buffer, "0x%lx", c->win); setenv("WINDOW", buffer, 1);
 		if (ch.res_class)
 			XFree(ch.res_class);
 		if (ch.res_name)
@@ -14816,6 +14818,17 @@ spawnex(const void *v)
 		setenv("WINDOW", "", 1);
 	}
 	if (getrootptr(&x, &y)) {
+		c = getclientatcoords(x, y, False);
+		setenv("CLIENT_UNDER_CURSOR", (c ? c->name : ""), 1);
+		if (c) {
+			setenv("CLIENT_UNDER_CURSOR", c->name, 1);
+			snprintf(buffer, sizeof buffer, "0x%lx", c->win); setenv("WINDOW_UNDER_CURSOR", buffer, 1);
+		}
+		else {
+			setenv("CLIENT_UNDER_CURSOR", "", 1);
+			setenv("WINDOW_UNDER_CURSOR", "", 1);
+		}
+
 		if (m) {
 			x -= m->mx;
 			y -= m->my;
@@ -14825,6 +14838,8 @@ spawnex(const void *v)
 	} else {
 		setenv("CURSOR_X", "", 1);
 		setenv("CURSOR_Y", "", 1);
+		setenv("CLIENT_UNDER_CURSOR", "", 1);
+		setenv("WINDOW_UNDER_CURSOR", "", 1);
 	}
 
 	if (v == dmenucmd)
