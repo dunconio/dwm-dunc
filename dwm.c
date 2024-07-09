@@ -4866,6 +4866,7 @@ drawbar(Monitor *m, int skiptags)
 	//m->bar[CustomModule].w = ...
 	//m->bar[CustomModule].x = m->bar[StatusText].x - customwidth - m->bar[CustomModule].w;
 	//customwidth += m->bar[CustomModule].w;
+	#if PATCH_SHOW_DESKTOP
 	#if PATCH_SHOW_DESKTOP_BUTTON
 	if (drawbar_elementvisible(m, ShowDesktop)
 		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
@@ -4888,6 +4889,7 @@ drawbar(Monitor *m, int skiptags)
 	else
 		m->bar[ShowDesktop].w = 0;
 	#endif // PATCH_SHOW_DESKTOP_BUTTON
+	#endif // PATCH_SHOW_DESKTOP
 
 	if (!skiptags || !m->bar[TagBar].w) {
 
