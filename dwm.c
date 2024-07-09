@@ -9241,6 +9241,7 @@ DEBUGENDIF
 				#endif // PATCH_SHOW_DESKTOP
 			) {
 				fprintf(stderr, "debug: prevent steal sel:%s c:%s\n", selmon->sel->name, c->name);
+				unfocus(c->mon->sel, 0);
 				if (c->mon != selmon) {
 					c->mon->sel = c;
 					drawbar(c->mon, False);
