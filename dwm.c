@@ -1203,9 +1203,11 @@ static Client *getactivegameclient(Monitor *m);
 static Atom getatomprop(Client *c, Atom prop);
 static Atom getatompropex(Window w, Atom prop);
 static Client *getclientatcoords(int x, int y, int focusable);
+#if PATCH_SHOW_DESKTOP
 #if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 static Client *getdesktopclient(Monitor *m, int *nondesktop_exists);
 #endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+#endif // PATCH_SHOW_DESKTOP
 static Client *getfocusable(Monitor *m, Client *c, int force);		// derive next valid focusable client from the stack;
 #if PATCH_WINDOW_ICONS
 #if PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
@@ -6357,6 +6359,7 @@ getclientatcoords(int x, int y, int focusable)
 	return sel;
 }
 
+#if PATCH_SHOW_DESKTOP
 #if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 Client *
 getdesktopclient(Monitor *m, int *nondesktop_exists)
@@ -6394,6 +6397,7 @@ getdesktopclient(Monitor *m, int *nondesktop_exists)
 	return d;
 }
 #endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+#endif // PATCH_SHOW_DESKTOP
 
 Client *
 getfocusable(Monitor *m, Client *c, int force)
