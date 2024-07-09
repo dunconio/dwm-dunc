@@ -5262,6 +5262,8 @@ drawbar(Monitor *m, int skiptags)
 				#endif // PATCH_ALTTAB
 				m == selmon) ? SchemeSel : SchemeNorm
 			]);
+			if (!active)
+				drw_rect(drw, x, 0, w, bh, 1, 1);
 			#endif // PATCH_TWO_TONE_TITLE
 			if (active) {
 				int pad = 0;
