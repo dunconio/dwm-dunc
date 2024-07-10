@@ -5533,36 +5533,43 @@ void drawfocusborder(int remove)
 	else
 		XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
 	#elif PATCH_FOCUS_PIXEL
+	int fhadj = fh;
+	if (c->w >= c->h && fhadj >= (c->h / 2))
+		fhadj = (c->h / 2) - 1;
+	else if (c->h > c->w && fhadj >= (c->w / 2))
+		fhadj = (c->w / 2) - 1;
+	if (fhadj < 1)
+		fhadj = 1;
 	if (!fpcurpos)
 		fpcurpos = fppos;
 	switch (fpcurpos) {
 		case FOCUS_PIXEL_SW:
 			XMoveResizeWindow(dpy, focuswin,
 				c->x + wa.border_width,
-				c->y + c->h + wa.border_width - fh - 2,
-				fh, fh
+				c->y + c->h + wa.border_width - fhadj - 2,
+				fhadj, fhadj
 			);
 			break;
 		case FOCUS_PIXEL_NW:
 			XMoveResizeWindow(dpy, focuswin,
 				c->x + wa.border_width,
 				c->y + wa.border_width,
-				fh, fh
+				fhadj, fhadj
 			);
 			break;
 		case FOCUS_PIXEL_NE:
 			XMoveResizeWindow(dpy, focuswin,
-				c->x + c->w + wa.border_width - fh - 2,
+				c->x + c->w + wa.border_width - fhadj - 2,
 				c->y + wa.border_width,
-				fh, fh
+				fhadj, fhadj
 			);
 			break;
 		default:
 		case FOCUS_PIXEL_SE:
 			XMoveResizeWindow(dpy, focuswin,
-				c->x + c->w + wa.border_width - fh - 2,
-				c->y + c->h + wa.border_width - fh - 2,
-				fh, fh
+				c->x + c->w + wa.border_width - fhadj - 2,
+				c->y + c->h + wa.border_width - fhadj - 2,
+				fhadj, fhadj
 			);
 	}
 	wc.stack_mode = Above;
@@ -11958,39 +11965,46 @@ resizeclient(Client *c, int x, int y, int w, int h, int save_old)
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			&& c->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
-		)
+			)
 			XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
 		else {
+			int fhadj = fh;
+			if (c->w >= c->h && fhadj >= (c->h / 2))
+				fhadj = (c->h / 2) - 1;
+			else if (c->h > c->w && fhadj >= (c->w / 2))
+				fhadj = (c->w / 2) - 1;
+			if (fhadj < 1)
+				fhadj = 1;
 			if (!fpcurpos)
 				fpcurpos = fppos;
 			switch (fpcurpos) {
 				case FOCUS_PIXEL_SW:
 					XMoveResizeWindow(dpy, focuswin,
 						c->x + wc.border_width,
-						c->y + c->h + wc.border_width - fh - 2,
-						fh, fh
+						c->y + c->h + wc.border_width - fhadj - 2,
+						fhadj, fhadj
 					);
 					break;
 				case FOCUS_PIXEL_NW:
 					XMoveResizeWindow(dpy, focuswin,
 						c->x + wc.border_width,
 						c->y + wc.border_width,
-						fh, fh
+						fhadj, fhadj
 					);
 					break;
 				case FOCUS_PIXEL_NE:
 					XMoveResizeWindow(dpy, focuswin,
-						c->x + c->w + wc.border_width - fh - 2,
+						c->x + c->w + wc.border_width - fhadj - 2,
 						c->y + wc.border_width,
-						fh, fh
+						fhadj, fhadj
 					);
 					break;
 				default:
 				case FOCUS_PIXEL_SE:
 					XMoveResizeWindow(dpy, focuswin,
-						c->x + c->w + wc.border_width - fh - 2,
-						c->y + c->h + wc.border_width - fh - 2,
-						fh, fh
+						c->x + c->w + wc.border_width - fhadj - 2,
+						c->y + c->h + wc.border_width - fhadj - 2,
+						fhadj, fhadj
 					);
 			}
 			XConfigureWindow(dpy, focuswin, CWSibling|CWStackMode, &fwc);
@@ -14277,6 +14291,8 @@ setup(void)
 			CWOverrideRedirect|CWBackPixel|CWEventMask, &fwa
 		);
 		#elif PATCH_FOCUS_PIXEL
+		// make the background slightly transparent;
+		fwa.background_pixel = (fwa.background_pixel &~ 0xFF000000L) | 0xA0000000L;
 		fwa.border_pixel = 0x40000000L;
 		fwa.event_mask = PointerMotionMask;
 		#if PATCH_ALPHA_CHANNEL
@@ -16663,7 +16679,10 @@ unmanage(Client *c, int destroyed, int cleanup)
 	#if PATCH_FOCUS_BORDER
 	if (wasfocused && focuswin)
 		drawfocusborder(1);
-	#endif // PATCH_FOCUS_BORDER
+	#elif PATCH_FOCUS_PIXEL
+	if (wasfocused && focuswin)
+		fpcurpos = 0;
+	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
 	detach(c);
 	detachstack(c);
