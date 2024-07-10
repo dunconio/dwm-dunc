@@ -702,7 +702,7 @@ enum {	NetSupported, NetWMName,
 enum {	Manager, Xembed, XembedInfo, XLast }; /* Xembed atoms */
 enum {	WMProtocols, WMDelete, WMState, WMTakeFocus, WMWindowRole, WMLast }; /* default atoms */
 enum {	ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
-		ClkClientWin, ClkClientBorder, ClkRootWin,
+		ClkClientWin, ClkRootWin,
 		#if PATCH_SHOW_DESKTOP_BUTTON
 		ClkShowDesktop,
 		#endif // PATCH_SHOW_DESKTOP_BUTTON
@@ -3224,7 +3224,6 @@ buttonpress(XEvent *e)
 		if (selmon->sel != c)
 			focus(c, 1);
 		XAllowEvents(dpy, ReplayPointer, CurrentTime);
-		//click = (ev->x >= 0 && ev->x <= c->w && ev->y >= 0 && ev->y <= c->h) ? ClkClientWin : ClkClientBorder;
 		click = ClkClientWin;
 	}
 	for (i = 0; i < LENGTH(buttons); i++)
@@ -7026,7 +7025,7 @@ grabbuttons(Client *c, int focused)
 			XGrabButton(dpy, AnyButton, AnyModifier, c->win, False,
 				BUTTONMASK, GrabModeSync, GrabModeSync, None, None);
 		for (i = 0; i < LENGTH(buttons); i++) {
-			if (buttons[i].click == ClkClientWin || buttons[i].click == ClkClientBorder) {
+			if (buttons[i].click == ClkClientWin) {
 				for (j = 0; j < LENGTH(modifiers); j++)
 					if (buttons[i].mask) {
 						XGrabButton(dpy, buttons[i].button,
