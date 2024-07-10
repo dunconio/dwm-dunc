@@ -11348,7 +11348,7 @@ print_supported_json(const supported_json array[], const size_t len, const char 
 		if (strlen(array[i].help) > wrap)
 			print_supported_wrap(wrap, array[i].name, array[i].help, indent, gap, g);
 		else {
-			fprintf(stdout, "%s%s%s    %s\n", indent, array[i].name, gap, array[i].help);
+			fprintf(stdout, "%s%s%s  - %s\n", indent, array[i].name, gap, array[i].help);
 			if (gap)
 				gap[g] = ' ';
 		}
@@ -11356,6 +11356,8 @@ print_supported_json(const supported_json array[], const size_t len, const char 
 
 	if (gap)
 		free(gap);
+
+	fputs("\n", stdout);
 }
 
 void
@@ -11397,7 +11399,7 @@ print_supported_rules_json(const supported_rules_json array[], const size_t len,
 		if (strlen(array[i].help) > wrap)
 			print_supported_wrap(wrap, array[i].name, array[i].help, indent, gap, g);
 		else {
-			fprintf(stdout, "%s%s%s    %s\n", indent, array[i].name, gap, array[i].help);
+			fprintf(stdout, "%s%s%s  - %s\n", indent, array[i].name, gap, array[i].help);
 			if (gap)
 				gap[g] = ' ';
 		}
@@ -11426,7 +11428,7 @@ print_supported_wrap(size_t help_length, const char *name, const char *help, con
 				help[index + w + 1] != ' ' &&
 				help[index + w + 1] != '\0' &&
 				help[index + w + 1] != '\n'
-			)
+				)
 				++w;
 			if (line + w >= help_length)
 				buff[index - pindex] = '\n';
@@ -11435,7 +11437,7 @@ print_supported_wrap(size_t help_length, const char *name, const char *help, con
 			line = 0;
 			buff[index - pindex + 1] = '\0';
 			if (first) {
-				fprintf(stdout, "%s%s%s    %s", indent, name, gap, buff);
+				fprintf(stdout, "%s%s%s  - %s", indent, name, gap, buff);
 				if (gap)
 					gap[mingap] = ' ';
 				first = 0;
@@ -18513,10 +18515,30 @@ main(int argc, char *argv[], char *envp[])
 
 			else if (!strcmp("-h", argv[i])) {
 
-				print_supported_json(supported_layout_global, LENGTH(supported_layout_global), "layout-file.json supported names:\n    global section:", "        ");
-				print_supported_json(supported_layout_mon, LENGTH(supported_layout_mon), "    monitor sections:", "        ");
-				print_supported_json(supported_layout_tag, LENGTH(supported_layout_tag), "    tags sections (per monitor):", "        ");
-				print_supported_rules_json(supported_rules, LENGTH(supported_rules), "\nrules-file.json supported names:", "    ");
+				print_supported_json(
+					supported_layout_global,
+					LENGTH(supported_layout_global),
+					"layout-file.json supported names:\n=================================\n\n    global section:\n    ---------------",
+					"        "
+				);
+				print_supported_json(
+					supported_layout_mon,
+					LENGTH(supported_layout_mon),
+					"    monitor sections:\n    -----------------",
+					"        "
+				);
+				print_supported_json(
+					supported_layout_tag,
+					LENGTH(supported_layout_tag),
+					"    tags sections (per monitor):\n    ----------------------------",
+					"        "
+				);
+				print_supported_rules_json(
+					supported_rules,
+					LENGTH(supported_rules),
+					"\nrules-file.json supported names:\n================================\n",
+					"    "
+				);
 
 				usage(NULL);
 				#if PATCH_IPC
