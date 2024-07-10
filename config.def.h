@@ -565,7 +565,6 @@ static const Button buttons[] = {
 	 * to control these separately (i.e. to retain the feature to move a tiled window
 	 * into a floating position).
 	 */
-	{ ClkClientBorder,      0,              Button1,        moveorplace,    {.i = 1} },
 	{ ClkClientWin,         MODKEY,         Button1,        moveorplace,    {.i = 1} },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 #if PATCH_CFACTS
