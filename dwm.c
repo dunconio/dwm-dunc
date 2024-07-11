@@ -41,8 +41,11 @@
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
 #include <X11/Xproto.h>
 #include <X11/Xutil.h>
+
+#include <xkbcommon/xkbcommon.h>
 
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
@@ -1903,6 +1906,23 @@ static unsigned int ipc_ignore_reply = 0;	// IPC client-side flag;
 static Monitor *lastselmon;
 #endif // PATCH_IPC
 
+typedef struct charcodemap {
+	wchar_t key; /** the letter for this key, like 'a' */
+	KeyCode code; /** the keycode that this key is on */
+	KeySym symbol; /** the symbol representing this key */
+	int group; /** the keyboard group that has this key in it */
+	int modmask; /** the modifiers to apply when sending this key */
+	/* if this key need to be bound at runtime because it does not
+	* exist in the current keymap, this will be set to 1. */
+	int needs_binding;
+} charcodemap_t;
+static charcodemap_t *charcodes;
+int charcodes_len;
+static void populate_charcode_map(void);
+static int _xdo_query_keycode_to_modifier(XModifierKeymap *modmap, KeyCode keycode);
+static wchar_t _keysym_to_char(KeySym keysym);
+static void iterate_keys(const Arg *arg);
+
 /* configuration, allows nested code to access above variables */
 #include "config.h"
 
@@ -3671,6 +3691,8 @@ cleanup(void)
 
 logdatetime(stderr);
 fprintf(stderr, "dwm: starting cleanup...\n");
+
+	free(charcodes);
 
 	#if PATCH_ALTTAB
 	altTabEnd();
@@ -16616,6 +16638,9 @@ setup(void)
 	XSelectInput(dpy, root, wa.event_mask);
 	grabkeys();
 	focus(NULL, 0);
+
+	populate_charcode_map();
+
 	#if PATCH_IPC
 	return (setupepoll());
 	#endif // PATCH_IPC
@@ -21438,4 +21463,257 @@ usage(const char * err_text)
 	fputs("\n", f);
 
 	return (err_text ? EXIT_FAILURE : EXIT_SUCCESS);
+}
+
+
+#define TEST_KEY_MASK(MASK,TEXT) \
+	if (mod & MASK) { \
+		strncpy(buffer + j, TEXT"-", sizeof buffer - j); \
+		j += strlen(TEXT"-"); \
+	}
+#define APPEND_BUFFER(KEYSYM,TEXT) \
+	case KEYSYM: \
+		strncpy(buffer + j, TEXT, sizeof buffer - j); \
+		j += strlen(TEXT); \
+		break;
+
+void
+iterate_keys(const Arg *arg)
+{
+/*
+typedef struct {
+	unsigned int mod;
+	KeySym keysym;
+	void (*func)(const Arg *);
+	const Arg arg;
+	const char *description;
+} Key;
+*/
+
+fprintf(stderr, "iterate_keys:\n");
+
+	char keybuff[16];
+	char buffer[64];
+	size_t i, j, k;
+	wchar_t chr;
+	KeySym keysym;
+	unsigned int mod;
+	const char *description;
+	for (i = 0; i < LENGTH(keys); i++) {
+
+		mod = keys[i].mod;
+		keysym = keys[i].keysym;
+		description = keys[i].description;
+		j = 0;
+
+		TEST_KEY_MASK(Mod4Mask, "Super")
+		TEST_KEY_MASK(ShiftMask, "Shift")
+		TEST_KEY_MASK(ControlMask, "Control")
+		TEST_KEY_MASK(Mod1Mask, "Alt")
+
+		if (j) {
+			buffer[j - 1] = ' ';
+			buffer[j++] = '+';
+			buffer[j++] = ' ';
+		}
+
+		for (k = 0; k < charcodes_len; k++)
+			if (charcodes[k].symbol == keysym) {
+				switch (keysym) {
+					APPEND_BUFFER(0x1008ff11, "MM_Volume_Down")
+					APPEND_BUFFER(0x1008ff12, "MM_Volume_Mute")
+					APPEND_BUFFER(0x1008ff13, "MM_Volume_Up")
+					APPEND_BUFFER(XK_space, "Space")
+					APPEND_BUFFER(XK_ISO_Level3_Shift, "ISO_L3_Shift")
+					APPEND_BUFFER(XK_BackSpace, "BackSpace")
+					APPEND_BUFFER(XK_Tab, "Tab")
+					APPEND_BUFFER(XK_Pause, "Pause")
+					APPEND_BUFFER(XK_Scroll_Lock, "Scroll Lock")
+					APPEND_BUFFER(XK_Escape, "Escape")
+					APPEND_BUFFER(XK_Home, "Home")
+					APPEND_BUFFER(XK_Page_Up, "Page Up")
+					APPEND_BUFFER(XK_Page_Down, "Page Down")
+					APPEND_BUFFER(XK_End, "End")
+					APPEND_BUFFER(XK_KP_Left, "KP_Left")
+					APPEND_BUFFER(XK_KP_Up, "KP_Up")
+					APPEND_BUFFER(XK_KP_Right, "KP_Right")
+					APPEND_BUFFER(XK_KP_Down, "KP_Down")
+					APPEND_BUFFER(XK_KP_Page_Down, "KP_Page_Down")
+					APPEND_BUFFER(XK_KP_Page_Up, "KP_Page_Up")
+					APPEND_BUFFER(XK_KP_Home, "KP_Home")
+					APPEND_BUFFER(XK_KP_End, "KP_End")
+					APPEND_BUFFER(XK_Left, "Cursor Left")
+					APPEND_BUFFER(XK_Up, "Cursor Up")
+					APPEND_BUFFER(XK_Right, "Cursor Right")
+					APPEND_BUFFER(XK_Down, "Cursor Down")
+					APPEND_BUFFER(XK_Insert, "Insert")
+					APPEND_BUFFER(XK_Menu, "Menu")
+					APPEND_BUFFER(XK_Num_Lock, "Num Lock")
+					APPEND_BUFFER(XK_KP_Multiply, "KP_Multiply")
+					APPEND_BUFFER(XK_KP_Add, "KP_Add")
+					APPEND_BUFFER(XK_KP_Subtract, "KP_Subtract")
+					APPEND_BUFFER(XK_KP_Decimal, "KP_Decimal")
+					APPEND_BUFFER(XK_KP_Divide, "KP_Divide")
+					APPEND_BUFFER(XK_KP_0, "KP_0")
+					APPEND_BUFFER(XK_KP_1, "KP_1")
+					APPEND_BUFFER(XK_KP_2, "KP_2")
+					APPEND_BUFFER(XK_KP_3, "KP_3")
+					APPEND_BUFFER(XK_KP_4, "KP_4")
+					APPEND_BUFFER(XK_KP_5, "KP_5")
+					APPEND_BUFFER(XK_KP_6, "KP_6")
+					APPEND_BUFFER(XK_KP_7, "KP_7")
+					APPEND_BUFFER(XK_KP_8, "KP_8")
+					APPEND_BUFFER(XK_KP_9, "KP_9")
+					APPEND_BUFFER(XK_F1, "F1")
+					APPEND_BUFFER(XK_F2, "F2")
+					APPEND_BUFFER(XK_F3, "F3")
+					APPEND_BUFFER(XK_F4, "F4")
+					APPEND_BUFFER(XK_F5, "F5")
+					APPEND_BUFFER(XK_F6, "F6")
+					APPEND_BUFFER(XK_F7, "F7")
+					APPEND_BUFFER(XK_F8, "F8")
+					APPEND_BUFFER(XK_F9, "F9")
+					APPEND_BUFFER(XK_F10, "F10")
+					APPEND_BUFFER(XK_F11, "F11")
+					APPEND_BUFFER(XK_F12, "F12")
+					APPEND_BUFFER(XK_F13, "F13")
+					APPEND_BUFFER(XK_F14, "F14")
+					APPEND_BUFFER(XK_F15, "F15")
+					APPEND_BUFFER(XK_F16, "F16")
+					APPEND_BUFFER(XK_F17, "F17")
+					APPEND_BUFFER(XK_F18, "F18")
+					APPEND_BUFFER(XK_F19, "F19")
+					APPEND_BUFFER(XK_F20, "F20")
+					APPEND_BUFFER(XK_F21, "F21")
+					APPEND_BUFFER(XK_F22, "F22")
+					APPEND_BUFFER(XK_F23, "F23")
+					APPEND_BUFFER(XK_F24, "F24")
+					APPEND_BUFFER(XK_F25, "F25")
+					APPEND_BUFFER(XK_F26, "F26")
+					APPEND_BUFFER(XK_F27, "F27")
+					APPEND_BUFFER(XK_F28, "F28")
+					APPEND_BUFFER(XK_F29, "F29")
+					APPEND_BUFFER(XK_F30, "F30")
+					APPEND_BUFFER(XK_F31, "F31")
+					APPEND_BUFFER(XK_F32, "F32")
+					APPEND_BUFFER(XK_F33, "F33")
+					APPEND_BUFFER(XK_F34, "F34")
+					APPEND_BUFFER(XK_F35, "F35")
+					APPEND_BUFFER(XK_Control_L, "L_Control")
+					APPEND_BUFFER(XK_Control_R, "R_Control")
+					APPEND_BUFFER(XK_Alt_L, "L_Alt")
+					APPEND_BUFFER(XK_Alt_R, "R_Alt")
+					APPEND_BUFFER(XK_Super_L, "L_Super")
+					APPEND_BUFFER(XK_Super_R, "R_Super")
+					APPEND_BUFFER(XK_Hyper_L, "L_Hyper")
+					APPEND_BUFFER(XK_Hyper_R, "R_Hyper")
+					APPEND_BUFFER(XK_Delete, "Delete")
+					APPEND_BUFFER(XK_Return, "Return")
+					APPEND_BUFFER(XK_Sys_Req, "Sys_Req")
+					default:
+						buffer[j] = charcodes[k].key;
+						if (buffer[j] >= 'a' && buffer[j] <= 'z')
+							buffer[j] -= ('a'-'A');
+				}
+				break;
+			}
+
+		buffer[++j] = '\0';
+
+		fprintf(stderr, "debug: %s	%s\n", buffer, description);
+	}
+}
+
+
+void
+populate_charcode_map(void)
+{
+	/* assert xdo->display is valid */
+	int keycodes_length = 0;
+	int idx = 0;
+	int keycode, group, groups, level, modmask, num_map;
+
+	int keycode_high; /* highest and lowest keycodes */
+	int keycode_low;  /* used by this X server */
+	int keysyms_per_keycode;
+
+	XDisplayKeycodes(dpy, &keycode_low, &keycode_high);
+	XModifierKeymap *modmap = XGetModifierMapping(dpy);
+	KeySym *keysyms = XGetKeyboardMapping(
+		dpy, keycode_low,
+		keycode_high - keycode_low + 1,
+		&keysyms_per_keycode
+
+	);
+	XFree(keysyms);
+
+	/* Add 2 to the size because the range [low, high] is inclusive */
+	/* Add 2 more for tab (\t) and newline (\n) */
+	keycodes_length = ((keycode_high - keycode_low) + 1) * keysyms_per_keycode;
+
+	charcodes = calloc(keycodes_length, sizeof(charcodemap_t));
+	XkbDescPtr desc = XkbGetMap(dpy, XkbAllClientInfoMask, XkbUseCoreKbd);
+
+	for (keycode = keycode_low; keycode <= keycode_high; keycode++) {
+		groups = XkbKeyNumGroups(desc, keycode);
+		for (group = 0; group < groups; group++) {
+			XkbKeyTypePtr key_type = XkbKeyKeyType(desc, keycode, group);
+			for (level = 0; level < key_type->num_levels; level++) {
+				KeySym keysym = XkbKeycodeToKeysym(dpy, keycode, group, level);
+				modmask = 0;
+
+				for (num_map = 0; num_map < key_type->map_count; num_map++) {
+					XkbKTMapEntryRec map = key_type->map[num_map];
+					if (map.active && map.level == level) {
+						modmask = map.mods.mask;
+						break;
+					}
+				}
+
+				charcodes[idx].key = _keysym_to_char(keysym);
+				charcodes[idx].code = keycode;
+				charcodes[idx].group = group;
+				charcodes[idx].modmask = modmask | _xdo_query_keycode_to_modifier(modmap, keycode);
+				charcodes[idx].symbol = keysym;
+
+				idx++;
+			}
+		}
+	}
+	charcodes_len = idx;
+	XkbFreeKeyboard(desc, 0, 1);
+	XFreeModifiermap(modmap);
+}
+
+int
+_xdo_query_keycode_to_modifier(XModifierKeymap *modmap, KeyCode keycode)
+{
+	int i = 0, j = 0;
+	int max = modmap->max_keypermod;
+
+	for (i = 0; i < 8; i++) { /* 8 modifier types, per XGetModifierMapping(3X) */
+		for (j = 0; j < max && modmap->modifiermap[(i * max) + j]; j++) {
+			if (keycode == modmap->modifiermap[(i * max) + j]) {
+				switch (i) {
+					case ShiftMapIndex: return ShiftMask; break;
+					case LockMapIndex: return LockMask; break;
+					case ControlMapIndex: return ControlMask; break;
+					case Mod1MapIndex: return Mod1Mask; break;
+					case Mod2MapIndex: return Mod2Mask; break;
+					case Mod3MapIndex: return Mod3Mask; break;
+					case Mod4MapIndex: return Mod4Mask; break;
+					case Mod5MapIndex: return Mod5Mask; break;
+				}
+			} /* end if */
+		} /* end loop j */
+	} /* end loop i */
+
+	/* No modifier found for this keycode, return no mask */
+	return 0;
+}
+
+wchar_t
+_keysym_to_char(KeySym keysym)
+{
+	return (wchar_t)xkb_keysym_to_utf32(keysym);
 }

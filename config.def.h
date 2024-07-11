@@ -581,6 +581,7 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_grave,  toggletorch,    {.ui = 0 }, DESCRIPTION_TOGGLE_TORCH_DARK },
 	{ MODKEY|ShiftMask,             XK_grave,  toggletorch,    {.ui = 1 }, DESCRIPTION_TOGGLE_TORCH_LIGHT },
 #endif // PATCH_TORCH
+	{ MODKEY,                       XK_w,      iterate_keys,   {0}, },
 };
 
 /* button definitions */
