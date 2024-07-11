@@ -1409,6 +1409,7 @@ static void setdesktopnames(void);
 static void setfocus(Client *c);
 static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
+static void setlayoutex(const Arg *arg);
 static void setlayoutmouse(const Arg *arg);
 static void setlayoutreplace(const Arg *arg);
 static void setmfact(const Arg *arg);
@@ -13983,18 +13984,7 @@ setfullscreen(Client *c, int fullscreen)
 void
 setlayout(const Arg *arg)
 {
-	#if PATCH_SHOW_DESKTOP
-	if (selmon->showdesktop)
-		return;
-	#endif // PATCH_SHOW_DESKTOP
-
-	if (!arg || !arg->v || arg->v != selmon->lt[selmon->sellt])
-		#if PATCH_PERTAG
-		selmon->sellt = selmon->pertag->sellts[selmon->pertag->curtag] ^= 1;
-		#else // NO PATCH_PERTAG
-		selmon->sellt ^= 1;
-		#endif // PATCH_PERTAG
-	setlayoutreplace(arg);
+	setlayoutex(arg);
 	#if PATCH_MOUSE_POINTER_WARPING
 	if (selmon->sel)
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
@@ -14006,20 +13996,36 @@ setlayout(const Arg *arg)
 }
 
 void
-setlayoutmouse(const Arg *arg)
+setlayoutex(const Arg *arg)
 {
 	#if PATCH_SHOW_DESKTOP
 	if (selmon->showdesktop)
 		return;
 	#endif // PATCH_SHOW_DESKTOP
 
-	if (!arg || !arg->v || arg->v != selmon->lt[selmon->sellt])
+	const Layout *v = NULL;
+	if (arg->v) {
+		int i = layoutstringtoindex(arg->v);
+		if (i >= 0 && i < LENGTH(layouts))
+			v = &layouts[i];
+	}
+	if (v != selmon->lt[selmon->sellt])
 		#if PATCH_PERTAG
 		selmon->sellt = selmon->pertag->sellts[selmon->pertag->curtag] ^= 1;
 		#else // NO PATCH_PERTAG
 		selmon->sellt ^= 1;
 		#endif // PATCH_PERTAG
-	setlayoutreplace(arg);
+	if (v)
+		setlayoutreplace(&((Arg){ .v = v }));
+	else
+		setlayoutreplace(&((Arg){0}));
+
+}
+
+void
+setlayoutmouse(const Arg *arg)
+{
+	setlayoutex(arg);
 }
 
 void

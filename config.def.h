@@ -355,9 +355,11 @@ static const Key keys[] = {
 	{ MODKEY,						XK_Tab,	   view,           {0} },
 	{ MODKEY,                       XK_q,      killclient,     {0} },
 	{ Mod1Mask,						XK_F4,     killclient,     {0} },
-	{ MODKEY|ShiftMask,				XK_t,      setlayout,      {.v = &layouts[0]} },
-	{ MODKEY|ShiftMask,				XK_h,      setlayout,      {.v = &layouts[6]} },
-	{ MODKEY|ShiftMask,				XK_m,      setlayout,      {.v = &layouts[1]} },
+	{ MODKEY|ShiftMask,				XK_t,      setlayout,      {.v = "[]="} },
+#if PATCH_LAYOUT_BSTACKHORIZ
+	{ MODKEY|ShiftMask,				XK_h,      setlayout,      {.v = "==="} },
+#endif // PATCH_LAYOUT_BSTACKHORIZ
+	{ MODKEY|ShiftMask,				XK_m,      setlayout,      {.v = "[M]"} },
 	{ MODKEY,                       XK_space,  setlayout,      {0} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_Left,   focusmon,       {.i = -1 } },
@@ -521,7 +523,7 @@ static const Button buttons[] = {
 	{ ClkLtSymbol,          0,              Button4,       cyclelayoutmouse,{.i = -1 } },
 	{ ClkLtSymbol,          0,              Button5,       cyclelayoutmouse,{.i = +1 } },
 	{ ClkLtSymbol,          0,              Button1,        setlayoutmouse, {0} },
-	{ ClkLtSymbol,          0,              Button3,        setlayoutmouse, {.v = &layouts[1]} },
+	{ ClkLtSymbol,          0,              Button3,        setlayoutmouse, {.v = "[M]"} },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
 	{ ClkWinTitle,          MODKEY,         Button2,        killgroup,      {.ui = (KILLGROUP_BY_NAME | KILLGROUP_BY_CLASS | KILLGROUP_BY_INSTANCE) } },
 #if PATCH_ALTTAB
