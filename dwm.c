@@ -183,7 +183,10 @@ static const supported_json supported_layout_global[] = {
 	{ "monitors",					"array of monitor objects (see \"monitor sections\")" },
 	#if PATCH_SHOW_DESKTOP
 	{ "show-desktop",				"true to enable management of desktop clients, and toggle desktop" },
-	{ "show-desktop-symbol",		"symbol to show in place of layout when the desktop is visible" },
+	#if PATCH_SHOW_DESKTOP_BUTTON
+	{ "show-desktop-button-symbol",	"symbol to show on the clickable show desktop button (ShowDesktop bar element)" },
+	#endif // PATCH_SHOW_DESKTOP_BUTTON
+	{ "show-desktop-layout-symbol",	"symbol to show in place of layout when the desktop is visible" },
 	#if PATCH_SHOW_DESKTOP_UNMANAGED
 	{ "show-desktop-unmanaged",		"true to ignore NetWMWindowTypeDesktop windows (if the desktop manager expects to span all monitors)" },
 	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
@@ -10334,12 +10337,21 @@ parselayoutjson(cJSON *layout)
 				}
 				cJSON_AddNumberToObject(unsupported, "\"show-desktop\" must contain a boolean value", 0);
 			}
-			else if (strcmp(L->string, "show-desktop-symbol")==0) {
+			#if PATCH_SHOW_DESKTOP_BUTTON
+			else if (strcmp(L->string, "show-desktop-button-symbol")==0) {
+				if (cJSON_IsString(L)) {
+					showdesktop_button = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"show-desktop-button-symbol\" must contain a string value", 0);
+			}
+			#endif // PATCH_SHOW_DESKTOP_BUTTON
+			else if (strcmp(L->string, "show-desktop-layout-symbol")==0) {
 				if (cJSON_IsString(L)) {
 					desktopsymbol = L->valuestring;
 					continue;
 				}
-				cJSON_AddNumberToObject(unsupported, "\"show-desktop-symbol\" must contain a string value", 0);
+				cJSON_AddNumberToObject(unsupported, "\"show-desktop-layout-symbol\" must contain a string value", 0);
 			}
 			#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 			else if (strcmp(L->string, "show-desktop-when-active")==0) {

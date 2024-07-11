@@ -241,7 +241,9 @@ layout-file.json supported names:
         monitors                    - array of monitor objects (see "monitor sections")
         show-desktop                - true to enable management of desktop clients, and toggle
                                       desktop
-        show-desktop-symbol         - symbol to show in place of layout when the desktop is visible
+        show-desktop-button-symbol  - symbol to show on the clickable show desktop button
+                                      (ShowDesktop bar element)
+        show-desktop-layout-symbol  - symbol to show in place of layout when the desktop is visible
         show-desktop-unmanaged      - true to ignore NetWMWindowTypeDesktop windows (if the desktop
                                       manager expects to span all monitors)
         show-desktop-when-active    - true to only allow switching to the desktop, when a desktop
