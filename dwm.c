@@ -1089,6 +1089,7 @@ typedef struct {
 	KeySym keysym;
 	void (*func)(const Arg *);
 	const Arg arg;
+	const char *description;
 } Key;
 
 typedef struct {
