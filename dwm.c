@@ -4875,26 +4875,42 @@ drawbar(Monitor *m, int skiptags)
 	//customwidth += m->bar[CustomModule].w;
 	#if PATCH_SHOW_DESKTOP
 	#if PATCH_SHOW_DESKTOP_BUTTON
-	if (drawbar_elementvisible(m, ShowDesktop)
-		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-		&& (!showdesktop_when_active || (getdesktopclient(m, &x) || m->showdesktop))
-		#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-	) {
-		m->bar[ShowDesktop].w = TEXTW(showdesktop_button);
-		m->bar[ShowDesktop].x = m->bar[StatusText].x - customwidth - m->bar[ShowDesktop].w;
-		customwidth += m->bar[ShowDesktop].w;
-		drw_setscheme(drw, scheme[m->showdesktop ? SchemeSel : SchemeNorm]);
-		drw_text(drw,
-			m->bar[ShowDesktop].x, 0, m->bar[ShowDesktop].w, bh, lrpad / 2,
-			#if PATCH_CLIENT_INDICATORS
-			0,
-			#endif // PATCH_CLIENT_INDICATORS
-			showdesktop_button, 0
-		);
-		//drw_rect(drw, m->bar[ShowDesktop].x, -1, m->bar[ShowDesktop].w, bh +2, 0, 0);
+	m->bar[ShowDesktop].w = 0;
+	if (drawbar_elementvisible(m, ShowDesktop) && showdesktop) {
+		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || PATCH_SHOW_DESKTOP_UNMANAGED
+		c = getdesktopclient(m, &x);
+		if (0
+			#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+			|| (!showdesktop_when_active || c || m->showdesktop)
+			#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+			#if PATCH_SHOW_DESKTOP_UNMANAGED
+			|| (showdesktop_unmanaged && desktopwin)
+			#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+		)
+		#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || PATCH_SHOW_DESKTOP_UNMANAGED
+		{
+			m->bar[ShowDesktop].w = TEXTW(showdesktop_button);
+			m->bar[ShowDesktop].x = m->bar[StatusText].x - customwidth - m->bar[ShowDesktop].w;
+			customwidth += m->bar[ShowDesktop].w;
+			drw_setscheme(drw, scheme[m->showdesktop ?
+				#if PATCH_SHOW_DESKTOP_UNMANAGED
+				showdesktop_unmanaged && (!desktopwin || !x) ? SchemeHide :
+				#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+				#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+				showdesktop_when_active && !x ? SchemeHide :
+				#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+				SchemeSel : SchemeNorm
+			]);
+			drw_text(drw,
+				m->bar[ShowDesktop].x, 0, m->bar[ShowDesktop].w, bh, lrpad / 2,
+				#if PATCH_CLIENT_INDICATORS
+				0,
+				#endif // PATCH_CLIENT_INDICATORS
+				showdesktop_button, 0
+			);
+			//drw_rect(drw, m->bar[ShowDesktop].x, -1, m->bar[ShowDesktop].w, bh +2, 0, 0);
+		}
 	}
-	else
-		m->bar[ShowDesktop].w = 0;
 	#endif // PATCH_SHOW_DESKTOP_BUTTON
 	#endif // PATCH_SHOW_DESKTOP
 
@@ -16234,9 +16250,9 @@ toggledesktop(const Arg *arg)
 				m = selmon;
 		}
 
-	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || !PATCH_SHOW_DESKTOP_UNMANAGED
+	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || PATCH_SHOW_DESKTOP_UNMANAGED
 	d = getdesktopclient(m, &c);
-	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || !PATCH_SHOW_DESKTOP_UNMANAGED
+	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || PATCH_SHOW_DESKTOP_UNMANAGED
 
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	if (showdesktop_when_active) {
@@ -16249,6 +16265,10 @@ toggledesktop(const Arg *arg)
 			return;
 	}
 	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
+	#if PATCH_SHOW_DESKTOP_UNMANAGED
+	if (m->showdesktop && showdesktop_unmanaged && desktopwin && !c)
+		return;
+	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 
 	m->showdesktop ^= 1;
 	if (m->sel && m->sel->isdesktop)
@@ -17717,6 +17737,13 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 						#endif
 					}
 				}
+				#if PATCH_SHOW_DESKTOP_UNMANAGED
+				if (showdesktop_unmanaged && desktopwin && !t) {
+					m->showdesktop = 1;
+					m->sel = NULL;
+				}
+				else
+				#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 				if (d && !t) {
 					m->showdesktop = 1;
 					m->sel = d;
