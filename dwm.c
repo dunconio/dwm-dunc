@@ -1749,6 +1749,7 @@ struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 void
 activate(const Arg *arg)
 {
+	Monitor *selm = selmon;
 	Client *c, *sel = NULL;
 	XClassHint ch = { NULL, NULL };
 
@@ -1761,8 +1762,8 @@ activate(const Arg *arg)
 				#if PATCH_FLAG_PANEL
 				!c->ispanel &&
 				#endif // PATCH_FLAG_PANEL
-				!c->dormant)
-			{
+				!c->dormant
+			) {
 				if (strstr(c->name, arg->v)) {
 					sel = c;
 					break;
@@ -1812,9 +1813,12 @@ activate(const Arg *arg)
 		}
 		#endif // PATCH_FLAG_HIDDEN
 		if (!ISVISIBLE(sel))
-			viewmontag(sel->mon, sel->tags, 1);
+			viewmontag(sel->mon, sel->tags, 0);
+		selmon = sel->mon;
+		if (selmon != selm)
+			drawbar(selm, 1);
 		selmon->sel = sel;
-		focus(NULL, 0);
+		focus(sel, 1);
 		#if PATCH_MOUSE_POINTER_WARPING
 		if (selmon->sel)
 			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
