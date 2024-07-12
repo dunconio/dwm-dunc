@@ -688,7 +688,7 @@ enum {	NetSupported, NetWMName,
 		#if PATCH_SHOW_DESKTOP
 		NetWMWindowTypeDesktop,
 		#endif // PATCH_SHOW_DESKTOP
-		NetWMWindowTypeDialog, NetWMWindowTypeDock,
+		NetWMWindowTypeDialog, NetWMWindowTypeDock, NetWMWindowTypeSplash,
 		#if PATCH_EWMH_TAGS
 		NetDesktopNames, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop,
 		#endif // PATCH_EWMH_TAGS
@@ -2443,7 +2443,7 @@ applyrules(Client *c, int deferred)
 			#if PATCH_SHOW_DESKTOP
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-desktop")) && json_isboolean(r_node)
 				#if PATCH_SHOW_DESKTOP_UNMANAGED
-				&& !showdesktop_unmanaged
+				&& showdesktop && !showdesktop_unmanaged
 				#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 				) c->isdesktop = r_node->valueint;
 			#endif // PATCH_SHOW_DESKTOP
@@ -4319,7 +4319,7 @@ destroynotify(XEvent *e)
 
 	#if PATCH_SHOW_DESKTOP
 	#if PATCH_SHOW_DESKTOP_UNMANAGED
-	if (showdesktop_unmanaged && desktopwin == ev->window) {
+	if (showdesktop && showdesktop_unmanaged && desktopwin == ev->window) {
 		desktopwin = None;
 		desktoppid = 0;
 		return;
@@ -6953,7 +6953,7 @@ gettoplevelclient(Monitor *m)
 Client *
 getultimateparentclient(Client *c)
 {
-	Client *i = NULL, *p = NULL;
+	Client *i = NULL;
 	Monitor *m, *s;
 	Window r, parent, *children = NULL;
 	unsigned int num_children;
@@ -6963,7 +6963,7 @@ getultimateparentclient(Client *c)
 		return NULL;
 	#endif // PATCH_SHOW_DESKTOP
 
-	if(XQueryTree(dpy, c->win, &r, &parent, &children, &num_children)){
+	if (XQueryTree(dpy, c->win, &r, &parent, &children, &num_children)) {
 		if (children)
 			XFree((char *)children);
 		#if PATCH_SHOW_DESKTOP
@@ -6977,9 +6977,8 @@ getultimateparentclient(Client *c)
 		i = wintoclient(parent);
 
 		if (i) {
-			for (p = i; p; p = p->parent)
-				if (!p->parent && p->pid && p->pid == c->pid)
-					return p;
+			if (c->pid && i->pid == c->pid)
+				return i->ultparent;
 			i = NULL;
 		}
 	}
@@ -6996,18 +6995,20 @@ getultimateparentclient(Client *c)
 					#if PATCH_FLAG_PARENT
 					!i->neverparent &&
 					#endif // PATCH_FLAG_PARENT
-					i->pid && i->pid == c->pid && i->ultparent == i
+					i->pid == c->pid && i->ultparent == i
 					)
 					return i;
+
 			if (m->sel && m->stack != m->sel)
 				for (i = m->stack; i && i != m->sel; i = i->snext)
 					if (
 						#if PATCH_FLAG_PARENT
 						!i->neverparent &&
 						#endif // PATCH_FLAG_PARENT
-						i->pid && i->pid == c->pid && i->ultparent == i
+						i->pid == c->pid && i->ultparent == i
 						)
 						return i;
+
 			if (m->next == s)
 				break;
 			else if (!m->next && s != mons)
@@ -8583,7 +8584,7 @@ manage(Window w, XWindowAttributes *wa)
 	#if PATCH_SHOW_DESKTOP
 	if (getatomprop(c, netatom[NetWMWindowType]) == netatom[NetWMWindowTypeDesktop])
 		#if PATCH_SHOW_DESKTOP_UNMANAGED
-		if (showdesktop_unmanaged) {
+		if (showdesktop && showdesktop_unmanaged) {
 			logdatetime(stderr);
 			fprintf(stderr, "dwm: desktop window has been recorded as 0x%lx.\n", w);
 			if (desktopwin) {
@@ -8786,12 +8787,13 @@ manage(Window w, XWindowAttributes *wa)
 		c->bw = 0;
 	}
 
+	updatewindowtype(c);
+
 	wc.border_width = c->bw;
 	XConfigureWindow(dpy, w, CWBorderWidth, &wc);
 	XSetWindowBorder(dpy, w, scheme[SchemeNorm][ColBorder].pixel);
 	configure(c); /* propagates border_width, if size doesn't change */
 
-	updatewindowtype(c);
 	c->dormant = 0;
 
 	#if PATCH_FLAG_IGNORED
@@ -9012,7 +9014,7 @@ manage(Window w, XWindowAttributes *wa)
 	if (takefocus && (
 		(c->isfloating && !c->autofocus
 			#if PATCH_SHOW_DESKTOP
-			&& !c->mon->showdesktop
+			&& !(showdesktop && showdesktop_floating && c->mon->showdesktop)
 			#endif // PATCH_SHOW_DESKTOP
 		)
 		#if PATCH_ATTACH_BELOW_AND_NEWMASTER
@@ -9212,6 +9214,25 @@ manage(Window w, XWindowAttributes *wa)
 			#endif // PATCH_MOUSE_POINTER_WARPING
 		}
 	}
+	#if PATCH_SHOW_DESKTOP
+	else if (c->autofocus == -1) {
+		takefocus = 0;
+		c->autofocus = 0;
+		if (showdesktop && c->mon->showdesktop != (c->isdesktop || c->ondesktop)
+			#if PATCH_SHOW_DESKTOP_WITH_FLOATING
+			&& (!showdesktop_floating || !c->isfloating || c->isdesktop || c->ondesktop)
+			#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
+		) {
+			c->mon->showdesktop = (c->isdesktop || c->ondesktop);
+			t = c->mon->sel;
+			c->mon->sel = NULL;
+			arrange(c->mon);
+			losefullscreen(t, c);
+			unfocus(t, 1);
+			t = NULL;
+		}
+	}
+	#endif // PATCH_SHOW_DESKTOP
 
 DEBUGIF
 DEBUG(
@@ -9624,7 +9645,7 @@ motionnotify(XEvent *e)
 	if (ev->window != root
 		#if PATCH_SHOW_DESKTOP
 		#if PATCH_SHOW_DESKTOP_UNMANAGED
-		&& (showdesktop_unmanaged && desktopwin != ev->window)
+		&& (showdesktop && showdesktop_unmanaged && desktopwin != ev->window)
 		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 		#endif // PATCH_SHOW_DESKTOP
 		)
@@ -14240,6 +14261,7 @@ setup(void)
 	#endif // PATCH_MODAL_SUPPORT
 	netatom[NetWMWindowType] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
+	netatom[NetWMWindowTypeSplash] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_SPLASH", False);
 	netatom[NetWMWindowTypeDock] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DOCK", False);
 	#if PATCH_EWMH_TAGS
 	netatom[NetDesktopViewport] = XInternAtom(dpy, "_NET_DESKTOP_VIEWPORT", False);
@@ -16798,7 +16820,7 @@ unmapnotify(XEvent *e)
 
 	#if PATCH_SHOW_DESKTOP
 	#if PATCH_SHOW_DESKTOP_UNMANAGED
-	if (showdesktop_unmanaged && desktopwin == ev->window) {
+	if (showdesktop && showdesktop_unmanaged && desktopwin == ev->window) {
 		desktopwin = None;
 		desktoppid = 0;
 		return;
@@ -17382,11 +17404,44 @@ updatewindowtype(Client *c)
 		c->ismodal = 1;
 	#endif // PATCH_MODAL_SUPPORT
 	if (wtype == netatom[NetWMWindowTypeDialog] && c->isfloating_override != 0) {
-		c->isfloating = 1;
 		#if PATCH_FLAG_CENTRED
 		if (c->iscentred_override == -1)
 			c->iscentred = 2;
 		#endif // PATCH_FLAG_CENTRED
+		c->isfloating = 1;
+	}
+	else if (wtype == netatom[NetWMWindowTypeSplash] && c->isfloating_override != 0) {
+		c->autofocus =
+			#if PATCH_SHOW_DESKTOP
+			(showdesktop
+				#if PATCH_SHOW_DESKTOP_WITH_FLOATING
+				&& !showdesktop_floating
+				#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
+				&& !c->ondesktop
+			) ? -1 :
+			#endif // PATCH_SHOW_DESKTOP
+			0
+		;
+		c->bw = c->oldbw;	// from manage() this will be the border the owner wanted;
+		#if PATCH_FLAG_CENTRED
+		if (c->iscentred_override == -1)
+			c->iscentred = 1;
+		#endif // PATCH_FLAG_CENTRED
+		c->isfloating = 1;
+		#if PATCH_FLAG_NEVER_FOCUS
+		c->neverfocus_override =
+		#endif // PATCH_FLAG_NEVER_FOCUS
+		c->neverfocus = 1;
+		#if PATCH_FLAG_PARENT
+		c->neverparent = 1;
+		#endif // PATCH_FLAG_PARENT
+	}
+	else if (wtype == netatom[NetWMWindowTypeDock]) {
+		c->autofocus = 0;
+		c->isfloating = 1;
+		#if PATCH_FLAG_PANEL
+		c->ispanel = 1;
+		#endif // PATCH_FLAG_PANEL
 	}
 	#if PATCH_FLAG_ALWAYSONTOP
 	if (state == netatom[NetWMStaysOnTop])
@@ -18192,6 +18247,15 @@ wintoclient(Window w)
 	Client *c;
 	Monitor *m;
 
+	if (w == root
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_UNMANAGED
+		|| (showdesktop && showdesktop_unmanaged && w == desktopwin)
+		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+		#endif // PATCH_SHOW_DESKTOP
+		)
+		return NULL;
+
 	for (m = mons; m; m = m->next)
 		for (c = m->clients; c; c = c->next)
 			if (c->win == w)
@@ -18204,6 +18268,15 @@ wintoorclient(Window w)
 {
 	Client *c;
 
+	if (w == root
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_UNMANAGED
+		|| (showdesktop && showdesktop_unmanaged && w == desktopwin)
+		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
+		#endif // PATCH_SHOW_DESKTOP
+		)
+		return NULL;
+
 	for (c = orlist; c; c = c->next)
 		if (c->win == w)
 			return c;
@@ -18214,10 +18287,10 @@ wintoorclient(Window w)
 #if PATCH_SYSTRAY
 Client *
 wintosystrayicon(Window w) {
-	Client *i = NULL;
+	Client *i;
 
 	if (!showsystray || !w)
-		return i;
+		return NULL;
 	for (i = systray->icons; i && i->win != w; i = i->next) ;
 	return i;
 }
@@ -18233,7 +18306,7 @@ wintomon(Window w)
 	if ((w == root
 		#if PATCH_SHOW_DESKTOP
 		#if PATCH_SHOW_DESKTOP_UNMANAGED
-		|| (showdesktop_unmanaged && w == desktopwin)
+		|| (showdesktop && showdesktop_unmanaged && w == desktopwin)
 		#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 		#endif // PATCH_SHOW_DESKTOP
 		) && getrootptr(&x, &y))
