@@ -372,45 +372,6 @@ static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont,
 
 static const Key keys[] = {
 	/* modifier                     key        function        argument */
-	{ MODKEY,						XK_Tab,	   view,           {0}, DESCRIPTION_SWAP_VIEW },
-	{ MODKEY|ControlMask,           XK_Tab,    viewactive,     {.i = +1 }, DESCRIPTION_VIEWACTIVE_NEXT },
-	{ MODKEY|ControlMask|ShiftMask, XK_Tab,    viewactive,     {.i = -1 }, DESCRIPTION_VIEWACTIVE_PREV },
-	TAGKEYS(                        XK_1,                      0, "1")
-	TAGKEYS(                        XK_2,                      1, "2")
-	TAGKEYS(                        XK_3,                      2, "3")
-	TAGKEYS(                        XK_4,                      3, "4")
-	TAGKEYS(                        XK_5,                      4, "5")
-	TAGKEYS(                        XK_6,                      5, "6")
-	TAGKEYS(                        XK_7,                      6, "7")
-	TAGKEYS(                        XK_8,                      7, "8")
-	TAGKEYS(                        XK_9,                      8, "9")
-	{ MODKEY,                       XK_0,      view,           {.ui = ~0 }, DESCRIPTION_VIEW_ALL_TAGS },
-	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 }, DESCRIPTION_TAG_ALL_TAGS },
-
-	{ MODKEY,                       XK_r,      spawn,          SHCMD("rofi -show run -show-icons -modi drun,run,window >/dev/null 2>&1"), DESCRIPTION_RUN_COMMAND},
-	{ MODKEY|ShiftMask,             XK_r,      spawn,          SHCMD("rofi -show drun -show-icons -modi drun,run,window >/dev/null 2>&1"), DESCRIPTION_RUN_APPLICATION},
-	{ Mod1Mask,                     XK_F1,     spawn,          SHCMD("rofi -show drun -show-icons -modi drun,run,window >/dev/null 2>&1"), DESCRIPTION_RUN_APPLICATION},
-	{ Mod1Mask,                     XK_F2,     spawn,          SHCMD("rofi -show run -show-icons -modi drun,run,window >/dev/null 2>&1"), DESCRIPTION_RUN_COMMAND},
-	{ MODKEY,                       XK_e,      spawn,          SHCMD("thunar >/dev/null 2>&1"), DESCRIPTION_RUN_THUNAR},
-	{ MODKEY,                       XK_v,      spawn,          SHCMD("if ! pidof pavucontrol >/dev/null; then exec pavucontrol --tab=3 >/dev/null 2>&1; fi"), DESCRIPTION_RUN_MIXER},
-	{ MODKEY,                       XK_v,      activate,       { .v = "Volume Control" }, DESCRIPTION_ACTIVATE_MIXER},
-	{ MODKEY|ShiftMask,             XK_v,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/select-audio-output.sh -1"), DESCRIPTION_SET_AUDIO_OUTPUT_1},
-	{ MODKEY|ControlMask,           XK_v,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/select-audio-output.sh -2"), DESCRIPTION_SET_AUDIO_OUTPUT_2},
-	{ MODKEY,                       XK_t,      spawn,          SHCMD("konsole >/dev/null 2>&1"), DESCRIPTION_RUN_TERMINAL},
-	{ MODKEY|ControlMask|ShiftMask, XK_t,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/xprop.sh"), DESCRIPTION_SHOW_CLIENT_INFO},
-	{ MODKEY|ShiftMask,             XK_x,      spawn,          SHCMD("firefox >/dev/null 2>&1"), DESCRIPTION_RUN_FIREFOX},
-	{ MODKEY|ShiftMask|ControlMask, XK_x,      spawn,          SHCMD("firefox --private-window >/dev/null 2>&1"), DESCRIPTION_RUN_FIREFOX_PRIVATE},
-	{ MODKEY|ShiftMask,             XK_c,      spawn,          SHCMD("thorium-browser >/dev/null 2>&1"), DESCRIPTION_RUN_THORIUM},
-	{ MODKEY|ShiftMask|ControlMask, XK_c,      spawn,          SHCMD("thorium-browser --incognito >/dev/null 2>&1"), DESCRIPTION_RUN_THORIUM_PRIVATE},
-	{ MODKEY|ShiftMask,             XK_b,      spawn,          SHCMD("/opt/brave.com/brave/brave-browser >/dev/null 2>&1"), DESCRIPTION_RUN_BRAVE},
-	{ MODKEY|ShiftMask|ControlMask, XK_b,      spawn,          SHCMD("/opt/brave.com/brave/brave-browser --incognito --tor >/dev/null 2>&1"), DESCRIPTION_RUN_BRAVE_PRIVATE},
-	{ 0,                            0x1008ff11, spawn,         SHCMD ("pamixer -d 5 >/dev/null 2>&1; pkill -RTMIN+8 dwmblocks"), DESCRIPTION_VOLUME_DOWN},
-	{ 0,                            0x1008ff12, spawn,         SHCMD ("pamixer --toggle-mute >/dev/null 2>&1; pkill -RTMIN+8 dwmblocks"), DESCRIPTION_VOLUME_MUTE},
-	{ 0,                            0x1008ff13, spawn,         SHCMD ("pamixer -i 5 >/dev/null 2>&1; pkill -RTMIN+8 dwmblocks"), DESCRIPTION_VOLUME_UP},
-	{ 0,                            XK_Print,  spawn,          SHCMD ("flameshot gui"), DESCRIPTION_SCREENSHOT_GUI},
-	{ ShiftMask,                    XK_Print,  spawn,          SHCMD ("scrot -M0 -d1 ~/Pictures/Screenshots/%Y-%m-%d-%T-screenshot.png"), DESCRIPTION_SCREENSHOT_0},
-	{ ShiftMask|ControlMask,        XK_Print,  spawn,          SHCMD ("scrot -M0 -d1 ~/Pictures/Screenshots/%Y-%m-%d-%T-screenshot.png -e 'xdg-open \"$f\"'"), DESCRIPTION_SCREENSHOT_0_OPEN},
-
 // general client functions;
 	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 }, DESCRIPTION_FOCUSSTACK_FORWARD },
 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 }, DESCRIPTION_FOCUSSTACK_BACKWARD },
@@ -565,6 +526,40 @@ static const Key keys[] = {
 	{ MODKEY,                      XK_KP_Down, movetiled,      {.i = +1 }, DESCRIPTION_MOVE_TILED_DOWN },
 #endif // PATCH_MOVE_TILED_WINDOWS
 
+#if PATCH_LOG_DIAGNOSTICS
+	{ MODKEY|ControlMask|ShiftMask, XK_d,      logdiagnostics, {0}, DESCRIPTION_LOG_DIAGNOSTICS },
+	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_d, spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh"), DESCRIPTION_LOG_SHOW },
+	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_d, logdiagnostics, {.ui = 1}, DESCRIPTION_LOG_DIAGNOSTICS_ALL },
+#endif // PATCH_LOG_DIAGNOSTICS
+	{ MODKEY|ControlMask|ShiftMask, XK_r,      logrules,       {0}, DESCRIPTION_LOG_RULES_FLAT },	// for debugging
+	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_r, logrules,   {.ui = 1}, DESCRIPTION_LOG_RULES },	// for debugging
+
+	{ MODKEY,                       XK_u,      clearurgency,   {0}, DESCRIPTION_CLEAR_URGENCY },
+#if PATCH_CLIENT_OPACITY
+	{ MODKEY,                       XK_equal,  changefocusopacity,   {.f = +0.025}, DESCRIPTION_OPACITY_ACTIVE_INCREASE },
+	{ MODKEY,                       XK_minus,  changefocusopacity,   {.f = -0.025}, DESCRIPTION_OPACITY_ACTIVE_DECREASE },
+	{ MODKEY|ShiftMask,             XK_equal,  changeunfocusopacity, {.f = +0.025}, DESCRIPTION_OPACITY_INACTIVE_INCREASE },
+	{ MODKEY|ShiftMask,             XK_minus,  changeunfocusopacity, {.f = -0.025}, DESCRIPTION_OPACITY_INACTIVE_DECREASE },
+#endif // PATCH_CLIENT_OPACITY
+#if PATCH_MOVE_FLOATING_WINDOWS
+	{ MODKEY,		           XK_KP_Left,     movefloat,      {.ui = MOVE_FLOATING_LEFT }, DESCRIPTION_MOVE_FLOAT_LEFT },
+	{ MODKEY|ShiftMask,	       XK_KP_Left,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_LEFT_BIG },
+	{ MODKEY,		           XK_KP_Right,    movefloat,      {.ui = MOVE_FLOATING_RIGHT }, DESCRIPTION_MOVE_FLOAT_RIGHT },
+	{ MODKEY|ShiftMask,        XK_KP_Right,    movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_RIGHT_BIG },
+	{ MODKEY,		           XK_KP_Up,       movefloat,      {.ui = MOVE_FLOATING_UP }, DESCRIPTION_MOVE_FLOAT_UP },
+	{ MODKEY|ShiftMask,        XK_KP_Up,       movefloat,      {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UP_BIG },
+	{ MODKEY,		           XK_KP_Down,     movefloat,      {.ui = MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWN },
+	{ MODKEY|ShiftMask,        XK_KP_Down,     movefloat,      {.ui = MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWN_BIG },
+	{ MODKEY,		           XK_KP_Home,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_UP }, DESCRIPTION_MOVE_FLOAT_UPLEFT },
+	{ MODKEY|ShiftMask,        XK_KP_Home,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_UP | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UPLEFT_BIG },
+	{ MODKEY,		           XK_KP_End,      movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWNLEFT },
+	{ MODKEY|ShiftMask,        XK_KP_End,      movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWNLEFT_BIG },
+	{ MODKEY,	               XK_KP_Page_Up,  movefloat,      {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_RIGHT }, DESCRIPTION_MOVE_FLOAT_UPRIGHT },
+	{ MODKEY|ShiftMask,        XK_KP_Page_Up,  movefloat,      {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_RIGHT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UPRIGHT_BIG },
+	{ MODKEY,		           XK_KP_Page_Down,movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWNRIGHT },
+	{ MODKEY|ShiftMask,        XK_KP_Page_Down,movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWNRIGHT_BIG },
+#endif // PATCH_MOVE_FLOATING_WINDOWS
+
 // toggles
 #if PATCH_ALT_TAGS
 	{ 0,                            XK_Super_L,togglealttags,  {0}, DESCRIPTION_TOGGLE_ALT_TAGS },
@@ -613,43 +608,34 @@ static const Key keys[] = {
 #if PATCH_MOUSE_POINTER_WARPING
 	{ Mod4Mask,                     XK_Alt_L,  refocuspointer, {0}, DESCRIPTION_REFOCUS_POINTER },
 #endif // PATCH_MOUSE_POINTER_WARPING
+	{ MODKEY,                       XK_r,      spawn,          SHCMD("rofi -show run -show-icons -modi drun,run,window >/dev/null 2>&1"), DESCRIPTION_RUN_COMMAND},
+	{ MODKEY|ShiftMask,             XK_r,      spawn,          SHCMD("rofi -show drun -show-icons -modi drun,run,window >/dev/null 2>&1"), DESCRIPTION_RUN_APPLICATION},
+	{ Mod1Mask,                     XK_F1,     spawn,          SHCMD("rofi -show drun -show-icons -modi drun,run,window >/dev/null 2>&1"), DESCRIPTION_RUN_APPLICATION},
+	{ Mod1Mask,                     XK_F2,     spawn,          SHCMD("rofi -show run -show-icons -modi drun,run,window >/dev/null 2>&1"), DESCRIPTION_RUN_COMMAND},
+	{ MODKEY,                       XK_e,      spawn,          SHCMD("thunar >/dev/null 2>&1"), DESCRIPTION_RUN_THUNAR},
+	{ MODKEY,                       XK_v,      spawn,          SHCMD("if ! pidof pavucontrol >/dev/null; then exec pavucontrol --tab=3 >/dev/null 2>&1; fi"), DESCRIPTION_RUN_MIXER},
+	{ MODKEY,                       XK_v,      activate,       { .v = "Volume Control" }, DESCRIPTION_ACTIVATE_MIXER},
+	{ MODKEY|ShiftMask,             XK_v,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/select-audio-output.sh -1"), DESCRIPTION_SET_AUDIO_OUTPUT_1},
+	{ MODKEY|ControlMask,           XK_v,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/select-audio-output.sh -2"), DESCRIPTION_SET_AUDIO_OUTPUT_2},
+	{ MODKEY,                       XK_t,      spawn,          SHCMD("konsole >/dev/null 2>&1"), DESCRIPTION_RUN_TERMINAL},
+	{ MODKEY|ControlMask|ShiftMask, XK_t,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/xprop.sh"), DESCRIPTION_SHOW_CLIENT_INFO},
+	{ MODKEY|ShiftMask,             XK_x,      spawn,          SHCMD("firefox >/dev/null 2>&1"), DESCRIPTION_RUN_FIREFOX},
+	{ MODKEY|ShiftMask|ControlMask, XK_x,      spawn,          SHCMD("firefox --private-window >/dev/null 2>&1"), DESCRIPTION_RUN_FIREFOX_PRIVATE},
+	{ MODKEY|ShiftMask,             XK_c,      spawn,          SHCMD("thorium-browser >/dev/null 2>&1"), DESCRIPTION_RUN_THORIUM},
+	{ MODKEY|ShiftMask|ControlMask, XK_c,      spawn,          SHCMD("thorium-browser --incognito >/dev/null 2>&1"), DESCRIPTION_RUN_THORIUM_PRIVATE},
+	{ MODKEY|ShiftMask,             XK_b,      spawn,          SHCMD("/opt/brave.com/brave/brave-browser >/dev/null 2>&1"), DESCRIPTION_RUN_BRAVE},
+	{ MODKEY|ShiftMask|ControlMask, XK_b,      spawn,          SHCMD("/opt/brave.com/brave/brave-browser --incognito --tor >/dev/null 2>&1"), DESCRIPTION_RUN_BRAVE_PRIVATE},
+	{ 0,            XF86AudioLowerVolume,      spawn,          SHCMD ("pamixer -d 5 >/dev/null 2>&1; pkill -RTMIN+8 dwmblocks"), DESCRIPTION_VOLUME_DOWN},
+	{ 0,                   XF86AudioMute,      spawn,          SHCMD ("pamixer --toggle-mute >/dev/null 2>&1; pkill -RTMIN+8 dwmblocks"), DESCRIPTION_VOLUME_MUTE},
+	{ 0,            XF86AudioRaiseVolume,      spawn,          SHCMD ("pamixer -i 5 >/dev/null 2>&1; pkill -RTMIN+8 dwmblocks"), DESCRIPTION_VOLUME_UP},
+	{ 0,                            XK_Print,  spawn,          SHCMD ("flameshot gui"), DESCRIPTION_SCREENSHOT_GUI},
+	{ ShiftMask,                    XK_Print,  spawn,          SHCMD ("scrot -M0 -d1 ~/Pictures/Screenshots/%Y-%m-%d-%T-screenshot.png"), DESCRIPTION_SCREENSHOT_0},
+	{ ShiftMask|ControlMask,        XK_Print,  spawn,          SHCMD ("scrot -M0 -d1 ~/Pictures/Screenshots/%Y-%m-%d-%T-screenshot.png -e 'xdg-open \"$f\"'"), DESCRIPTION_SCREENSHOT_0_OPEN},
+
 	{ MODKEY|ControlMask|ShiftMask, XK_p,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/toggle-pink-noise.sh"), DESCRIPTION_TOGGLE_NOISE },
 	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_t, spawn,      SHCMD("bash $XDG_RUNTIME_DIR/dwm/toggle-30s-tone.sh"), DESCRIPTION_TOGGLE_30S_TONE },
 	{ MODKEY|ControlMask|ShiftMask, XK_k,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh restart"), DESCRIPTION_LOG_RESTART },
 	{ MODKEY|ControlMask|ShiftMask, XK_d,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh"), DESCRIPTION_LOG_SHOW },
-#if PATCH_LOG_DIAGNOSTICS
-	{ MODKEY|ControlMask|ShiftMask, XK_d,      logdiagnostics, {0}, DESCRIPTION_LOG_DIAGNOSTICS },
-	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_d, spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh"), DESCRIPTION_LOG_SHOW },
-	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_d, logdiagnostics, {.ui = 1}, DESCRIPTION_LOG_DIAGNOSTICS_ALL },
-#endif // PATCH_LOG_DIAGNOSTICS
-	{ MODKEY|ControlMask|ShiftMask, XK_r,      logrules,       {0}, DESCRIPTION_LOG_RULES_FLAT },	// for debugging
-	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_r, logrules,   {.ui = 1}, DESCRIPTION_LOG_RULES },	// for debugging
-
-	{ MODKEY,                       XK_u,      clearurgency,   {0}, DESCRIPTION_CLEAR_URGENCY },
-#if PATCH_CLIENT_OPACITY
-	{ MODKEY,                       XK_equal,  changefocusopacity,   {.f = +0.025}, DESCRIPTION_OPACITY_ACTIVE_INCREASE },
-	{ MODKEY,                       XK_minus,  changefocusopacity,   {.f = -0.025}, DESCRIPTION_OPACITY_ACTIVE_DECREASE },
-	{ MODKEY|ShiftMask,             XK_equal,  changeunfocusopacity, {.f = +0.025}, DESCRIPTION_OPACITY_INACTIVE_INCREASE },
-	{ MODKEY|ShiftMask,             XK_minus,  changeunfocusopacity, {.f = -0.025}, DESCRIPTION_OPACITY_INACTIVE_DECREASE },
-#endif // PATCH_CLIENT_OPACITY
-#if PATCH_MOVE_FLOATING_WINDOWS
-	{ MODKEY,		           XK_KP_Left,     movefloat,      {.ui = MOVE_FLOATING_LEFT }, DESCRIPTION_MOVE_FLOAT_LEFT },
-	{ MODKEY|ShiftMask,	       XK_KP_Left,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_LEFT_BIG },
-	{ MODKEY,		           XK_KP_Right,    movefloat,      {.ui = MOVE_FLOATING_RIGHT }, DESCRIPTION_MOVE_FLOAT_RIGHT },
-	{ MODKEY|ShiftMask,        XK_KP_Right,    movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_RIGHT_BIG },
-	{ MODKEY,		           XK_KP_Up,       movefloat,      {.ui = MOVE_FLOATING_UP }, DESCRIPTION_MOVE_FLOAT_UP },
-	{ MODKEY|ShiftMask,        XK_KP_Up,       movefloat,      {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UP_BIG },
-	{ MODKEY,		           XK_KP_Down,     movefloat,      {.ui = MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWN },
-	{ MODKEY|ShiftMask,        XK_KP_Down,     movefloat,      {.ui = MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWN_BIG },
-	{ MODKEY,		           XK_KP_Home,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_UP }, DESCRIPTION_MOVE_FLOAT_UPLEFT },
-	{ MODKEY|ShiftMask,        XK_KP_Home,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_UP | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UPLEFT_BIG },
-	{ MODKEY,		           XK_KP_End,      movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWNLEFT },
-	{ MODKEY|ShiftMask,        XK_KP_End,      movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWNLEFT_BIG },
-	{ MODKEY,	               XK_KP_Page_Up,  movefloat,      {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_RIGHT }, DESCRIPTION_MOVE_FLOAT_UPRIGHT },
-	{ MODKEY|ShiftMask,        XK_KP_Page_Up,  movefloat,      {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_RIGHT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UPRIGHT_BIG },
-	{ MODKEY,		           XK_KP_Page_Down,movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWNRIGHT },
-	{ MODKEY|ShiftMask,        XK_KP_Page_Down,movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWNRIGHT_BIG },
-#endif // PATCH_MOVE_FLOATING_WINDOWS
 #if PATCH_ALTTAB
 	{ Mod1Mask,             		XK_Tab,    altTabStart,	   {.ui = (ALTTAB_SELMON_MASK | ALTTAB_NORMAL) }, DESCRIPTION_ALTTAB_NORMAL },
 	{ Mod1Mask|ShiftMask,      		XK_Tab,    altTabStart,	   {.ui = (ALTTAB_SELMON_MASK | ALTTAB_NORMAL | ALTTAB_REVERSE) }, DESCRIPTION_ALTTAB_REVERSE },
@@ -669,7 +655,22 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_grave,  toggletorch,    {.ui = 0 }, DESCRIPTION_TOGGLE_TORCH_DARK },
 	{ MODKEY|ShiftMask,             XK_grave,  toggletorch,    {.ui = 1 }, DESCRIPTION_TOGGLE_TORCH_LIGHT },
 #endif // PATCH_TORCH
-	{ MODKEY,                       XK_w,      iterate_keys,   {0}, },
+	{ MODKEY,                       XK_w,      spawnhelp,      SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-help.sh"), DESCRIPTION_HELP },
+
+	{ MODKEY,						XK_Tab,	   view,           {0}, DESCRIPTION_SWAP_VIEW },
+	{ MODKEY|ControlMask,           XK_Tab,    viewactive,     {.i = +1 }, DESCRIPTION_VIEWACTIVE_NEXT },
+	{ MODKEY|ControlMask|ShiftMask, XK_Tab,    viewactive,     {.i = -1 }, DESCRIPTION_VIEWACTIVE_PREV },
+	TAGKEYS(                        XK_1,                      0, "1")
+	TAGKEYS(                        XK_2,                      1, "2")
+	TAGKEYS(                        XK_3,                      2, "3")
+	TAGKEYS(                        XK_4,                      3, "4")
+	TAGKEYS(                        XK_5,                      4, "5")
+	TAGKEYS(                        XK_6,                      5, "6")
+	TAGKEYS(                        XK_7,                      6, "7")
+	TAGKEYS(                        XK_8,                      7, "8")
+	TAGKEYS(                        XK_9,                      8, "9")
+	{ MODKEY,                       XK_0,      view,           {.ui = ~0 }, DESCRIPTION_VIEW_ALL_TAGS },
+	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 }, DESCRIPTION_TAG_ALL_TAGS },
 };
 
 /* button definitions */

@@ -48,6 +48,8 @@
 #define DESCRIPTION_GAPS_VERT_OUTER_DECREASE		"Decrease vertical outer gaps"
 #endif // PATCH_VANITY_GAPS
 
+#define DESCRIPTION_HELP							"Show keyboard shortcuts"
+
 #if PATCH_FLAG_HIDDEN
 #define DESCRIPTION_HIDE_CLIENT						"Hide (iconify) the focused client"
 #define DESCRIPTION_HIDE_CLIENT_OTHERS				"Hide (iconify) all visible clients (on the focused monitor) except the focused client"
@@ -66,7 +68,7 @@
 #define DESCRIPTION_LOG_RULES						"Output all client rules"
 #define DESCRIPTION_LOG_RULES_FLAT					"Output all client rules, 1 per line"
 
-#define DESCRIPTION_LOG_RESTART						"Clear the log file, and re-open the it"
+#define DESCRIPTION_LOG_RESTART						"Clear the log file, and re-open it"
 #define DESCRIPTION_LOG_SHOW						"Open the log file"
 #define DESCRIPTION_MFACT_DECREASE_1PC				"Decrease master client area proportion by 1%"
 #define DESCRIPTION_MFACT_DECREASE_5PC				"Decrease master client area proportion by 5%"
