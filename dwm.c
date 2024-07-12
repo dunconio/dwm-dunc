@@ -13543,14 +13543,17 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 	}
 
 	#if PATCH_SHOW_DESKTOP
-	if (showdesktop && m->showdesktop != mon->showdesktop) {
-		if (!c->isfloating
-			#if PATCH_SHOW_DESKTOP_WITH_FLOATING
-			|| !showdesktop_floating
-			#else // NO PATCH_SHOW_DESKTOP_WITH_FLOATING
-			|| c->isfloating
-			#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
+	if (showdesktop && m->showdesktop != c->ondesktop) {
+		#if PATCH_SHOW_DESKTOP_WITH_FLOATING
+		if (!showdesktop_floating ||
+			!c->isfloating || (
+				c->isfullscreen
+				#if PATCH_FLAG_FAKEFULLSCREEN
+				&& c->fakefullscreen != 1
+				#endif // PATCH_FLAG_FAKEFULLSCREEN
+			)
 		)
+		#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
 			m->showdesktop = c->ondesktop;
 	}
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
