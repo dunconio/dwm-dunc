@@ -268,6 +268,9 @@ static IPCCommand ipccommands[] = {
 	IPCCOMMAND(  focusstack,          1,      {ARG_TYPE_SINT}   ),
 	IPCCOMMAND(  incnmaster,          1,      {ARG_TYPE_SINT}   ),
 	IPCCOMMAND(  killclient,          1,      {ARG_TYPE_SINT}   ),
+	#if PATCH_LOG_DIAGNOSTICS
+	IPCCOMMAND(  logdiagnostics,      1,      {ARG_TYPE_UINT}   ),
+	#endif // PATCH_LOG_DIAGNOSTICS
 //	IPCCOMMAND(  setlayoutsafe,       1,      {ARG_TYPE_PTR}    ),
 	IPCCOMMAND(  setmfact,            1,      {ARG_TYPE_FLOAT}  ),
 	IPCCOMMAND(  tag,                 1,      {ARG_TYPE_UINT}   ),
