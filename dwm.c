@@ -14626,7 +14626,7 @@ showhide(Client *c, int client_only)
 			XLowerWindow(dpy, c->win);
 		else
 		#endif // PATCH_FLAG_GAME
-		XMoveWindow(dpy, c->win, -sw, c->y);
+		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
 		#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 		if (c->autohide
 			#if PATCH_FLAG_HIDDEN
