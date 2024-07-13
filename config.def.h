@@ -323,7 +323,7 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask,             XK_b,      spawn,          SHCMD("/opt/brave.com/brave/brave-browser >/dev/null 2>&1")},
 	{ MODKEY|ShiftMask|ControlMask, XK_b,      spawn,          SHCMD("/opt/brave.com/brave/brave-browser --incognito --tor >/dev/null 2>&1")},
 	{ 0,                            0x1008ff11, spawn,         SHCMD ("amixer sset Master 5%- unmute >/dev/null 2>&1")},
-	{ 0,                            0x1008ff12, spawn,         SHCMD ("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-output.sh >/dev/null 2>&1")},
+	{ 0,                            0x1008ff12, spawn,         SHCMD ("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-audio.sh >/dev/null 2>&1")},
 	{ 0,                            0x1008ff13, spawn,         SHCMD ("amixer sset Master 5%+ unmute >/dev/null 2>&1")},
 	{ 0,                            XK_Print,  spawn,          SHCMD ("flameshot gui")},
 	{ ShiftMask,                    XK_Print,  spawn,          SHCMD ("scrot -M0 -d1 ~/Pictures/Screenshots/%Y-%m-%d-%T-screenshot.png")},
