@@ -114,7 +114,7 @@ static const int systraypinningfailfirst = 1;   /* 1: if pinning fails, display 
 static                int showsystray    = 1;   /* 0 means no systray */
 #endif // PATCH_SYSTRAY
 static const Bool showbar           = True;
-static const int topbar             = 1;        /* 0 means bottom bar */
+static        int topbar            = 1;        /* 0 means bottom bar */
 #if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 static       unsigned int fh        = 5;        /* focus window height */
 #endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL

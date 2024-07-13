@@ -208,6 +208,7 @@ static const supported_json supported_layout_global[] = {
 	#endif // PATCH_TERMINAL_SWALLOWING
 	{ "title-align",				"active client title alignment: 0:left, 1:centred, 2:right" },
 	{ "title-border-width",			"WinTitle bar element border width in pixels, for when monitor is selected without a client selected" },
+	{ "top-bar",					"true to show the bar at the top of each monitor" },
 	{ "urgency-hinting",			"disable urgency hinting for clients (doesn't affect set-urgency rule functionality)" },
 	{ "vanity-gaps",				"true for vanity gaps (default), false for no gaps between windows" },
 	{ "vanity-gaps-inner-h",		"inner horizontal gap between windows in pixels" },
@@ -690,7 +691,7 @@ enum {	NetSupported, NetWMName,
 		#endif // PATCH_SHOW_DESKTOP
 		NetWMWindowTypeDialog, NetWMWindowTypeDock, NetWMWindowTypeSplash,
 		#if PATCH_ALTTAB
-		NetWMWindowTypeMenu,
+		NetWMWindowTypeMenu, NetWMWindowTypePopupMenu,
 		#endif // PATCH_ALTTAB
 		#if PATCH_EWMH_TAGS
 		NetDesktopNames, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop,
@@ -10471,6 +10472,14 @@ parselayoutjson(cJSON *layout)
 				cJSON_AddNumberToObject(unsupported, "\"title-border-width\" must contain a numeric value", 0);
 			}
 
+			else if (strcmp(L->string, "top-bar")==0) {
+				if (json_isboolean(L)) {
+					topbar = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"top-bar\" must contain a boolean value", 0);
+			}
+
 			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 			else if (strcmp(L->string, "bar-tag-format-empty")==0) {
 				if (cJSON_IsString(L)) {
@@ -14291,6 +14300,7 @@ setup(void)
 	netatom[NetWMWindowTypeDock] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DOCK", False);
 	#if PATCH_ALTTAB
 	netatom[NetWMWindowTypeMenu] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_MENU", False);
+	netatom[NetWMWindowTypePopupMenu] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_POPUP_MENU", False);
 	#endif // PATCH_ALTTAB
 	#if PATCH_EWMH_TAGS
 	netatom[NetDesktopViewport] = XInternAtom(dpy, "_NET_DESKTOP_VIEWPORT", False);
@@ -15332,8 +15342,12 @@ drawTab(Monitor *m, int active, int first)
 								CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
 		XClassHint ch = {"dwm", (tabswitcher ? "dwm-alttab-switcher" : "dwm-client-switcher")};
 		XSetClassHint(dpy, m->tabwin, &ch);
-		XChangeProperty(dpy, m->tabwin, netatom[NetWMWindowType], XA_ATOM, 32,
-			PropModeReplace, (unsigned char *)&netatom[NetWMWindowTypeMenu], 1);
+		if (!tabswitcher)
+			XChangeProperty(dpy, m->tabwin, netatom[NetWMWindowType], XA_ATOM, 32, PropModeReplace,
+				m->topbar ?
+					((unsigned char *)&(netatom[NetWMWindowTypeMenu])) :
+						((unsigned char *)&(netatom[NetWMWindowTypePopupMenu]))
+			, 1);
 		XDefineCursor(dpy, m->tabwin, cursor[CurNormal]->cursor);
 
 		XSetWindowBackground(dpy, m->tabwin, 0L);
