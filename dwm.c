@@ -13924,7 +13924,7 @@ setfullscreen(Client *c, int fullscreen)
 		// if this window isn't visible, don't change it yet
 		//if ((c->tags & c->mon->tagset[c->mon->seltags]) > 0) {
 		if (MINIMIZED(c) || ISVISIBLE(c))
-			resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 1);
+			resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
 
 		if (c->dormant || running != 1)
 			return;
