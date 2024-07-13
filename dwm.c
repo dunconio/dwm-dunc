@@ -689,6 +689,9 @@ enum {	NetSupported, NetWMName,
 		NetWMWindowTypeDesktop,
 		#endif // PATCH_SHOW_DESKTOP
 		NetWMWindowTypeDialog, NetWMWindowTypeDock, NetWMWindowTypeSplash,
+		#if PATCH_ALTTAB
+		NetWMWindowTypeMenu,
+		#endif // PATCH_ALTTAB
 		#if PATCH_EWMH_TAGS
 		NetDesktopNames, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop,
 		#endif // PATCH_EWMH_TAGS
@@ -14286,6 +14289,9 @@ setup(void)
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
 	netatom[NetWMWindowTypeSplash] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_SPLASH", False);
 	netatom[NetWMWindowTypeDock] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DOCK", False);
+	#if PATCH_ALTTAB
+	netatom[NetWMWindowTypeMenu] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_MENU", False);
+	#endif // PATCH_ALTTAB
 	#if PATCH_EWMH_TAGS
 	netatom[NetDesktopViewport] = XInternAtom(dpy, "_NET_DESKTOP_VIEWPORT", False);
 	netatom[NetNumberOfDesktops] = XInternAtom(dpy, "_NET_NUMBER_OF_DESKTOPS", False);
@@ -15326,6 +15332,8 @@ drawTab(Monitor *m, int active, int first)
 								CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
 		XClassHint ch = {"dwm", (tabswitcher ? "dwm-alttab-switcher" : "dwm-client-switcher")};
 		XSetClassHint(dpy, m->tabwin, &ch);
+		XChangeProperty(dpy, m->tabwin, netatom[NetWMWindowType], XA_ATOM, 32,
+			PropModeReplace, (unsigned char *)&netatom[NetWMWindowTypeMenu], 1);
 		XDefineCursor(dpy, m->tabwin, cursor[CurNormal]->cursor);
 
 		XSetWindowBackground(dpy, m->tabwin, 0L);
