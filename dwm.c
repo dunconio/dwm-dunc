@@ -13665,6 +13665,7 @@ set_alarm(XSyncAlarm *alarm, XSyncTestType test)
 void
 setalwaysontop(Client *c, int alwaysontop)
 {
+	/*
     if(alwaysontop && !c->alwaysontop) {
         XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
                 PropModeReplace, (unsigned char *) &netatom[NetWMStaysOnTop], 1);
@@ -13675,6 +13676,9 @@ setalwaysontop(Client *c, int alwaysontop)
         c->alwaysontop = 0;
         arrange(c->mon);
     }
+	*/
+	c->alwaysontop = alwaysontop;
+	arrange(c->mon);
 }
 #endif // PATCH_FLAG_ALWAYSONTOP
 
@@ -14211,6 +14215,7 @@ setmfact(const Arg *arg)
 void
 setsticky(Client *c, int sticky)
 {
+	/*
     if(sticky && !c->issticky) {
         XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
                 PropModeReplace, (unsigned char *) &netatom[NetWMSticky], 1);
@@ -14221,6 +14226,9 @@ setsticky(Client *c, int sticky)
         c->issticky = 0;
         arrange(c->mon);
     }
+	*/
+	c->issticky = sticky;
+	arrange(c->mon);
 }
 #endif // PATCH_FLAG_STICKY
 
