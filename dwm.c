@@ -680,12 +680,20 @@ enum {	NetSupported, NetWMName,
 		#if PATCH_WINDOW_ICONS
 		NetWMIcon,
 		#endif // PATCH_WINDOW_ICONS
-		NetWMState, NetWMCheck,
-		NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz, NetSystemTrayVisual,
-		NetWMFullscreen, NetActiveWindow, NetWMWindowType,
+		NetWMCheck, NetWMState,
 		#if PATCH_FLAG_ALWAYSONTOP
 		NetWMStaysOnTop,
 		#endif // PATCH_FLAG_ALWAYSONTOP
+		#if PATCH_MODAL_SUPPORT
+		NetWMModal,
+		#endif // PATCH_MODAL_SUPPORT
+		#if PATCH_FLAG_STICKY
+		NetWMSticky,
+		#endif // PATCH_FLAG_STICKY
+		// add _NET_WM_STATE flags here;
+		NetWMFullscreen,
+		NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz, NetSystemTrayVisual,
+		NetActiveWindow, NetWMWindowType,
 		#if PATCH_SHOW_DESKTOP
 		NetWMWindowTypeDesktop,
 		#endif // PATCH_SHOW_DESKTOP
@@ -696,12 +704,6 @@ enum {	NetSupported, NetWMName,
 		#if PATCH_EWMH_TAGS
 		NetDesktopNames, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop,
 		#endif // PATCH_EWMH_TAGS
-		#if PATCH_FLAG_STICKY
-		NetWMSticky,
-		#endif // PATCH_FLAG_STICKY
-		#if PATCH_MODAL_SUPPORT
-		NetWMModal,
-		#endif // PATCH_MODAL_SUPPORT
 		#if PATCH_CLIENT_OPACITY
 		NetWMWindowsOpacity,
 		#endif // PATCH_CLIENT_OPACITY
@@ -1209,6 +1211,7 @@ static Client *getactivegameclient(Monitor *m);
 #endif // PATCH_FLAG_GAME
 static Atom getatomprop(Client *c, Atom prop);
 static Atom getatompropex(Window w, Atom prop);
+static int getatompropsex(Window w, Atom prop, Atom **contents);
 static Client *getclientatcoords(int x, int y, int focusable);
 #if PATCH_SHOW_DESKTOP
 #if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
@@ -1346,6 +1349,7 @@ static void print_supported_json(const supported_json array[], const size_t len,
 static void print_supported_rules_json(const supported_rules_json array[], const size_t len, const char *title, const char *indent);
 static void print_supported_wrap(size_t help_length, const char *name, const char *help, const char *indent, char *gap, size_t mingap);
 static void propertynotify(XEvent *e);
+static void publishwindowstate(Client *c);
 static void quit(const Arg *arg);
 static void raiseclient(Client *c);
 static void raisewin(Monitor *m, Window w, int above_bar);
@@ -3602,23 +3606,25 @@ clientmessage(XEvent *e)
 			);
 			setfullscreen(c, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD    */
 				|| (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !c->isfullscreen)));
+			return;
 		}
 		#if PATCH_FLAG_STICKY
-        if (cme->data.l[1] == netatom[NetWMSticky]
-                || cme->data.l[2] == netatom[NetWMSticky]) {
+		if (cme->data.l[1] == netatom[NetWMSticky]
+			|| cme->data.l[2] == netatom[NetWMSticky]) {
 			DEBUG("clientmessage(NetWMSticky) %s client:\"%s\"\n",
 				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
 			);
-            setsticky(c, (cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !c->issticky)));
+			setsticky(c, (cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !c->issticky)));
+			return;
 		}
 		#endif // PATCH_FLAG_STICKY
 		#if PATCH_FLAG_ALWAYSONTOP
 		if (cme->data.l[1] == netatom[NetWMStaysOnTop]
-                || cme->data.l[2] == netatom[NetWMStaysOnTop]) {
+			|| cme->data.l[2] == netatom[NetWMStaysOnTop]) {
 			DEBUG("clientmessage(NetWMStaysOnTop) %s client:\"%s\"\n",
 				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
 			);
-            setalwaysontop(c, (cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !c->alwaysontop)));
+			setalwaysontop(c, (cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !c->alwaysontop)));
 		}
 		#endif // PATCH_FLAG_ALWAYSONTOP
 	} else if (cme->message_type == netatom[NetActiveWindow]) {
@@ -6347,6 +6353,23 @@ getatompropex(Window w, Atom prop)
 		XFree(p);
 	}
 	return atom;
+}
+int
+getatompropsex(Window w, Atom prop, Atom **contents)
+{
+	int di;
+	unsigned long dl = 0;
+	unsigned char *p = NULL;
+	Atom da, atom = None;
+
+	Atom req = XA_ATOM;
+	if (XGetWindowProperty(
+			dpy, w, prop, 0L, sizeof atom, False, req, &da, &di, &dl, &dl, &p
+		) == Success && p) {
+		*contents = (Atom *)p;
+	}
+	else *contents = NULL;
+	return dl;
 }
 
 Client *
@@ -9606,7 +9629,7 @@ monocle(Monitor *m)
 			#if PATCH_SHOW_DESKTOP
 			&& !c->isdesktop
 			#endif // PATCH_SHOW_DESKTOP
-		)
+			)
 			resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
 }
 
@@ -12255,13 +12278,8 @@ togglealwaysontop(const Arg *arg)
 	if (selmon->sel->isdesktop)
 		return;
 	#endif // PATCH_SHOW_DESKTOP
-	if (selmon->sel->isfullscreen
-		#if PATCH_FLAG_FAKEFULLSCREEN
-		&& selmon->sel->fakefullscreen != 1
-		#endif // PATCH_FLAG_FAKEFULLSCREEN
-		) /* no support for fullscreen windows */
-		return;
 	selmon->sel->alwaysontop = !selmon->sel->alwaysontop;
+	publishwindowstate(selmon->sel);
 	restack(selmon);
 }
 #endif // PATCH_FLAG_ALWAYSONTOP
@@ -13661,24 +13679,41 @@ set_alarm(XSyncAlarm *alarm, XSyncTestType test)
 }
 #endif // PATCH_MOUSE_POINTER_HIDING
 
+void
+publishwindowstate(Client *c)
+{
+	Atom state[NetWMFullscreen - NetWMState];
+	int i = 0;
+	if (c->isfullscreen)
+		state[i++] = netatom[NetWMFullscreen];
+	#if PATCH_FLAG_ALWAYSONTOP
+	if (c->alwaysontop)
+		state[i++] = netatom[NetWMStaysOnTop];
+	#endif // PATCH_FLAG_ALWAYSONTOP
+	#if PATCH_MODAL_SUPPORT
+	if (c->ismodal)
+		state[i++] = netatom[NetWMModal];
+	#endif // PATCH_MODAL_SUPPORT
+	#if PATCH_FLAG_STICKY
+	if (c->issticky)
+		state[i++] = netatom[NetWMSticky];
+	#endif // PATCH_FLAG_STICKY
+
+	XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
+			PropModeReplace, (unsigned char *) state, i);
+}
+
 #if PATCH_FLAG_ALWAYSONTOP
 void
 setalwaysontop(Client *c, int alwaysontop)
 {
-	/*
-    if(alwaysontop && !c->alwaysontop) {
-        XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-                PropModeReplace, (unsigned char *) &netatom[NetWMStaysOnTop], 1);
-        c->alwaysontop = 1;
-    } else if(!alwaysontop && c->alwaysontop){
-        XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-                PropModeReplace, (unsigned char *)0, 0);
-        c->alwaysontop = 0;
-        arrange(c->mon);
-    }
-	*/
+	if ((alwaysontop && c->alwaysontop) || (!alwaysontop && !c->alwaysontop))
+		return;
+
 	c->alwaysontop = alwaysontop;
-	arrange(c->mon);
+	publishwindowstate(c);
+	if (!alwaysontop)
+		arrange(c->mon);
 }
 #endif // PATCH_FLAG_ALWAYSONTOP
 
@@ -13909,15 +13944,9 @@ setfullscreen(Client *c, int fullscreen)
 	}
 
 	if (fullscreen != c->isfullscreen) { // only send property change if necessary
-		if (fullscreen)
-			XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-				PropModeReplace, (unsigned char*)&netatom[NetWMFullscreen], 1);
-		else
-			XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-				PropModeReplace, (unsigned char*)0, 0);
+		c->isfullscreen = fullscreen;
+		publishwindowstate(c);
 	}
-
-	c->isfullscreen = fullscreen;
 
 	#if PATCH_CLIENT_OPACITY
 	if (c->isfullscreen)
@@ -14007,9 +14036,8 @@ setfullscreen(Client *c, int fullscreen)
 		while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 	#else // NO PATCH_FLAG_FAKEFULLSCREEN
 	if (fullscreen && !c->isfullscreen) {
-		XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-			PropModeReplace, (unsigned char*)&netatom[NetWMFullscreen], 1);
 		c->isfullscreen = 1;
+		publishwindowstate(c);
 		c->oldbw = c->bw;
 		c->oldstate = c->isfloating;
 		c->bw = 0;
@@ -14031,9 +14059,8 @@ setfullscreen(Client *c, int fullscreen)
 		}
 
 	} else if (!fullscreen && c->isfullscreen) {
-		XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-			PropModeReplace, (unsigned char*)0, 0);
 		c->isfullscreen = 0;
+		publishwindowstate(c);
 		c->bw = c->oldbw;
 		c->isfloating = c->oldstate;
 		c->x = c->oldx;
@@ -14215,20 +14242,13 @@ setmfact(const Arg *arg)
 void
 setsticky(Client *c, int sticky)
 {
-	/*
-    if(sticky && !c->issticky) {
-        XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-                PropModeReplace, (unsigned char *) &netatom[NetWMSticky], 1);
-        c->issticky = 1;
-    } else if(!sticky && c->issticky){
-        XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-                PropModeReplace, (unsigned char *)0, 0);
-        c->issticky = 0;
-        arrange(c->mon);
-    }
-	*/
+	if ((sticky && c->issticky) || (!sticky && !c->issticky))
+		return;
+
 	c->issticky = sticky;
-	arrange(c->mon);
+	publishwindowstate(c);
+	if (!sticky)
+		arrange(c->mon);
 }
 #endif // PATCH_FLAG_STICKY
 
@@ -14644,7 +14664,7 @@ showhide(Client *c, int client_only)
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			|| c->fakefullscreen
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
-		))
+			))
 			resize(c, c->x, c->y, c->w, c->h, 0);
 
 		if (c->snext != c && !client_only)
@@ -17465,15 +17485,30 @@ updateicon(Client *c)
 void
 updatewindowtype(Client *c)
 {
-	Atom state = getatomprop(c, netatom[NetWMState]);
+	Atom *state = NULL;
+	int n = getatompropsex(c->win, netatom[NetWMState], &state);
 	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
 
-	if (state == netatom[NetWMFullscreen])
-		setfullscreen(c, 1);
-	#if PATCH_MODAL_SUPPORT
-	if (state == netatom[NetWMModal] && c->ismodal_override != 0)
-		c->ismodal = 1;
-	#endif // PATCH_MODAL_SUPPORT
+	if (state) {
+		for (int i = 0; i < n; i++) {
+			if (state[i] == netatom[NetWMFullscreen])
+				setfullscreen(c, 1);
+			#if PATCH_FLAG_ALWAYSONTOP
+			else if (state[i] == netatom[NetWMStaysOnTop])
+				setalwaysontop(c, 1);
+			#endif // PATCH_FLAG_ALWAYSONTOP
+			#if PATCH_FLAG_STICKY
+			else if (state[i] == netatom[NetWMSticky])
+				setsticky(c, 1);
+			#endif // PATCH_FLAG_STICKY
+			#if PATCH_MODAL_SUPPORT
+			else if (c->ismodal_override != 0 && state[i] == netatom[NetWMModal])
+				c->ismodal = 1;
+			#endif // PATCH_MODAL_SUPPORT
+		}
+		XFree(state);
+	}
+
 	if (wtype == netatom[NetWMWindowTypeDialog] && c->isfloating_override != 0) {
 		#if PATCH_FLAG_CENTRED
 		if (c->iscentred_override == -1)
@@ -17514,14 +17549,6 @@ updatewindowtype(Client *c)
 		c->ispanel = 1;
 		#endif // PATCH_FLAG_PANEL
 	}
-	#if PATCH_FLAG_ALWAYSONTOP
-	if (state == netatom[NetWMStaysOnTop])
-		setalwaysontop(c, 1);
-	#endif // PATCH_FLAG_ALWAYSONTOP
-	#if PATCH_FLAG_STICKY
-    if (state == netatom[NetWMSticky])
-        setsticky(c, 1);
-	#endif // PATCH_FLAG_STICKY
 }
 
 void
