@@ -4555,6 +4555,11 @@ dragfact(const Arg *arg)
 	mw = m->ww * m->mfact;
 	mh = m->wh * m->mfact;
 
+	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	if (focuswin)
+		XUnmapWindow(dpy, focuswin);
+	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+
 	do {
 		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
 		switch (ev.type) {
@@ -4633,8 +4638,10 @@ dragfact(const Arg *arg)
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	if (focuswin)
+	if (focuswin) {
 		drawfocusborder(0);
+		XMapWindow(dpy, focuswin);
+	}
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 }
 #endif // PATCH_DRAG_FACTS
@@ -5906,14 +5913,11 @@ focus(Client *c, int force)
 	if (!altTabMon)
 	#endif // PATCH_ALTTAB
 	{
-		#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-		if (focuswin) {
-			selmon->sel = c;
-			drawfocusborder(0);
-		}
-		else
-		#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 		selmon->sel = c;
+		#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+		if (focuswin)
+			drawfocusborder(0);
+		#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	}
 
 	restack(selmon);
@@ -9317,7 +9321,6 @@ DEBUGENDIF
 
 				losefullscreen(c->mon->sel, c);
 				unfocus(c->mon->sel, 0);
-				c->mon->sel = c;
 
 				if (1
 					#if PATCH_FLAG_PANEL
@@ -9350,6 +9353,8 @@ DEBUGENDIF
 					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 					#endif // PATCH_MOUSE_POINTER_WARPING
 				}
+				else
+					c->mon->sel = c;
 			}
 		}
 		else focus(NULL, 0);
@@ -9811,13 +9816,8 @@ movemouse(const Arg *arg)
 
 	restack(selmon);
 
-	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	nx = ocx = c->x;
 	ny = ocy = c->y;
-	#else // NO PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	ocx = c->x;
-	ocy = c->y;
-	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	if (XGrabPointer(dpy, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
 		None, cursor[CurMove]->cursor, CurrentTime) != GrabSuccess)
 		return;
@@ -9844,13 +9844,8 @@ movemouse(const Arg *arg)
 	) {
 		mc = c;
 		c = mc->parent;
-		#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 		nx = ocx = c->x;
 		ny = ocy = c->y;
-		#else // NO PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-		ocx = c->x;
-		ocy = c->y;
-		#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	}
 	#endif // PATCH_MODAL_SUPPORT
 	XRaiseWindow(dpy, c->win);
@@ -9859,8 +9854,10 @@ movemouse(const Arg *arg)
 		XRaiseWindow(dpy, mc->win);
 	#endif // PATCH_MODAL_SUPPORT
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	if (focuswin)
-		XRaiseWindow(dpy, focuswin);
+	if (focuswin) {
+		drawfocusborder(1);
+		XUnmapWindow(dpy, focuswin);
+	}
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	do {
 		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
@@ -9891,16 +9888,19 @@ movemouse(const Arg *arg)
 				togglefloating(NULL);
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
 				resize(c, nx, ny, c->w, c->h, 1);
-			#if PATCH_MODAL_SUPPORT
 			#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-			if (focuswin && mc)
-				drawfocusborder(0);
+			if (focuswin)
+				drawfocusborder(1);
 			#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-			#endif // PATCH_MODAL_SUPPORT
 			break;
 		}
 	} while (ev.type != ButtonRelease);
 	XUngrabPointer(dpy, CurrentTime);
+
+	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	if (focuswin)
+		XMapWindow(dpy, focuswin);
+	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
 	if ((m = recttomon(c->x, c->y, c->w, c->h)) != selmon) {
 		if (0
@@ -9923,14 +9923,18 @@ movemouse(const Arg *arg)
 		c->monindex = c->mon->num;
 		arrange(NULL);
 		focus(c, 1);
-	#if PATCH_FOCUS_BORDER
+	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	} else if (c == selmon->sel) {
+		#if PATCH_FOCUS_BORDER
 		raisewin(c->mon, c->win, True);
 		#if PATCH_MODAL_SUPPORT
 		if (mc)
 			raisewin(c->mon, mc->win, True);
 		#endif // PATCH_MODAL_SUPPORT
 		focus(c, 1);
+		#elif PATCH_FOCUS_PIXEL
+		drawfocusborder(0);
+		#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	#endif // PATCH_FOCUS_BORDER
 	}
 
@@ -11263,10 +11267,6 @@ placemouse(const Arg *arg)
 
 				attachstack(c);
 				arrangemon(r->mon);
-				#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-				if (focuswin)
-					drawfocusborder(1);
-				#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 				prevr = r;
 				prevattachmode = attachmode;
 			}
@@ -11274,13 +11274,6 @@ placemouse(const Arg *arg)
 		}
 	} while (ev.type != ButtonRelease);
 	XUngrabPointer(dpy, CurrentTime);
-
-	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	if (focuswin) {
-		drawfocusborder(0);
-		XMapWindow(dpy, focuswin);
-	}
-	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
 	if ((m = recttomon(ev.xmotion.x, ev.xmotion.y, 1, 1)) && m != c->mon) {
 		sendmon(c, m, c, 0);
@@ -11300,6 +11293,13 @@ placemouse(const Arg *arg)
 
 	//arrangemon(c->mon);
 	arrange(NULL);
+
+	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	if (focuswin) {
+		drawfocusborder(0);
+		XMapWindow(dpy, focuswin);
+	}
+	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 }
 
 #if PATCH_MOUSE_POINTER_WARPING
@@ -12422,19 +12422,13 @@ resizemouse(const Arg *arg)
 		return;
 	restack(selmon);
 	ocx = c->x;
-	#if PATCH_FOCUS_BORDER
-	ocy = c->y + fh;
+	ocy = c->y
+		#if PATCH_FOCUS_BORDER
+		+ fh
+		#endif // PATCH_FOCUS_BORDER
+	;
 	nh = och = c->h;
 	nw = ocw = c->w;
-	#elif PATCH_FOCUS_PIXEL
-	ocy = c->y;
-	nh = och = c->h;
-	nw = ocw = c->w;
-	#else // NO PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	ocy = c->y;
-	och = c->h;
-	ocw = c->w;
-	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	if (!XQueryPointer(dpy, c->win, &dummy, &dummy, &opx, &opy, &nx, &ny, &dui))
 		return;
 	horizcorner = nx < c->w / 2;
@@ -12444,7 +12438,7 @@ resizemouse(const Arg *arg)
 		return;
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	if (focuswin)
-		XRaiseWindow(dpy, focuswin);
+		XUnmapWindow(dpy, focuswin);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	do {
 		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
@@ -12505,6 +12499,11 @@ resizemouse(const Arg *arg)
 		}
 		snapchildclients(c, 0);
 	}
+	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	if (focuswin)
+		XMapWindow(dpy, focuswin);
+	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+
 }
 
 #if PATCH_DRAG_FACTS
