@@ -11915,8 +11915,23 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 		c->ispanel ||
 		#endif // PATCH_FLAG_PANEL
 		applysizehints(c, &x, &y, &w, &h, interact)
-	)
+	) {
+		if (!interact && c->isfloating) {
+			if (w + 2*c->bw > c->mon->ww)
+				w = c->mon->ww - 2*c->bw;
+			if (h + 2*c->bw > c->mon->wh)
+				h = c->mon->wh - 2*c->bw;
+			if (x < c->mon->wx)
+				x = c->mon->wx;
+			else if (x + w + 2*c->bw > c->mon->wx + c->mon->ww)
+				x = c->mon->wx + c->mon->ww - w - 2*c->bw;
+			if (y < c->mon->wy)
+				y = c->mon->wy;
+			else if (y + h + 2*c->bw > c->mon->wy + c->mon->wh)
+				y = c->mon->wy + c->mon->wh - h - 2*c->bw;
+		}
 		resizeclient(c, x, y, w, h, !interact);
+	}
 }
 
 void
