@@ -11904,18 +11904,21 @@ removesystrayicon(Client *i)
 void
 repelfocusborder(void)
 {
+	int rot = 0;
+	if (selmon->sel)
+		rot = (selmon->sel->h > selmon->sel->w) ? 1 : 0;
 	switch (fpcurpos) {
 		case FOCUS_PIXEL_NE:
-			fpcurpos = FOCUS_PIXEL_SE;
+			fpcurpos = rot ? FOCUS_PIXEL_NW : FOCUS_PIXEL_SE;
 			break;
 		case FOCUS_PIXEL_SE:
-			fpcurpos = FOCUS_PIXEL_NE;
+			fpcurpos = rot ? FOCUS_PIXEL_SW : FOCUS_PIXEL_NE;
 			break;
 		case FOCUS_PIXEL_NW:
-			fpcurpos = FOCUS_PIXEL_SW;
+			fpcurpos = rot ? FOCUS_PIXEL_NE : FOCUS_PIXEL_SW;
 			break;
 		case FOCUS_PIXEL_SW:
-			fpcurpos = FOCUS_PIXEL_NW;
+			fpcurpos = rot ? FOCUS_PIXEL_SE : FOCUS_PIXEL_NW;
 			break;
 		default:
 			fpcurpos = fppos;
