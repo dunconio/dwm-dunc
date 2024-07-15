@@ -3898,6 +3898,7 @@ connect_to_socket()
 void
 createbarrier(Client *c)
 {
+	unsigned int x, y, w, h;
 	if (!c) return;
 	#if PATCH_CONSTRAIN_MOUSE
 	if (constrained)
@@ -3905,10 +3906,26 @@ createbarrier(Client *c)
 	#endif // PATCH_CONSTRAIN_MOUSE
 	if (xfixes_support) {
 		destroybarrier();
-		barrierLeft = XFixesCreatePointerBarrier(dpy, root, c->x, c->y, c->x, (c->y + c->h), BarrierPositiveX, 0, NULL);
-		barrierRight = XFixesCreatePointerBarrier(dpy, root, (c->x + c->w), c->y, (c->x + c->w), (c->y + c->h), BarrierNegativeX, 0, NULL);
-		barrierTop = XFixesCreatePointerBarrier(dpy, root, c->x, c->y, (c->x + c->w), c->y, BarrierPositiveY, 0, NULL);
-		barrierBottom = XFixesCreatePointerBarrier(dpy, root, c->x, (c->y + c->h), (c->x + c->w), (c->y + c->h), BarrierNegativeY, 0, NULL);
+		if (c->isfullscreen
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			&& c->fakefullscreen != 1
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+		) {
+			x = c->mon->mx;
+			y = c->mon->my;
+			w = c->mon->mw;
+			h = c->mon->mh;
+		}
+		else {
+			x = c->x + c->bw;
+			y = c->y + c->bw;
+			w = c->w - 2*c->bw;
+			h = c->h - 2*c->bw;
+		}
+		barrierLeft = XFixesCreatePointerBarrier(dpy, root, x, y, x, (y + h), BarrierPositiveX, 0, NULL);
+		barrierRight = XFixesCreatePointerBarrier(dpy, root, (x + w), y, (x + w), (y + h), BarrierNegativeX, 0, NULL);
+		barrierTop = XFixesCreatePointerBarrier(dpy, root, x, y, (x + w), y, BarrierPositiveY, 0, NULL);
+		barrierBottom = XFixesCreatePointerBarrier(dpy, root, x, (y + h), (x + w), (y + h), BarrierNegativeY, 0, NULL);
 	}
 }
 #endif // PATCH_FLAG_GAME
@@ -5678,9 +5695,9 @@ enternotify(XEvent *e)
 	) {
 		if (ev->window != root)
 			while (XCheckMaskEvent(dpy, EnterWindowMask, &xev));
-		#if PATCH_FLAG_GAME
+		#if 0 //PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 		if (sel->isgame && sel != game)
-		#endif // PATCH_FLAG_GAME
+		#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 		focus(sel, 1);
 		return;
 	}
