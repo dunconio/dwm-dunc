@@ -9038,6 +9038,10 @@ manage(Window w, XWindowAttributes *wa)
 
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
+	#if PATCH_FLAG_HIDDEN
+	sethidden(c, c->ishidden);
+	#endif // PATCH_FLAG_HIDDEN
+	publishwindowstate(c);
 
 	#if PATCH_SHOW_DESKTOP
 	if (c->isdesktop)
@@ -14082,14 +14086,12 @@ setfullscreen(Client *c, int fullscreen)
 void
 sethidden(Client *c, int hidden)
 {
-	if ((c->ishidden && hidden) || (!c->ishidden && !hidden))
-		return;
-
-	c->ishidden = hidden;
 	if (hidden)
 		minimize(c);
 	else
 		unminimize(c);
+
+	c->ishidden = hidden;
 	publishwindowstate(c);
 	if (!c->isfloating || !hidden)
 		arrange(c->mon);
@@ -16125,11 +16127,10 @@ altTabStart(const Arg *arg)
 				if (c) {
 					#if PATCH_FLAG_HIDDEN
 					if (c->ishidden) {
-						c->ishidden = False;
+						sethidden(c, False);
 						#if PATCH_PERSISTENT_METADATA
 						setclienttagprop(c);
 						#endif // PATCH_PERSISTENT_METADATA
-						unminimize(c);
 						arrangemon(c->mon);
 					}
 					#endif // PATCH_FLAG_HIDDEN
@@ -16807,9 +16808,14 @@ unmanage(Client *c, int destroyed, int cleanup)
 	}
 	#endif // PATCH_TERMINAL_SWALLOWING
 
-	#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN
-	unminimize(c);
-	#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN
+	#if PATCH_FLAG_GAME
+	if (c->isgame)
+		unminimize(c);
+	#endif // PATCH_FLAG_GAME
+	#if PATCH_FLAG_HIDDEN
+	if (c->ishidden)
+		sethidden(c, False);
+	#endif // PATCH_FLAG_HIDDEN
 
 	#if PATCH_FLAG_GAME
 	if (c->isgame && c->isfullscreen
