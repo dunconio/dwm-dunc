@@ -1558,6 +1558,7 @@ static void updatetitle(Client *c, int fixempty);
 #if PATCH_WINDOW_ICONS
 static void updateicon(Client *c);
 #endif // PATCH_WINDOW_ICONS
+static void updatewindowstate(Client *c);
 static void updatewindowtype(Client *c);
 static void updatewmhints(Client *c);
 static int usage(const char * err_text);
@@ -8850,6 +8851,7 @@ manage(Window w, XWindowAttributes *wa)
 	}
 
 	updatewindowtype(c);
+	updatewindowstate(c);
 
 	wc.border_width = c->bw;
 	XConfigureWindow(dpy, w, CWBorderWidth, &wc);
@@ -11584,19 +11586,19 @@ propertynotify(XEvent *e)
 		return; /* ignore */
 	else if ((c = wintoclient(ev->window))) {
 		switch(ev->atom) {
-		default: break;
-		case XA_WM_TRANSIENT_FOR:
-			if (!c->isfloating && (XGetTransientForHint(dpy, c->win, &trans)) &&
-				(c->isfloating = (wintoclient(trans)) != NULL))
-				arrange(c->mon);
-			break;
-		case XA_WM_NORMAL_HINTS:
-			c->hintsvalid = 0;
-			break;
-		case XA_WM_HINTS:
-			updatewmhints(c);
-			drawbar(c->mon, 0);
-			break;
+			default: break;
+			case XA_WM_TRANSIENT_FOR:
+				if (!c->isfloating && (XGetTransientForHint(dpy, c->win, &trans)) &&
+					(c->isfloating = (wintoclient(trans)) != NULL))
+					arrange(c->mon);
+				break;
+			case XA_WM_NORMAL_HINTS:
+				c->hintsvalid = 0;
+				break;
+			case XA_WM_HINTS:
+				updatewmhints(c);
+				drawbar(c->mon, 0);
+				break;
 		}
 		if (ev->atom == XA_WM_NAME || ev->atom == netatom[NetWMName]) {
 			updatetitle(c, 1);
@@ -11612,8 +11614,14 @@ propertynotify(XEvent *e)
 				drawbar(c->mon, 0);
 		}
 		#endif // PATCH_WINDOW_ICONS
-		if (ev->atom == netatom[NetWMWindowType])
+		else if (ev->atom == netatom[NetWMState]) {
+			updatewindowstate(c);
+			focus(NULL, 0);
+		}
+		else if (ev->atom == netatom[NetWMWindowType]) {
 			updatewindowtype(c);
+			focus(NULL, 0);
+		}
 	}
 }
 
@@ -17525,7 +17533,7 @@ updateicon(Client *c)
 #endif // PATCH_WINDOW_ICONS
 
 void
-updatewindowtype(Client *c)
+updatewindowstate(Client *c)
 {
 	Atom da, atom = None;
 	Atom req = XA_ATOM;
@@ -17533,6 +17541,21 @@ updatewindowtype(Client *c)
 	int di;
 	unsigned long dl = 0, after = sizeof atom;
 	unsigned char *p = NULL;
+
+	int fullscreen = 0
+		#if PATCH_FLAG_ALWAYSONTOP
+		, alwaysontop = 0
+		#endif // PATCH_FLAG_ALWAYSONTOP
+		#if PATCH_FLAG_HIDDEN
+		, hidden = 0
+		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_MODAL_SUPPORT
+		, modal = 0
+		#endif // PATCH_MODAL_SUPPORT
+		#if PATCH_FLAG_STICKY
+		, sticky = 0
+		#endif // PATCH_FLAG_STICKY
+	;
 
 	do {
 		if (XGetWindowProperty(
@@ -17545,22 +17568,22 @@ updatewindowtype(Client *c)
 
 			for (int i = 0; i < dl; i++) {
 				if (state[i] == netatom[NetWMFullscreen])
-					setfullscreen(c, 1);
+					fullscreen = 1;
 				#if PATCH_FLAG_ALWAYSONTOP
 				else if (state[i] == netatom[NetWMStaysOnTop])
-					setalwaysontop(c, 1);
+					alwaysontop = 1;
 				#endif // PATCH_FLAG_ALWAYSONTOP
 				#if PATCH_FLAG_HIDDEN
 				else if (state[i] == netatom[NetWMHidden])
-					sethidden(c, 1);
+					hidden = 1;
 				#endif // PATCH_FLAG_HIDDEN
 				#if PATCH_FLAG_STICKY
 				else if (state[i] == netatom[NetWMSticky])
-					setsticky(c, 1);
+					sticky = 1;
 				#endif // PATCH_FLAG_STICKY
 				#if PATCH_MODAL_SUPPORT
 				else if (c->ismodal_override != 0 && state[i] == netatom[NetWMModal])
-					c->ismodal = 1;
+					modal = 1;
 				#endif // PATCH_MODAL_SUPPORT
 			}
 
@@ -17569,6 +17592,29 @@ updatewindowtype(Client *c)
 	}
 	while (after);
 
+	if (c->isfullscreen != fullscreen)
+		setfullscreen(c, fullscreen);
+	#if PATCH_FLAG_ALWAYSONTOP
+	if (c->alwaysontop != alwaysontop)
+		setalwaysontop(c, alwaysontop);
+	#endif // PATCH_FLAG_ALWAYSONTOP
+	#if PATCH_FLAG_HIDDEN
+	if (c->ishidden != hidden)
+		sethidden(c, 1);
+	#endif // PATCH_FLAG_HIDDEN
+	#if PATCH_FLAG_STICKY
+	if (c->issticky != sticky)
+		setsticky(c, 1);
+	#endif // PATCH_FLAG_STICKY
+	#if PATCH_MODAL_SUPPORT
+	if (c->ismodal_override != 0)
+		c->ismodal = modal;
+	#endif // PATCH_MODAL_SUPPORT
+}
+
+void
+updatewindowtype(Client *c)
+{
 	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
 	if (wtype == netatom[NetWMWindowTypeDialog] && c->isfloating_override != 0) {
 		#if PATCH_FLAG_CENTRED
