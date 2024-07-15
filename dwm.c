@@ -5702,15 +5702,16 @@ enternotify(XEvent *e)
 		focus(sel, 1);
 		return;
 	}
+
+	if (ev->window == root)
+		return;
+
 	Monitor *m = c ? c->mon : wintomon(ev->window);
 	if (m && m != selmon) {
 		focusmonex(m);
 		if (!c)
 			focus(NULL, 0);
 	}
-
-	if (ev->window == root)
-		return;
 
 	if (!c) {
 		DEBUG("enternotify no client found from id:0x%lx\n", ev->window);
@@ -6360,6 +6361,8 @@ getactivegameclient(Monitor *m)
 Atom
 getatomprop(Client *c, Atom prop)
 {
+	if (!c->win)
+		return None;
 	return (getatompropex(c->win, prop));
 }
 Atom
@@ -8644,8 +8647,9 @@ manage(Window w, XWindowAttributes *wa)
 	c->pid = winpid(w);
 	// set index accordingly
 	c->index = 0;
+
 	#if PATCH_SHOW_DESKTOP
-	if (getatomprop(c, netatom[NetWMWindowType]) == netatom[NetWMWindowTypeDesktop])
+	if (getatompropex(w, netatom[NetWMWindowType]) == netatom[NetWMWindowTypeDesktop])
 		#if PATCH_SHOW_DESKTOP_UNMANAGED
 		if (showdesktop && showdesktop_unmanaged) {
 			logdatetime(stderr);
@@ -9106,13 +9110,6 @@ manage(Window w, XWindowAttributes *wa)
 		// prevent new clients from taking focus from an active fullscreen game client;
 		|| ((t = getactivegameclient(c->mon)) && t != c)
 		#endif // PATCH_FLAG_GAME
-		#if 0 //PATCH_SHOW_DESKTOP
-		|| (c->isdesktop
-			#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-			&& (!showdesktop_when_active || getdesktopclient(c->mon, &nondesktop) || nondesktop)
-			#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
-			)
-		#endif // PATCH_SHOW_DESKTOP
 		))
 		takefocus = 0;
 
@@ -9519,7 +9516,7 @@ maprequest(XEvent *e)
 		#if !PATCH_SCAN_OVERRIDE_REDIRECTS
 		|| wa.override_redirect
 		#endif // !PATCH_SCAN_OVERRIDE_REDIRECTS
-	)
+		)
 		return;
 
 	if (!wintoclient(ev->window))
