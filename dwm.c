@@ -1558,7 +1558,7 @@ static void updatetitle(Client *c, int fixempty);
 #if PATCH_WINDOW_ICONS
 static void updateicon(Client *c);
 #endif // PATCH_WINDOW_ICONS
-static void updatewindowstate(Client *c);
+static int updatewindowstate(Client *c);
 static void updatewindowtype(Client *c);
 static void updatewmhints(Client *c);
 static int usage(const char * err_text);
@@ -11615,8 +11615,8 @@ propertynotify(XEvent *e)
 		}
 		#endif // PATCH_WINDOW_ICONS
 		else if (ev->atom == netatom[NetWMState]) {
-			updatewindowstate(c);
-			focus(NULL, 0);
+			if (updatewindowstate(c))
+				focus(NULL, 0);
 		}
 		else if (ev->atom == netatom[NetWMWindowType]) {
 			updatewindowtype(c);
@@ -17532,7 +17532,7 @@ updateicon(Client *c)
 }
 #endif // PATCH_WINDOW_ICONS
 
-void
+int
 updatewindowstate(Client *c)
 {
 	Atom da, atom = None;
@@ -17592,24 +17592,37 @@ updatewindowstate(Client *c)
 	}
 	while (after);
 
-	if (c->isfullscreen != fullscreen)
+	di = 0;
+	if (c->isfullscreen != fullscreen) {
 		setfullscreen(c, fullscreen);
+		di = 1;
+	}
 	#if PATCH_FLAG_ALWAYSONTOP
-	if (c->alwaysontop != alwaysontop)
+	if (c->alwaysontop != alwaysontop) {
 		setalwaysontop(c, alwaysontop);
+		di = 1;
+	}
 	#endif // PATCH_FLAG_ALWAYSONTOP
 	#if PATCH_FLAG_HIDDEN
-	if (c->ishidden != hidden)
+	if (c->ishidden != hidden) {
 		sethidden(c, 1);
+		di = 1;
+	}
 	#endif // PATCH_FLAG_HIDDEN
 	#if PATCH_FLAG_STICKY
-	if (c->issticky != sticky)
+	if (c->issticky != sticky) {
 		setsticky(c, 1);
+		di = 1;
+	}
 	#endif // PATCH_FLAG_STICKY
 	#if PATCH_MODAL_SUPPORT
-	if (c->ismodal_override != 0)
+	if (c->ismodal_override != 0) {
 		c->ismodal = modal;
+		di = 1;
+	}
 	#endif // PATCH_MODAL_SUPPORT
+
+	return di;
 }
 
 void
