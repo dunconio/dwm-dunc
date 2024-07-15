@@ -9345,11 +9345,11 @@ DEBUGENDIF
 				losefullscreen(c->mon->sel, c);
 				unfocus(c->mon->sel, 0);
 
-				if (1
-					#if PATCH_FLAG_PANEL
-					&& !c->ultparent->ispanel
-					#endif // PATCH_FLAG_PANEL
-					)
+				#if PATCH_FLAG_PANEL
+				if (c->ultparent->ispanel)
+					c->mon->sel = c;
+				else
+				#endif // PATCH_FLAG_PANEL
 				{
 					#if PATCH_SHOW_DESKTOP || PATCH_MOUSE_POINTER_WARPING
 					//focus(c, 1);
@@ -9376,8 +9376,6 @@ DEBUGENDIF
 					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 					#endif // PATCH_MOUSE_POINTER_WARPING
 				}
-				else
-					c->mon->sel = c;
 			}
 		}
 		else focus(NULL, 0);
