@@ -684,6 +684,9 @@ enum {	NetSupported, NetWMName,
 		#if PATCH_FLAG_ALWAYSONTOP
 		NetWMStaysOnTop,
 		#endif // PATCH_FLAG_ALWAYSONTOP
+		#if PATCH_FLAG_HIDDEN
+		NetWMHidden,
+		#endif // PATCH_FLAG_HIDDEN
 		#if PATCH_MODAL_SUPPORT
 		NetWMModal,
 		#endif // PATCH_MODAL_SUPPORT
@@ -1211,7 +1214,6 @@ static Client *getactivegameclient(Monitor *m);
 #endif // PATCH_FLAG_GAME
 static Atom getatomprop(Client *c, Atom prop);
 static Atom getatompropex(Window w, Atom prop);
-static int getatompropsex(Window w, Atom prop, Atom **contents);
 static Client *getclientatcoords(int x, int y, int focusable);
 #if PATCH_SHOW_DESKTOP
 #if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
@@ -1416,6 +1418,9 @@ static void setdesktopnames(void);
 #endif // PATCH_EWMH_TAGS
 static void setfocus(Client *c);
 static void setfullscreen(Client *c, int fullscreen);
+#if PATCH_FLAG_HIDDEN
+static void sethidden(Client *c, int hidden);
+#endif // PATCH_FLAG_HIDDEN
 static void setlayout(const Arg *arg);
 static void setlayoutex(const Arg *arg);
 static void setlayoutmouse(const Arg *arg);
@@ -6354,23 +6359,6 @@ getatompropex(Window w, Atom prop)
 	}
 	return atom;
 }
-int
-getatompropsex(Window w, Atom prop, Atom **contents)
-{
-	int di;
-	unsigned long dl = 0;
-	unsigned char *p = NULL;
-	Atom da, atom = None;
-
-	Atom req = XA_ATOM;
-	if (XGetWindowProperty(
-			dpy, w, prop, 0L, sizeof atom, False, req, &da, &di, &dl, &dl, &p
-		) == Success && p) {
-		*contents = (Atom *)p;
-	}
-	else *contents = NULL;
-	return dl;
-}
 
 Client *
 getclientatcoords(int x, int y, int focusable)
@@ -7438,8 +7426,6 @@ hidewin(const Arg *arg) {
 	Client *c = selmon->sel;
 	Client *h = NULL;
 	if (arg->ui) {
-		focus(NULL, 0);
-
 		// hide all other windows in this tag
 		for (h = c->mon->clients; h; h = h->next)
 			if (h != c && !h->ishidden && ISVISIBLE(h)
@@ -7450,13 +7436,13 @@ hidewin(const Arg *arg) {
 				&& !(h->isdesktop || h->ondesktop)
 				#endif // PATCH_SHOW_DESKTOP
 			) {
-				h->ishidden = True;
+				sethidden(h, True);
 				#if PATCH_PERSISTENT_METADATA
 				setclienttagprop(h);
 				#endif // PATCH_PERSISTENT_METADATA
-				minimize(h);
 			}
 		h = NULL;
+		focus(NULL, 0);
 	} else {
 		// hide just the active window
 		if (!c)
@@ -7469,7 +7455,7 @@ hidewin(const Arg *arg) {
 			|| (c->isdesktop || c->ondesktop)
 			#endif // PATCH_SHOW_DESKTOP
 			) return;
-		c->ishidden = True;
+		sethidden(c, True);
 		#if PATCH_PERSISTENT_METADATA
 		setclienttagprop(c);
 		#endif // PATCH_PERSISTENT_METADATA
@@ -7477,7 +7463,6 @@ hidewin(const Arg *arg) {
 			if (!(h = nexttiled(c)))
 				h = prevtiled(c);
 		}
-		minimize(c);
 		focus(h, 0);
 		h = selmon->sel;
 	}
@@ -13688,6 +13673,10 @@ publishwindowstate(Client *c)
 	if (c->alwaysontop)
 		state[i++] = netatom[NetWMStaysOnTop];
 	#endif // PATCH_FLAG_ALWAYSONTOP
+	#if PATCH_FLAG_HIDDEN
+	if (c->ishidden)
+		state[i++] = netatom[NetWMHidden];
+	#endif // PATCH_FLAG_HIDDEN
 	#if PATCH_MODAL_SUPPORT
 	if (c->ismodal)
 		state[i++] = netatom[NetWMModal];
@@ -14080,6 +14069,24 @@ setfullscreen(Client *c, int fullscreen)
 
 }
 
+#if PATCH_FLAG_HIDDEN
+void
+sethidden(Client *c, int hidden)
+{
+	if ((c->ishidden && hidden) || (!c->ishidden && !hidden))
+		return;
+
+	c->ishidden = hidden;
+	if (hidden)
+		minimize(c);
+	else
+		unminimize(c);
+	publishwindowstate(c);
+	if (!c->isfloating || !hidden)
+		arrange(c->mon);
+}
+#endif // PATCH_FLAG_HIDDEN
+
 void
 setlayout(const Arg *arg)
 {
@@ -14331,6 +14338,9 @@ setup(void)
 	#if PATCH_FLAG_ALWAYSONTOP
 	netatom[NetWMStaysOnTop] = XInternAtom(dpy, "_NET_WM_STATE_STAYS_ON_TOP", False);
 	#endif // PATCH_FLAG_ALWAYSONTOP
+	#if PATCH_FLAG_HIDDEN
+	netatom[NetWMHidden] = XInternAtom(dpy, "_NET_WM_STATE_HIDDEN", False);
+	#endif // PATCH_FLAG_HIDDEN
 	#if PATCH_MODAL_SUPPORT
 	netatom[NetWMModal] = XInternAtom(dpy, "_NET_WM_STATE_MODAL", False);
 	#endif // PATCH_MODAL_SUPPORT
@@ -16699,11 +16709,10 @@ unhidewin(const Arg *arg) {
 	// show all hidden windows in this tag
 	for (Client *c = m->clients; c; c = c->next)
 		if (c->ishidden && ISVISIBLE(c)) {
-			c->ishidden = False;
+			sethidden(c, False);
 			#if PATCH_PERSISTENT_METADATA
 			setclienttagprop(c);
 			#endif // PATCH_PERSISTENT_METADATA
-			unminimize(c);
 		}
 
 	arrangemon(m);
@@ -17483,30 +17492,49 @@ updateicon(Client *c)
 void
 updatewindowtype(Client *c)
 {
+	Atom da, atom = None;
+	Atom req = XA_ATOM;
 	Atom *state = NULL;
-	int n = getatompropsex(c->win, netatom[NetWMState], &state);
-	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
+	int di;
+	unsigned long dl = 0, after = sizeof atom;
+	unsigned char *p = NULL;
 
-	if (state) {
-		for (int i = 0; i < n; i++) {
-			if (state[i] == netatom[NetWMFullscreen])
-				setfullscreen(c, 1);
-			#if PATCH_FLAG_ALWAYSONTOP
-			else if (state[i] == netatom[NetWMStaysOnTop])
-				setalwaysontop(c, 1);
-			#endif // PATCH_FLAG_ALWAYSONTOP
-			#if PATCH_FLAG_STICKY
-			else if (state[i] == netatom[NetWMSticky])
-				setsticky(c, 1);
-			#endif // PATCH_FLAG_STICKY
-			#if PATCH_MODAL_SUPPORT
-			else if (c->ismodal_override != 0 && state[i] == netatom[NetWMModal])
-				c->ismodal = 1;
-			#endif // PATCH_MODAL_SUPPORT
+	do {
+		if (XGetWindowProperty(
+				dpy, c->win, netatom[NetWMState], 0L, after,
+				False, req, &da, &di, &dl, &after, &p
+			) == Success && p
+		) {
+
+			state = (Atom *)p;
+
+			for (int i = 0; i < dl; i++) {
+				if (state[i] == netatom[NetWMFullscreen])
+					setfullscreen(c, 1);
+				#if PATCH_FLAG_ALWAYSONTOP
+				else if (state[i] == netatom[NetWMStaysOnTop])
+					setalwaysontop(c, 1);
+				#endif // PATCH_FLAG_ALWAYSONTOP
+				#if PATCH_FLAG_HIDDEN
+				else if (state[i] == netatom[NetWMHidden])
+					sethidden(c, 1);
+				#endif // PATCH_FLAG_HIDDEN
+				#if PATCH_FLAG_STICKY
+				else if (state[i] == netatom[NetWMSticky])
+					setsticky(c, 1);
+				#endif // PATCH_FLAG_STICKY
+				#if PATCH_MODAL_SUPPORT
+				else if (c->ismodal_override != 0 && state[i] == netatom[NetWMModal])
+					c->ismodal = 1;
+				#endif // PATCH_MODAL_SUPPORT
+			}
+
+			XFree(state);
 		}
-		XFree(state);
 	}
+	while (after);
 
+	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
 	if (wtype == netatom[NetWMWindowTypeDialog] && c->isfloating_override != 0) {
 		#if PATCH_FLAG_CENTRED
 		if (c->iscentred_override == -1)
