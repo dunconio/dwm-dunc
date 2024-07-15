@@ -13682,6 +13682,10 @@ publishwindowstate(Client *c)
 	if (c->alwaysontop)
 		state[i++] = netatom[NetWMStaysOnTop];
 	#endif // PATCH_FLAG_ALWAYSONTOP
+	#if PATCH_FLAG_HIDDEN
+	if (c->ishidden)
+		state[i++] = netatom[NetWMHidden];
+	#endif // PATCH_FLAG_HIDDEN
 	#if PATCH_MODAL_SUPPORT
 	if (c->ismodal)
 		state[i++] = netatom[NetWMModal];
