@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <stdint.h>
+#include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
@@ -1292,6 +1293,7 @@ static void killclient(const Arg *arg);
 static void killgroup(const Arg *arg);
 static void killwin(Window w);
 static int layoutstringtoindex(const char *layout);
+static int line_to_buffer(const char *text, char *buffer, size_t buffer_size, size_t line_length, size_t *index);
 #if PATCH_LOG_DIAGNOSTICS
 static void logdiagnostics(const Arg *arg);
 static void logdiagnostics_event(XEvent ev);
@@ -1347,9 +1349,10 @@ static Client *prevtiled(Client *c);
 #if PATCH_IPC
 static void print_socket_reply(void);
 #endif // PATCH_IPC
-static void print_supported_json(const supported_json array[], const size_t len, const char *title, const char *indent);
-static void print_supported_rules_json(const supported_rules_json array[], const size_t len, const char *title, const char *indent);
-static void print_supported_wrap(size_t help_length, const char *name, const char *help, const char *indent, char *gap, size_t mingap);
+static void print_supported_json(FILE *f, const supported_json array[], const size_t len, const char *title, const char *indent);
+static void print_supported_rules_json(FILE *f, const supported_rules_json array[], const size_t len, const char *title, const char *indent);
+static void print_wrap(FILE *f, size_t line_length, const char *indent, size_t col1_size,
+	const char *col1_text, const char *line1_gap, const char *normal_gap, const char *col2_text);
 static void propertynotify(XEvent *e);
 static void publishwindowstate(Client *c);
 static void quit(const Arg *arg);
@@ -8182,6 +8185,34 @@ layoutstringtoindex(const char *layout)
 	return 0;
 }
 
+int
+line_to_buffer(const char *text, char *buffer, size_t buffer_size, size_t line_length, size_t *index)
+{
+	size_t w;
+	size_t pindex = *index;
+	snprintf(buffer, buffer_size, text + *index, "%s");
+
+	while (text[*index] != '\0') {
+		if (text[*index] == ' ') {
+			w = 0;
+			while (
+				text[*index + w + 1] != ' ' &&
+				text[*index + w + 1] != '\0' &&
+				text[*index + w + 1] != '\n'
+				)
+				++w;
+			if (*index - pindex + w >= line_length)
+				buffer[*index - pindex] = '\n';
+		}
+		(*index)++;
+		if (buffer[*index - pindex - 1] == '\n' || text[*index - 1] == '\n') {
+			buffer[*index - pindex - 1] = '\0';
+			return 0;
+		}
+	}
+	return 1;
+}
+
 void
 logdiagnostics(const Arg *arg)
 {
@@ -11411,151 +11442,171 @@ print_socket_reply(void)
 #endif // PATCH_IPC
 
 void
-print_supported_json(const supported_json array[], const size_t len, const char *title, const char *indent)
+print_supported_json(FILE *f, const supported_json array[], const size_t len, const char *title, const char *indent)
 {
-	size_t g = 0, i;
-	size_t colw = 0, minw = INT_MAX;
+	size_t i;
+	size_t colw = 0;
 	size_t w;
-	size_t wrap = WRAP_LENGTH - strlen(indent) - 4;
-	char *gap = NULL;
-
-	fprintf(stdout, "%s\n", title);
+	struct winsize window_size = {0};
+	unsigned int wrap_length = WRAP_LENGTH;
+	if (ioctl(fileno(f), TIOCGWINSZ, &window_size) != -1) {
+		wrap_length = window_size.ws_col;
+	}
 
 	for (i = 0; i < len; i++) {
 		w = strlen(array[i].name);
 		if (w > colw)
 			colw = w;
-		if (w < minw)
-			minw = w;
 	}
-	wrap -= colw;
 
-	if (colw > 0) {
-		gap = (char *)calloc(colw + 1, sizeof(char));
-		for (i = 0; i < colw; i++)
-			gap[i] = ' ';
-		gap[i] = '\0';
-	}
+	print_wrap(f, wrap_length, NULL, -1, title, NULL, NULL, NULL);
 
 	for (i = 0; i < len; i++) {
-		if (gap) {
-			w = strlen(array[i].name);
-			g = colw - w;
-			if (g < 0)
-				g = 0;
-			gap[g] = '\0';
-		}
-
-		if (strlen(array[i].help) > wrap)
-			print_supported_wrap(wrap, array[i].name, array[i].help, indent, gap, g);
-		else {
-			fprintf(stdout, "%s%s%s  - %s\n", indent, array[i].name, gap, array[i].help);
-			if (gap)
-				gap[g] = ' ';
-		}
+		print_wrap(f, wrap_length, indent, colw, array[i].name, " - ", NULL, array[i].help);
 	}
-
-	if (gap)
-		free(gap);
-
-	fputs("\n", stdout);
+	fputs("\n", f);
 }
 
 void
-print_supported_rules_json(const supported_rules_json array[], const size_t len, const char *title, const char *indent)
+print_supported_rules_json(FILE *f, const supported_rules_json array[], const size_t len, const char *title, const char *indent)
 {
-	size_t g = 0, i;
-	size_t colw = 0, minw = INT_MAX;
+	size_t i;
+	size_t colw = 0;
 	size_t w;
-	size_t wrap = WRAP_LENGTH - strlen(indent) - 4;
-	char *gap = NULL;
-
-	fprintf(stdout, "%s\n", title);
+	struct winsize window_size = {0};
+	unsigned int wrap_length = WRAP_LENGTH;
+	if (ioctl(fileno(f), TIOCGWINSZ, &window_size) != -1) {
+		wrap_length = window_size.ws_col;
+	}
 
 	for (i = 0; i < len; i++) {
 		w = strlen(array[i].name);
 		if (w > colw)
 			colw = w;
-		if (w < minw)
-			minw = w;
 	}
-	wrap -= colw;
 
-	if (colw > 0) {
-		gap = (char *)calloc(colw + 1, sizeof(char));
-		for (i = 0; i < colw; i++)
-			gap[i] = ' ';
-		gap[i] = '\0';
-	}
+	print_wrap(f, wrap_length, NULL, -1, title, NULL, NULL, NULL);
 
 	for (i = 0; i < len; i++) {
-		if (gap) {
-			w = strlen(array[i].name);
-			g = colw - w;
-			if (g < 0)
-				g = 0;
-			gap[g] = '\0';
-		}
+		print_wrap(f, wrap_length, indent, colw, array[i].name, " - ", NULL, array[i].help);
+	}
+	fputs("\n", f);
+}
 
-		if (strlen(array[i].help) > wrap)
-			print_supported_wrap(wrap, array[i].name, array[i].help, indent, gap, g);
+// print 1 - 2 columns, wrapping at col1_size and/or terminal width;
+void
+print_wrap(
+	FILE *f,
+	size_t line_length,
+	const char *indent,
+	size_t col1_size,
+	const char *col1_text,
+	const char *line1_gap,
+	const char *normal_gap,
+	const char *col2_text
+) {
+	size_t usable = line_length - (indent ? strlen(indent) : 0);
+	size_t col2_size;
+
+	size_t gapsize = line1_gap ? strlen(line1_gap) : 1;
+
+	if (normal_gap) {
+		col2_size = strlen(normal_gap);
+		if (col2_size > gapsize)
+			gapsize = col2_size;
+	}
+
+	char gap[gapsize + 1];
+
+	size_t col2_usable = usable - gapsize;
+	if (col1_size == -1 || col1_size > usable) {
+		col1_size = usable;
+		col2_size = 0;
+		if (!col2_text)
+			col2_usable = 0;
+	}
+	else if (col2_text) {
+		col2_size = col2_usable - col1_size;
+	}
+	else
+		col2_size = col2_usable = 0;
+
+	char c1buff[col1_size + 1];
+	char c2buff[(col2_size ? col2_size : col2_usable) + 1];
+
+	int first = 1;
+	int c1done = 0;
+	int c2done = (col2_text ? 0 : 2);
+	size_t col1_index = 0;
+	size_t col2_index = 0;
+	size_t i;
+
+	if (!c2done) {
+		if (line1_gap)
+			strncpy(gap, line1_gap, gapsize);
+		else if (normal_gap)
+			strncpy(gap, normal_gap, gapsize);
 		else {
-			fprintf(stdout, "%s%s%s  - %s\n", indent, array[i].name, gap, array[i].help);
-			if (gap)
-				gap[g] = ' ';
+			gap[0] = ' ';
+			gap[1] = '\0';
 		}
 	}
 
-	if (gap)
-		free(gap);
-}
-
-void
-print_supported_wrap(size_t help_length, const char *name, const char *help, const char *indent, char *gap, size_t mingap)
-{
-	int first;
-	size_t w, line, index, pindex;
-	char buff[help_length + 1];
-	pindex = 0;
-	index = 0;
-	line = 0;
-	first = 1;
-	snprintf(buff, sizeof buff, help, "%s");
-
-	while (help[index] != '\0') {
-		if (help[index] == ' ') {
-			w = 0;
-			while(
-				help[index + w + 1] != ' ' &&
-				help[index + w + 1] != '\0' &&
-				help[index + w + 1] != '\n'
-				)
-				++w;
-			if (line + w >= help_length)
-				buff[index - pindex] = '\n';
-		}
-		if (buff[index - pindex] == '\n') {
-			line = 0;
-			buff[index - pindex + 1] = '\0';
-			if (first) {
-				fprintf(stdout, "%s%s%s  - %s", indent, name, gap, buff);
-				if (gap)
-					gap[mingap] = ' ';
-				first = 0;
+	while (!c1done || !c2done) {
+		if (!c1done) {
+			c1done = line_to_buffer(col1_text, c1buff, sizeof c1buff, col1_size, &col1_index);
+			if (col2_text) {
+				i = strlen(c1buff);
+				if (i < (sizeof c1buff - 1)) {
+					for (; i < (sizeof c1buff - 1); i++)
+						c1buff[i] = ' ';
+					c1buff[i] = '\0';
+				}
 			}
-			else
-				fprintf(stdout, "%s%s    %s", indent, gap, buff);
-			pindex = index + 1;
-			snprintf(buff, sizeof buff, help + pindex, "%s");
 		}
-		line++;
-		index++;
-	}
-	if (pindex < index)
-		fprintf(stdout, "%s%s    %s", indent, gap, buff);
-	fprintf(stdout, "\n");
+		if (!c2done && (col2_size || c1done == 2))
+			c2done = line_to_buffer(col2_text, c2buff, sizeof c2buff, (col2_size ? col2_size : col2_usable), &col2_index);
 
+		if (c2done == 2) {
+			if (c1done == 2)
+				return;
+			fprintf(f, "%s%s\n", indent ? indent : "", c1buff);
+		}
+		else if (col2_size) {
+			fprintf(f, "%s%s%s%s\n", indent ? indent : "", c1buff, gap, c2buff);
+		}
+		else if (col2_text) {
+			if (c1done == 2)
+				fprintf(f, "%s%s%s\n", indent ? indent : "", gap, c2buff);
+			else
+				fprintf(f, "%s%s\n", indent ? indent : "", c1buff);
+		}
+
+		if (first && (col2_size || c1done == 2)) {
+			first = 0;
+			if (normal_gap)
+				strncpy(gap, normal_gap, gapsize);
+			else {
+				for (i = 0; i < gapsize; i++)
+					gap[i] = ' ';
+				gap[i] = '\0';
+			}
+		}
+		if (c1done == 1 && !c2done) {
+			if (col2_text) {
+				for (i = 0; i < col1_size; i++)
+					c1buff[i] = ' ';
+				c1buff[i] = '\0';
+			}
+			c1done = 2;
+		}
+		if (c2done == 1) {
+			c2buff[0] = '\0';
+			c2done = 2;
+		}
+	}
 }
+
 
 void
 propertynotify(XEvent *e)
@@ -18802,6 +18853,13 @@ main(int argc, char *argv[], char *envp[])
 	int ipc = 0;
 	#endif // PATCH_IPC
 
+	FILE *f = stdout;
+	unsigned int wrap_length = WRAP_LENGTH;
+	struct winsize window_size = {0};
+	if (ioctl(fileno(f), TIOCGWINSZ, &window_size) != -1) {
+		wrap_length = window_size.ws_col;
+	}
+
 	if (argc > 1) {
 
 		for (int i = 1; i < argc; i++) {
@@ -18828,25 +18886,25 @@ main(int argc, char *argv[], char *envp[])
 
 			else if (!strcmp("-h", argv[i])) {
 
-				print_supported_json(
+				print_supported_json(f,
 					supported_layout_global,
 					LENGTH(supported_layout_global),
 					"layout-file.json supported names:\n=================================\n\n    global section:\n    ---------------",
 					"        "
 				);
-				print_supported_json(
+				print_supported_json(f,
 					supported_layout_mon,
 					LENGTH(supported_layout_mon),
 					"    monitor sections:\n    -----------------",
 					"        "
 				);
-				print_supported_json(
+				print_supported_json(f,
 					supported_layout_tag,
 					LENGTH(supported_layout_tag),
 					"    tags sections (per monitor):\n    ----------------------------",
 					"        "
 				);
-				print_supported_rules_json(
+				print_supported_rules_json(f,
 					supported_rules,
 					LENGTH(supported_rules),
 					"\nrules-file.json supported names:\n================================\n",
@@ -18856,25 +18914,29 @@ main(int argc, char *argv[], char *envp[])
 				usage(NULL);
 				#if PATCH_IPC
 				if (LENGTH(ipccommands)) {
-					fputs(
-						"IPC verbs:\n"
-						"    get_dwm_client [Window ID]    Return DWM client properties for the\n"
-						"                                  specified window (defaults to the active window)\n"
-						"    get_layouts                   Return a list of layouts\n"
-						"    get_monitors                  Return monitor properties\n"
-						"    get_tags                      Return a list of all tags\n"
-						"    run_command                   Runs an IPC command\n"
-						"    subscribe <event> ...         Subscribe to the specified events\n\n"
-						"IPC events:\n"
-						"    " IPC_EVENT_STRING_CLIENT_FOCUS_CHANGE "\n"
-						"    " IPC_EVENT_STRING_FOCUSED_STATE_CHANGE "\n"
-						"    " IPC_EVENT_STRING_FOCUSED_TITLE_CHANGE "\n"
-						"    " IPC_EVENT_STRING_LAYOUT_CHANGE "\n"
-						"    " IPC_EVENT_STRING_MONITOR_FOCUS_CHANGE "\n"
-						"    " IPC_EVENT_STRING_TAG_CHANGE "\n"
-						"\nIPC commands:\n", stdout);
+
+					const char *indent = "    ";
+					print_wrap(f, wrap_length, NULL, -1, "IPC verbs:", NULL, NULL, NULL);
+					print_wrap(f, wrap_length, indent, 27 , "get_dwm_client [Window ID]", indent, NULL,
+						"Return DWM client properties for the specified window (defaults to the active window)"
+					);
+					print_wrap(f, wrap_length, indent, 27 , "get_layouts", indent, NULL, "Return a list of layouts");
+					print_wrap(f, wrap_length, indent, 27 , "get_monitors", indent, NULL, "Return monitor properties");
+					print_wrap(f, wrap_length, indent, 27 , "get_tags", indent, NULL, "Return a list of all tags");
+					print_wrap(f, wrap_length, indent, 27 , "run_command", indent, NULL, "Runs an IPC command");
+					print_wrap(f, wrap_length, indent, 27 , "subscribe <event> ...", indent, NULL, "Subscribe to the specified events");
+
+					print_wrap(f, wrap_length, NULL, -1, "\nIPC events:", NULL, NULL, NULL);
+					print_wrap(f, wrap_length, indent, -1, IPC_EVENT_STRING_CLIENT_FOCUS_CHANGE, NULL, NULL, NULL);
+					print_wrap(f, wrap_length, indent, -1, IPC_EVENT_STRING_FOCUSED_STATE_CHANGE, NULL, NULL, NULL);
+					print_wrap(f, wrap_length, indent, -1, IPC_EVENT_STRING_FOCUSED_TITLE_CHANGE, NULL, NULL, NULL);
+					print_wrap(f, wrap_length, indent, -1, IPC_EVENT_STRING_LAYOUT_CHANGE, NULL, NULL, NULL);
+					print_wrap(f, wrap_length, indent, -1, IPC_EVENT_STRING_MONITOR_FOCUS_CHANGE, NULL, NULL, NULL);
+					print_wrap(f, wrap_length, indent, -1, IPC_EVENT_STRING_TAG_CHANGE, NULL, NULL, NULL);
+
+					print_wrap(f, wrap_length, NULL, -1, "\nIPC commands:", NULL, NULL, NULL);
 					for (i = 0; i < LENGTH(ipccommands); i++)
-						fprintf(stdout, "    %s\n", ipccommands[i].name);
+						print_wrap(f, wrap_length, indent, -1, ipccommands[i].name, NULL, NULL, NULL);
 					fputs("\n", stdout);
 				}
 				#endif // PATCH_IPC
@@ -19062,33 +19124,42 @@ fprintf(stderr, "dwm: finished.\n");
 	return EXIT_SUCCESS;
 }
 
-static int
+int
 usage(const char * err_text)
 {
+	FILE *f = (err_text ? stderr : stdout);
+	struct winsize window_size = {0};
+	unsigned int wrap_length = WRAP_LENGTH;
+	if (ioctl(fileno(f), TIOCGWINSZ, &window_size) != -1) {
+		wrap_length = window_size.ws_col;
+	}
+
 	if (err_text)
-		fprintf(stderr, "%s\n", err_text);
-	fputs(
-		"\nusage: dwm [-h] [-v] [-r <rules-file.json>] [-l <layout-file.json>] [-u]"
+		fprintf(f, "%s\n", err_text);
+	print_wrap(f, wrap_length, NULL, 10,
+		"\nusage: dwm", NULL, NULL, "\n[-h] [-v] [-r <rules-file.json>] [-l <layout-file.json>] [-u]"
 		#if PATCH_SYSTRAY
 		" [-n]"
 		#endif // PATCH_SYSTRAY
 		#if PATCH_IPC
-		"\n           [-s <verb> [command [args]]]"
+		"\n[-s <verb> [command [args]]]"
 		#endif // PATCH_IPC
-		"\n", stdout
+		"\n"
 	);
+
 	const char *indent = "    ";
-	fprintf(stdout, "%s-h%sdisplay usage and accepted configuration paramters\n", indent, indent);
-	fprintf(stdout, "%s-v%sdisplay version information\n", indent, indent);
+	print_wrap(f, wrap_length, indent, 2, "-h", indent, NULL, "display usage and accepted configuration paramters");
+	print_wrap(f, wrap_length, indent, 2, "-v", indent, NULL, "display version information");
 	#if PATCH_SYSTRAY
-	fprintf(stdout, "%s-n%sdisable dwm system tray functionality\n", indent, indent);
+	print_wrap(f, wrap_length, indent, 2, "-n", indent, NULL, "disable dwm system tray functionality");
 	#endif // PATCH_SYSTRAY
-	fprintf(stdout, "%s-r%suse the rules defined in the specified JSON rules file\n", indent, indent);
-	fprintf(stdout, "%s-l%suse the layout configuration defined in the specified JSON layout file\n", indent, indent);
-	fprintf(stdout, "%s-u%sdisable client urgency hinting\n", indent, indent);
+	print_wrap(f, wrap_length, indent, 2, "-r", indent, NULL, "use the rules defined in the specified JSON rules file");
+	print_wrap(f, wrap_length, indent, 2, "-l", indent, NULL, "use the layout configuration defined in the specified JSON layout file");
+	print_wrap(f, wrap_length, indent, 2, "-u", indent, NULL, "disable client urgency hinting");
 	#if PATCH_IPC
-	fprintf(stdout, "%s-s%ssend request to running instance via socket\n", indent, indent);
+	print_wrap(f, wrap_length, indent, 2, "-s", indent, NULL, "send request to running instance via socket");
 	#endif // PATCH_IPC
-	fputs("\n", stdout);
+	fputs("\n", f);
+
 	return (err_text ? EXIT_FAILURE : EXIT_SUCCESS);
 }
