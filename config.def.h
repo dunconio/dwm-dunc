@@ -186,7 +186,8 @@ static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 //static char *tags[] = { "󾠮", "󾠯", "󾠰", "󾠱", "󾠲", "󾠳", "󾠴", "󾠵", "󾠶" };
 
 #if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-static char *ptagf = "[%s %s]";	// format of a tag label
+static int showmaster = 1;			// show master client on tag bar;
+static char *ptagf = "[%s %s]";		// format of a tag label
 static char *etagf = "[%s]";		// format of an empty tag
 static int lcaselbl = 1;			// 1 means make tag label lowercase
 static int reverselbl = 0;			// 1 means reverse the order for ptagf;

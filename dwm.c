@@ -198,6 +198,9 @@ static const supported_json supported_layout_global[] = {
 	{ "show-desktop-with-floating",	"true to allow floating clients to be visible when showing the desktop" },
 	#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
 	#endif // PATCH_SHOW_DESKTOP
+	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+	{ "showmaster", 				"set to true if the master client class should be shown on each tag on the bar" },
+	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	#if PATCH_SYSTRAY
 	{ "system-tray",				"true to enable system tray handling" },
 	{ "system-tray-align",			"align the system tray to side of the status area:\n0:left, 1:right" },
@@ -4011,7 +4014,7 @@ createmon(void)
 	m->showstatus = 1;
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	m->reversemaster = reverselbl;
-	m->showmaster = 1;
+	m->showmaster = showmaster;
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	#if PATCH_LOG_DIAGNOSTICS
 	m->logallrules = 0;
@@ -10734,6 +10737,16 @@ parselayoutjson(cJSON *layout)
 				cJSON_AddNumberToObject(unsupported, "\"mirror-layout\" must contain a boolean value", 0);
 			}
 			#endif // PATCH_MIRROR_LAYOUT
+
+			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+			else if (strcmp(L->string, "showmaster")==0) {
+				if (json_isboolean(L)) {
+					showmaster = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"showmaster\" must contain a boolean value", 0);
+			}
+			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 
 			#if PATCH_SYSTRAY
 			else if (strcmp(L->string, "system-tray")==0) {
