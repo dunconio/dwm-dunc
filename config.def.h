@@ -4,7 +4,7 @@
 
 #define DWM_REVISION	"0"
 
-#define WRAP_LENGTH		100		//	Wrap lines when printing supported json parameter details;
+#define WRAP_LENGTH		80		//	Wrap lines when printing supported json parameter details;
 
 #if PATCH_ALTTAB
 /* alt-tab configuration */
