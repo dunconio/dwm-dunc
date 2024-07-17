@@ -15871,7 +15871,19 @@ altTabStart(const Arg *arg)
 			m = altTabMon;
 			while (m) {
 				// add clients to the list;
-				for(c = m->stack; c; c = c->snext) {
+				int first = 1;
+				for(c = (m == altTabMon && m->sel) ? m->sel : m->stack; ; c = c->snext) {
+
+					if (m == altTabMon && m->sel && m->sel != m->stack) {
+						if (!c)
+							c = m->stack;
+						else if (c == m->sel && !first)
+							break;
+					}
+					else if (!c)
+						break;
+					first = 0;
+
 					if (c->neverfocus
 						#if PATCH_FLAG_HIDDEN
 						|| (c->ishidden && !(altTabMon->isAlt & ALTTAB_HIDDEN))
