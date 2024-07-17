@@ -5354,28 +5354,28 @@ drawbar(Monitor *m, int skiptags)
 						TEXTW(active->name)
 						#endif // PATCH_FLAG_HIDDEN
 						#if PATCH_WINDOW_ICONS
-						+ (active->icon ? active->icw + iconspacing : 0)
+						+ (active->icon ? active->icw + (iconspacing*2) : 0)
 						#endif // PATCH_WINDOW_ICONS
 					;
 					if (tw >= w)
-						pad = (
-							lrpad / 2
-							#if PATCH_WINDOW_ICONS
-							+ (active->icon ? active->icw + iconspacing : 0)
-							#endif // PATCH_WINDOW_ICONS
-						);
+						pad = 0;
 					else if (m->title_align == 1)
-						pad = (w - tw)/2 + lrpad;
+						pad = (w - tw - lrpad) / 2;
 					else if (m->title_align == 2)
-						pad = w - tw + 3*lrpad/2;
+						pad = w - tw
+							#if PATCH_WINDOW_ICONS
+							- (active->icon ? active->icw + (iconspacing*2) : 0)
+							#endif // PATCH_WINDOW_ICONS
+						;
 				}
-				else
-				pad = (
+
+				pad += (
 					lrpad / 2
 					#if PATCH_WINDOW_ICONS
-					+ (active->icon ? active->icw + iconspacing : 0)
+					+ (active->icon ? active->icw + (iconspacing*2) : 0)
 					#endif // PATCH_WINDOW_ICONS
 				);
+
 				drw_text(drw, x, 0, w, bh, pad,
 					#if PATCH_CLIENT_INDICATORS
 					0,
@@ -5393,9 +5393,9 @@ drawbar(Monitor *m, int skiptags)
 				if (active->icon) {
 					if (m->title_align && tw < w) {
 						if (m->title_align == 1)
-							drw_pic(drw, x + pad - active->icw - lrpad/4, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
+							drw_pic(drw, x + pad - active->icw - lrpad / 2, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
 						else
-							drw_pic(drw, x + pad - active->icw - lrpad/3, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
+							drw_pic(drw, x + w - active->icw - lrpad / 2, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
 					}
 					else
 						drw_pic(drw, x + lrpad / 2, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
