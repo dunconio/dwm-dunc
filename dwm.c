@@ -5344,7 +5344,15 @@ drawbar(Monitor *m, int skiptags)
 				drw_rect(drw, x, 0, w, bh, 1, 1);
 			#endif // PATCH_TWO_TONE_TITLE
 			if (active) {
-				int pad = 0;
+				int lpad = (2 * boxs + boxw);
+				if (lpad < (lrpad / 2))
+					lpad = (lrpad / 2);
+				int pad = (
+					lpad
+					#if PATCH_WINDOW_ICONS
+					+ (active->icon ? active->icw + iconspacing : 0)
+					#endif // PATCH_WINDOW_ICONS
+				);
 				unsigned int tw = 0;
 				if (m->title_align) {
 					tw =
@@ -5354,27 +5362,24 @@ drawbar(Monitor *m, int skiptags)
 						TEXTW(active->name)
 						#endif // PATCH_FLAG_HIDDEN
 						#if PATCH_WINDOW_ICONS
-						+ (active->icon ? active->icw + (iconspacing*2) : 0)
+						+ (active->icon ? active->icw + iconspacing : 0)
 						#endif // PATCH_WINDOW_ICONS
 					;
-					if (tw >= w)
-						pad = 0;
-					else if (m->title_align == 1)
-						pad = (w - tw - lrpad) / 2;
-					else if (m->title_align == 2)
-						pad = w - tw
-							#if PATCH_WINDOW_ICONS
-							- (active->icon ? active->icw + (iconspacing*2) : 0)
-							#endif // PATCH_WINDOW_ICONS
-						;
+					if ((tw + lpad + lrpad / 2) < w && m->title_align) {
+						if (m->title_align == 1)
+							pad = ((w - tw) / 2)
+								#if PATCH_WINDOW_ICONS
+								+ (active->icon ? active->icw + iconspacing : 0)
+								#endif // PATCH_WINDOW_ICONS
+							;
+						else if (m->title_align == 2)
+							pad = (w - tw - lpad)
+								#if PATCH_WINDOW_ICONS
+								+ (active->icon ? active->icw : 0)
+								#endif // PATCH_WINDOW_ICONS
+							;
+					}
 				}
-
-				pad += (
-					lrpad / 2
-					#if PATCH_WINDOW_ICONS
-					+ (active->icon ? active->icw + (iconspacing*2) : 0)
-					#endif // PATCH_WINDOW_ICONS
-				);
 
 				drw_text(drw, x, 0, w, bh, pad,
 					#if PATCH_CLIENT_INDICATORS
@@ -5391,22 +5396,25 @@ drawbar(Monitor *m, int skiptags)
 				#endif // PATCH_TWO_TONE_TITLE
 				#if PATCH_WINDOW_ICONS
 				if (active->icon) {
-					if (m->title_align && tw < w) {
-						if (m->title_align == 1)
-							drw_pic(drw, x + pad - active->icw - lrpad / 2, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
-						else
-							drw_pic(drw, x + w - active->icw - lrpad / 2, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
+					switch (m->title_align) {
+						case 1:	// centre;
+							drw_pic(drw, x + pad - active->icw - iconspacing, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
+							break;
+						case 2:	// right;
+							drw_pic(drw, x + w - active->icw - lpad, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
+							break;
+						default:
+						case 0:	// left;
+							drw_pic(drw, x + pad - active->icw - iconspacing, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
 					}
-					else
-						drw_pic(drw, x + lrpad / 2, (bh - active->ich) / 2, active->icw, active->ich, active->icon);
 				}
 				#endif // PATCH_WINDOW_ICONS
 				if (active->isfloating) {
-					drw_rect(drw, x + boxs, boxs, boxw, boxw, active->isfixed, 0);
+					drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), boxs, boxw, boxw, active->isfixed, 0);
 					#if PATCH_MODAL_SUPPORT
 					if (active->ismodal) {
 						drw_setscheme(drw, scheme[SchemeUrg]);
-						drw_rect(drw, x + boxs, boxs + (bh - boxw - 4), boxw, boxw, 1,
+						drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), boxs + (bh - boxw - 4), boxw, boxw, 1,
 							#if PATCH_FLAG_ALWAYSONTOP
 							!active->alwaysontop
 							#else // NO PATCH_FLAG_ALWAYSONTOP
@@ -5420,10 +5428,10 @@ drawbar(Monitor *m, int skiptags)
 					else
 					#endif // PATCH_MODAL_SUPPORT
 					if (active->alwaysontop)
-						drw_rect(drw, x + boxs, boxs + (bh - boxw - 4), boxw, boxw, 0, 0);
+						drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), boxs + (bh - boxw - 4), boxw, boxw, 0, 0);
 				}
 				else if (active->alwaysontop) {
-					drw_rect(drw, x + boxs, boxs + (bh - boxw - 4), boxw, boxw, 0, 0);
+					drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), boxs + (bh - boxw - 4), boxw, boxw, 0, 0);
 				#endif // PATCH_FLAG_ALWAYSONTOP
 				}
 			} else {
