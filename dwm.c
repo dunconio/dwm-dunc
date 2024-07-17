@@ -106,6 +106,7 @@ static const supported_json supported_layout_global[] = {
 	#endif // PATCH_ALTTAB_HIGHLIGHT
 	{ "alt-tab-monitor-format",		"printf style format of monitor identifier using %s as placeholder" },
 	{ "alt-tab-size",				"maximum size of alt-tab switcher (WxH)" },
+	{ "alt-tab-text-align",			"alt-tab text alignment - 0:left, 1:centre, 2:right" },
 	{ "alt-tab-x",					"alt-tab switcher position - 0:left, 1:centre, 2:right" },
 	{ "alt-tab-y",					"alt-tab switcher position - 0:top, 1:middle, 2:bottom" },
 	#endif // PATCH_ALTTAB
@@ -225,6 +226,13 @@ static const supported_json supported_layout_mon[] = {
 	{ "comment",				"ignored" },
 	{ "log-rules",				"log all matching rules for this monitor" },
 	{ "monitor",				"monitor number" },
+	#if PATCH_ALTTAB
+	{ "set-alt-tab-border",		"alt-tab switcher border width in pixels on this monitor" },
+	{ "set-alt-tab-size",		"maximum size of alt-tab switcher (WxH) on this monitor" },
+	{ "set-alt-tab-text-align",	"alt-tab text alignment on this monitor - 0:left, 1:centre, 2:right" },
+	{ "set-alt-tab-x",			"alt-tab switcher position on this monitor - 0:left, 1:centre, 2:right" },
+	{ "set-alt-tab-y",			"alt-tab switcher position on this monitor - 0:top, 1:middle, 2:bottom" },
+	#endif // PATCH_ALTTAB
 	{ "set-bar-layout",			"array of bar elements in order of appearance (TagBar, LtSymbol, WinTitle, StatusText)" },
 	#if PATCH_MOUSE_POINTER_HIDING
 	{ "set-cursor-autohide",	"true to hide cursor when stationary on this monitor" },
@@ -1019,10 +1027,16 @@ struct Monitor {
 	Client *altTabSel;    /* holds the selected client prior to alt tabbing */
 	int tx, ty, tih;      /* alttab window coords, tabitem height */
 	int nTabs;			  /* number of active clients in tag */
+	int tabBW;
+	int tabTextAlign;
+	int tabMaxW;
+	int tabMaxH;
+	int tabPosX;
+	int tabPosY;
 	unsigned int isAlt;   /* ALTTAB_* flags */
 	unsigned int altTabSelTags;
-	int maxWTab;
-	int maxHTab;
+	int maxWTab;		// calculated to fit within the monitor;
+	int maxHTab;		//
 	Client ** altsnext; // array of all clients in the tag;
 	Window tabwin;
 	#endif // PATCH_ALTTAB
@@ -1112,7 +1126,7 @@ static void altTabEnd(void);
 static void altTabStart(const Arg *arg);
 #endif // PATCH_ALTTAB
 #if PATCH_FLAG_HIDDEN && PATCH_ALTTAB
-static void appendhidden(const char *text, char *buffer, size_t len_buffer);
+static void appendhidden(Monitor *m, const char *text, char *buffer, size_t len_buffer);
 #endif // PATCH_FLAG_HIDDEN && PATCH_ALTTAB
 static int applyrules(Client *c, int deferred);
 static void applyrulesdeferred(Client *c);
@@ -2065,17 +2079,34 @@ json_isboolean(cJSON *node)
 
 #if PATCH_FLAG_HIDDEN && PATCH_ALTTAB
 void
-appendhidden(const char *text, char *buffer, size_t len_buffer)
+appendhidden(Monitor *m, const char *text, char *buffer, size_t len_buffer)
 {
-	static const char buffer_hidden[] = " [Hidden]";
-	size_t len_buffer_hidden = strlen(buffer_hidden);
+	size_t len_buffer_hidden = strlen(tabHidden);
 	size_t len_name = strlen(text);
-	strncpy(buffer, text, len_buffer);
-	if (len_name >= (len_buffer - len_buffer_hidden))
-		for (int j = 0; j < len_buffer_hidden; j++)
-			buffer[len_buffer - len_buffer_hidden + j] = buffer_hidden[j];
-	else
-		strncat(buffer, buffer_hidden, len_buffer-1);
+	if (m->tabTextAlign == 2) {
+		int j;
+		for (j = 0; j < len_buffer_hidden; j++) {
+			if (j >= len_buffer)
+				return;
+			buffer[j] = tabHidden[j];
+		}
+		buffer[j++] = ' ';
+		for (int i = 0; i < len_name; i++) {
+			if (i + j > len_buffer - 1)
+				return;
+			buffer[j + i] = text[i];
+		}
+	}
+	else {
+		strncpy(buffer, text, len_buffer);
+		if (len_name > (len_buffer - len_buffer_hidden))
+			for (int j = 0; j < len_buffer_hidden; j++)
+				buffer[len_buffer - len_buffer_hidden + j] = tabHidden[j];
+		else {
+			strncat(buffer, " ", len_buffer-1);
+			strncat(buffer, tabHidden, len_buffer-1);
+		}
+	}
 }
 #endif // PATCH_FLAG_HIDDEN && PATCH_ALTTAB
 
@@ -3842,9 +3873,9 @@ configurerequest(XEvent *e)
 				#endif // PATCH_FLAG_PANEL
 				{
 					if ((c->x + c->w) > m->mx + m->mw && c->isfloating)
-						c->x = m->mx + (m->mw / 2 - WIDTH(c) / 2); /* center in x direction */
+						c->x = m->mx + (m->mw / 2 - WIDTH(c) / 2); /* centre in x direction */
 					if ((c->y + c->h) > m->my + m->mh && c->isfloating)
-						c->y = m->my + (m->mh / 2 - HEIGHT(c) / 2); /* center in y direction */
+						c->y = m->my + (m->mh / 2 - HEIGHT(c) / 2); /* centre in y direction */
 				}
 			}
 			if ((ev->value_mask & (CWX|CWY)) && !(ev->value_mask & (CWWidth|CWHeight)))
@@ -4002,6 +4033,12 @@ createmon(void)
 	#endif // PATCH_VANITY_GAPS
 	#if PATCH_ALTTAB
 	m->nTabs = 0;
+	m->tabBW = tabBW;
+	m->tabTextAlign = tabTextAlign;
+	m->tabMaxW = tabMaxW;
+	m->tabMaxH = tabMaxH;
+	m->tabPosX = tabPosX;
+	m->tabPosY = tabPosY;
 	#endif // PATCH_ALTTAB
 	m->defaulttag = 0;
 	m->isdefault = 0;
@@ -4103,6 +4140,27 @@ createmon(void)
 			m->cursorautohide = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
 			m->cursorhideonkeys = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
 			#endif // PATCH_MOUSE_POINTER_HIDING
+
+			#if PATCH_ALTTAB
+			m->tabBW = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-border")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabBW;
+			if ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-size")) && cJSON_IsString(l_node)) {
+				char *ptr = NULL;
+				unsigned int v = strtol(l_node->valuestring, &ptr, 10);
+				if (v) {
+					m->tabMaxW = v;
+					if (ptr[0] != '\0') {
+						if (ptr[0] == 'x' && ptr[1] != '\0') {
+							v = strtol(&ptr[1], NULL, 10);
+							if (v)
+								m->tabMaxH = v;
+						}
+					}
+				}
+			}
+			m->tabTextAlign = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-text-align")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabTextAlign;
+			m->tabPosX = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-x")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabPosX;
+			m->tabPosY = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-y")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabPosY;
+			#endif // PATCH_ALTTAB
 
 			#if PATCH_ALT_TAGS
 			m->alttagsquiet = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-quiet-alt-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->alttagsquiet;
@@ -10374,12 +10432,12 @@ parselayoutjson(cJSON *layout)
 					char *ptr = NULL;
 					unsigned int v = strtol(L->valuestring, &ptr, 10);
 					if (v) {
-						maxWTab = v;
+						tabMaxW = v;
 						if (ptr[0] != '\0') {
 							if (ptr[0] == 'x' && ptr[1] != '\0') {
 								v = strtol(&ptr[1], NULL, 10);
 								if (v)
-									maxHTab = v;
+									tabMaxH = v;
 								continue;
 							}
 						}
@@ -10388,6 +10446,18 @@ parselayoutjson(cJSON *layout)
 					}
 				}
 				cJSON_AddNumberToObject(unsupported, "\"alt-tab-size\" must contain a string value in the form \"WxH\", where W and H are numeric", 0);
+			}
+			else if (strcmp(L->string, "alt-tab-text-align")==0) {
+				if (cJSON_IsInteger(L)) {
+					switch (L->valueint) {
+						case 0:
+						case 1:
+						case 2:
+							tabTextAlign = L->valueint;
+							continue;
+					}
+				}
+				cJSON_AddNumberToObject(unsupported, "\"alt-tab-text-align\" must contain 0, 1 or 2", 0);
 			}
 			else if (strcmp(L->string, "alt-tab-x")==0) {
 				if (cJSON_IsInteger(L)) {
@@ -15373,7 +15443,7 @@ drawTab(Monitor *m, int active, int first)
 
 	altTabActive = active;
 
-	unsigned int bw = (tabswitcher ? tabBW : 2);
+	unsigned int bw = (tabswitcher ? m->tabBW : 2);
 
 	if (first) {
 		XSetWindowAttributes wa;
@@ -15398,24 +15468,24 @@ drawTab(Monitor *m, int active, int first)
 		int posY = m->my;
 
 		if (tabswitcher) {
-			m->maxWTab = MIN((maxWTab + 2*bw), m->mw);
+			m->maxWTab = MIN((m->tabMaxW + 2*bw), m->mw);
 			#if PATCH_WINDOW_ICONS
-			m->maxHTab = MIN((((MAX(iconsize_big, minbh) + lrpad*2) * m->nTabs)+2*bw), MIN((maxHTab + 2*bw), m->mh));
+			m->maxHTab = MIN((((MAX(iconsize_big, minbh) + lrpad*2) * m->nTabs)+2*bw), MIN((m->tabMaxH + 2*bw), m->mh));
 			#else // NO PATCH_WINDOW_ICONS
-			m->maxHTab = MIN((((minbh + lrpad*2) * m->nTabs)+2*bw), MIN((maxHTab + 2*bw), m->mh));
+			m->maxHTab = MIN((((minbh + lrpad*2) * m->nTabs)+2*bw), MIN((m->tabMaxH + 2*bw), m->mh));
 			#endif // PATCH_WINDOW_ICONS
-			if (tabPosX == 0)
+			if (m->tabPosX == 0)
 				posX += 0;
-			if (tabPosX == 1)
+			if (m->tabPosX == 1)
 				posX += (m->mw / 2) - (m->maxWTab / 2);
-			if (tabPosX == 2)
+			if (m->tabPosX == 2)
 				posX += m->mw - m->maxWTab;
 
-			if (tabPosY == 0)
+			if (m->tabPosY == 0)
 				posY += 0;
-			if (tabPosY == 1)
+			if (m->tabPosY == 1)
 				posY += (m->mh / 2) - (m->maxHTab / 2);
-			if (tabPosY == 2)
+			if (m->tabPosY == 2)
 				posY += m->mh - m->maxHTab;
 		}
 		else {
@@ -15447,7 +15517,7 @@ drawTab(Monitor *m, int active, int first)
 
 				#if PATCH_FLAG_HIDDEN
 				if (c->ishidden) {
-					appendhidden(c->name, buffer, 256);
+					appendhidden(altTabMon, c->name, buffer, 256);
 					w = TEXTW(buffer);
 				}
 				else
@@ -15469,7 +15539,7 @@ drawTab(Monitor *m, int active, int first)
 						);
 			m->maxHTab = MIN(
 							((lrpad/2 + minbh) * m->nTabs)+2*bw,
-							(maxHTab + (m->mh / 2) - (m->maxHTab / 2)) < m->mh ? (maxHTab + (m->mh / 2) - (m->maxHTab / 2)) : m->mh
+							(m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) < m->mh ? (m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) : m->mh
 						);
 
 			posX += m->bar[WinTitle].x;
@@ -15570,6 +15640,11 @@ drawTab(Monitor *m, int active, int first)
 
 	// offset if we're upside-down;
 	int oy = (tabswitcher || !(altTabMon->isAlt & ALTTAB_BOTTOMBAR) ? y : m->maxHTab - y - h);
+	int ox;			// caption offset ox;
+	int fw;			// full width of entry;
+	int tw;			// text width of caption;
+	int tw_mon = 0;	// text width (without padding) of monnumf caption;
+	int w;			// width of caption area;
 
 	altTabMon->altTabIndex = altTabMon->altTabVStart = -1;
 	// draw all clients into tabwin;
@@ -15583,7 +15658,8 @@ drawTab(Monitor *m, int active, int first)
 
 		// no need to draw entries we can't see;
 		if (y > -h) {
-			if (altTabMon->altTabVStart == -1) altTabMon->altTabVStart = i;
+			if (altTabMon->altTabVStart == -1)
+				altTabMon->altTabVStart = i;
 			drw_setscheme(drw, scheme[
 				(c == altTabMon->highlight && altTabActive) ? SchemeTabSel :
 					(c->isurgent ? SchemeTabUrg :
@@ -15594,6 +15670,20 @@ drawTab(Monitor *m, int active, int first)
 					)
 				]
 			);
+
+			x = ox = 0;
+			fw = tw = 0;
+			#if PATCH_FLAG_HIDDEN
+			if (c->ishidden) {
+				appendhidden(altTabMon, c->name, buffer, 256);
+				fw = tw = TEXTW(buffer);
+			}
+			else
+			#endif // PATCH_FLAG_HIDDEN
+				fw = tw = TEXTW(c->name);
+			if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon)
+				tw_mon = drw_fontset_getwidth(drw, c->mon->numstr);
+			fw += tw_mon;
 			#if PATCH_WINDOW_ICONS
 			if (!c->alticon)
 				#if PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
@@ -15601,113 +15691,75 @@ drawTab(Monitor *m, int active, int first)
 				#else // NO PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 				c->alticon = geticonprop(c->win, &c->alticw, &c->altich, MIN((h - pad), (tabswitcher ? iconsize_big : iconsize)));
 				#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
-			if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon) {
-				x = TEXTW(c->mon->numstr) + (c->alticon ? c->alticw + (iconspacing*2) : 0);
-				drw_text(
-					drw, 0, oy, m->maxWTab, h, lrpad / 2 + (c->alticon ? c->alticw + (iconspacing*2) : 0),
-					#if PATCH_CLIENT_INDICATORS
-					0,
-					#endif // PATCH_CLIENT_INDICATORS
-					c->mon->numstr, 0
-				);
+			if (c->alticon) {
+				fw += c->alticw + iconspacing;
+				if (altTabMon->tabTextAlign == 0)
+					ox += c->alticw + iconspacing;
 			}
-			else
-				x = lrpad / 2 + (c->alticon ? c->alticw + (iconspacing*2) : 0);
-			#if PATCH_FLAG_HIDDEN
-			if (c->ishidden) {
-				appendhidden(c->name, buffer, 256);
-				if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon)
-					drw_text(
-						drw, x - lrpad / 2, oy, m->maxWTab - x, h, 0,
-						#if PATCH_CLIENT_INDICATORS
-						0,
-						#endif // PATCH_CLIENT_INDICATORS
-						buffer, 0
-					);
-				else
-					drw_text(
-						drw, 0, oy, m->maxWTab, h, x,
-						#if PATCH_CLIENT_INDICATORS
-						0,
-						#endif // PATCH_CLIENT_INDICATORS
-						buffer, 0
-					);
-			}
-			else
-			#endif // PATCH_FLAG_HIDDEN
-			if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon)
-				drw_text(
-					drw, x - lrpad / 2, oy, m->maxWTab - x, h, 0,
-					#if PATCH_CLIENT_INDICATORS
-					0,
-					#endif // PATCH_CLIENT_INDICATORS
-					c->name, 0
-				);
-			else
-				drw_text(
-					drw, 0, oy, m->maxWTab, h, x,
-					#if PATCH_CLIENT_INDICATORS
-					0,
-					#endif // PATCH_CLIENT_INDICATORS
-					c->name, 0
-				);
+			#endif // PATCH_WINDOW_ICONS
 
-			if (c->alticon)
-				drw_pic(drw, lrpad / 2, oy + (h - c->altich)/2, c->alticw, c->altich, c->alticon);
-			#else // NO PATCH_WINDOW_ICONS
+			w = altTabMon->maxWTab;
+			if (fw > w)
+				fw = w;
+			if (altTabMon->tabTextAlign == 1)
+				ox = ((w - fw) / 2) + (fw - tw - tw_mon);
+			else if (altTabMon->tabTextAlign == 2)
+				ox = (w - fw);
+			ox += lrpad / 2;
 			if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon) {
-				x = TEXTW(c->mon->numstr);
+				x = ox;
+				if (altTabMon->tabTextAlign == 2)
+					x += tw - lrpad;
 				drw_text(
-					drw, 0, oy, m->maxWTab, h, lrpad / 2,
+					drw, 0, oy, w, h, x,
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
 					c->mon->numstr, 0
 				);
+				if (altTabMon->tabTextAlign == 2) {
+					x = 0;
+					ox = altTabMon->maxWTab - fw;
+					w = (fw - tw_mon - lrpad);
+				}
+				else {
+					ox = 0;
+					x += (tw_mon + lrpad / 2);
+					w -= (tw_mon + lrpad);
+				}
 			}
-			else
-				x = lrpad / 2;
-			#if PATCH_FLAG_HIDDEN
-			if (c->ishidden) {
-				appendhidden(c->name, buffer, 256);
-				if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon)
-					drw_text(
-						drw, x - lrpad / 2, oy, m->maxWTab - x, h, 0,
-						#if PATCH_CLIENT_INDICATORS
-						0,
-						#endif // PATCH_CLIENT_INDICATORS
-						buffer, 0
-					);
-				else
-					drw_text(
-						drw, 0, oy, m->maxWTab, h, x,
-						#if PATCH_CLIENT_INDICATORS
-						0,
-						#endif // PATCH_CLIENT_INDICATORS
-						buffer, 0
-					);
+
+			drw_text(
+				drw, x, oy, w, h, ox,
+				#if PATCH_CLIENT_INDICATORS
+				0,
+				#endif // PATCH_CLIENT_INDICATORS
+				#if PATCH_FLAG_HIDDEN
+				c->ishidden ? buffer :
+				#endif // PATCH_FLAG_HIDDEN
+				c->name, 0
+			);
+
+			#if PATCH_WINDOW_ICONS
+			if (c->alticon) {
+				x += ox;
+				switch (altTabMon->tabTextAlign) {
+					case 1:
+						x = ((altTabMon->maxWTab - fw) / 2) + lrpad / 2;
+						break;
+					case 2:
+						x = altTabMon->maxWTab - lrpad / 2 - c->alticw;
+						break;
+					default:
+					case 0:
+						x = lrpad / 2;
+				}
+				drw_pic(drw, x, oy + (h - c->altich)/2, c->alticw, c->altich, c->alticon);
 			}
-			else
-			#endif // PATCH_FLAG_HIDDEN
-			if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon)
-				drw_text(
-					drw, x - lrpad / 2, oy, m->maxWTab - x, h, 0,
-					#if PATCH_CLIENT_INDICATORS
-					0,
-					#endif // PATCH_CLIENT_INDICATORS
-					c->name, 0
-				);
-			else
-				drw_text(
-					drw, 0, oy, m->maxWTab, h, x,
-					#if PATCH_CLIENT_INDICATORS
-					0,
-					#endif // PATCH_CLIENT_INDICATORS
-					c->name, 0
-				);
 			#endif // PATCH_WINDOW_ICONS
 		}
-		if (c == altTabMon->highlight) altTabMon->altTabIndex = i;
+		if (c == altTabMon->highlight)
+			altTabMon->altTabIndex = i;
 		y += h;
 		oy = (tabswitcher || !(altTabMon->isAlt & ALTTAB_BOTTOMBAR) ? y : m->maxHTab - y - h);
 		if (y > m->maxHTab) break;
@@ -15719,10 +15771,16 @@ drawTab(Monitor *m, int active, int first)
 
 	if (vTabs) {
 		drw_setscheme(drw, scheme[SchemeTabNorm]);
-		drw_rect(drw, m->maxWTab - lrpad, lrpad / 2, 10, m->maxHTab - lrpad, 0, 0);
+		drw_rect(drw,
+			(m->tabTextAlign == 2 ? lrpad : (m->maxWTab - lrpad)),
+			lrpad / 2, 10, m->maxHTab - lrpad, 0, 0
+		);
 		h = (m->maxHTab - lrpad - lrpad/2);
 		sEnd = (h * (sStart + vTabs) / m->nTabs) - (h * sStart / m->nTabs);
-		drw_rect(drw, m->maxWTab - lrpad + 3, (lrpad / 2) + 3 + (h * sStart / m->nTabs), 4, (sEnd > 0 ? sEnd : 1), 1, 0);
+		drw_rect(drw,
+			(m->tabTextAlign == 2 ? (lrpad + 3) : (m->maxWTab - lrpad + 3)),
+			(lrpad / 2) + 3 + (h * sStart / m->nTabs), 4, (sEnd > 0 ? sEnd : 1), 1, 0
+		);
 	}
 	else
 		drw_setscheme(drw, scheme[SchemeTabNorm]);

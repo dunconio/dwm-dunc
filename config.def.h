@@ -14,14 +14,18 @@ static const unsigned int tabModBackKey		= 0x32;	/* if this key is hold the alt-
 static const unsigned int tabCycleClassKey	= 0x31;	/* if this key is hit the alt-tab program moves one position forward in clients stack of the same class. */
 static const unsigned int tabCycleKey 		= 0x17;	/* if this key is hit the alt-tab program moves one position forward in clients stack. This key must be the same as key that is used to active functin altTabStart */
 static const unsigned int tabEndKey 		= 0x9;	/* if this key is hit the while you're in the alt-tab mode, you'll be returned to previous state (alt-tab mode turned off and your window of origin will be selected) */
-static       unsigned int tabPosY 			= 1;	/* tab position on Y axis, 0 = bottom, 1 = center, 2 = top */
-static       unsigned int tabPosX 			= 1;	/* tab position on X axis, 0 = left, 1 = center, 2 = right */
-static 	     unsigned int maxWTab 			= 600;	/* tab menu width */
-static 	     unsigned int maxHTab 			= 400;	/* tab menu maximum height */
+static       unsigned int tabPosY 			= 1;	/* tab position on Y axis, 0 = bottom, 1 = centre, 2 = top */
+static       unsigned int tabPosX 			= 1;	/* tab position on X axis, 0 = left, 1 = centre, 2 = right */
+static 	     unsigned int tabMaxW 			= 600;	/* tab menu width */
+static 	     unsigned int tabMaxH 			= 400;	/* tab menu maximum height */
 static       unsigned int tabBW				= 4;	// default tab menu border width;
+static       unsigned int tabTextAlign		= 0;	// default tab menu text alignment, 0 = left, 1 = centre, 2 = right */
 #if PATCH_ALTTAB_HIGHLIGHT
 static               Bool tabHighlight      = True;	// highlight clients during switching;
 #endif // PATCH_ALTTAB_HIGHLIGHT
+#if PATCH_FLAG_HIDDEN
+static               char *tabHidden		= "[Hidden]";	// string to append/prepend to hidden clients in the alt-tab switcher;
+#endif // PATCH_FLAG_HIDDEN
 #endif // PATCH_ALTTAB
 
 #if PATCH_HIDE_VACANT_TAGS
@@ -563,8 +567,8 @@ static const Button buttons[] = {
 #endif // PATCH_STATUSCMD
 	/* placemouse options, choose which feels more natural:
 	 *    0 - tiled position is relative to mouse cursor
-	 *    1 - tiled postiion is relative to window center
-	 *    2 - mouse pointer warps to window center
+	 *    1 - tiled postiion is relative to window centre
+	 *    2 - mouse pointer warps to window centre
 	 *
 	 * The moveorplace uses movemouse or placemouse depending on the floating state
 	 * of the selected client. Set up individual keybindings for the two if you want
