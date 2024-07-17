@@ -15436,7 +15436,7 @@ drawTab(Monitor *m, int active, int first)
 	char buffer[256];
 	#endif // PATCH_FLAG_HIDDEN
 	Client *c;
-	int tabswitcher = ((altTabMon->isAlt & ALTTAB_MOUSE) == 0);
+	int tabswitcher = ((m->isAlt & ALTTAB_MOUSE) == 0);
 	#if PATCH_WINDOW_ICONS
 	int pad = (tabswitcher ? lrpad : 0);
 	#endif // PATCH_WINDOW_ICONS
@@ -15517,13 +15517,13 @@ drawTab(Monitor *m, int active, int first)
 
 				#if PATCH_FLAG_HIDDEN
 				if (c->ishidden) {
-					appendhidden(altTabMon, c->name, buffer, 256);
+					appendhidden(m, c->name, buffer, 256);
 					w = TEXTW(buffer);
 				}
 				else
 				#endif // PATCH_FLAG_HIDDEN
 				w = TEXTW(c->name);
-				if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon)
+				if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m)
 					w += TEXTW(c->mon->numstr);
 				if (w > tw)
 					tw = w;
@@ -15547,7 +15547,7 @@ drawTab(Monitor *m, int active, int first)
 				posX = m->mx + m->mw - m->maxWTab;
 			if (!m->topbar) {
 				posY += m->mh - m->maxHTab - 1;
-				altTabMon->isAlt |= ALTTAB_BOTTOMBAR;
+				m->isAlt |= ALTTAB_BOTTOMBAR;
 			}
 			m->tx = posX+bw;
 			m->ty = posY+bw;
@@ -15608,7 +15608,7 @@ drawTab(Monitor *m, int active, int first)
 				#endif // PATCH_FLAG_IGNORED
 				) continue;
 
-			if (c == altTabMon->highlight) {
+			if (c == m->highlight) {
 				y = i;
 				break;
 			}
@@ -15639,14 +15639,14 @@ drawTab(Monitor *m, int active, int first)
 	else m->vTabs = m->nTabs;
 
 	// offset if we're upside-down;
-	int oy = (tabswitcher || !(altTabMon->isAlt & ALTTAB_BOTTOMBAR) ? y : m->maxHTab - y - h);
+	int oy = (tabswitcher || !(m->isAlt & ALTTAB_BOTTOMBAR) ? y : m->maxHTab - y - h);
 	int ox;			// caption offset ox;
 	int fw;			// full width of entry;
 	int tw;			// text width of caption;
 	int tw_mon = 0;	// text width (without padding) of monnumf caption;
 	int w;			// width of caption area;
 
-	altTabMon->altTabIndex = altTabMon->altTabVStart = -1;
+	m->altTabIndex = m->altTabVStart = -1;
 	// draw all clients into tabwin;
 	for (int i = 0;i < m->nTabs;i++) {
 		c = m->altsnext[i];
@@ -15658,10 +15658,10 @@ drawTab(Monitor *m, int active, int first)
 
 		// no need to draw entries we can't see;
 		if (y > -h) {
-			if (altTabMon->altTabVStart == -1)
-				altTabMon->altTabVStart = i;
+			if (m->altTabVStart == -1)
+				m->altTabVStart = i;
 			drw_setscheme(drw, scheme[
-				(c == altTabMon->highlight && altTabActive) ? SchemeTabSel :
+				(c == m->highlight && altTabActive) ? SchemeTabSel :
 					(c->isurgent ? SchemeTabUrg :
 						#if PATCH_FLAG_HIDDEN
 						c->ishidden ? SchemeTabHide :
@@ -15675,13 +15675,13 @@ drawTab(Monitor *m, int active, int first)
 			fw = tw = 0;
 			#if PATCH_FLAG_HIDDEN
 			if (c->ishidden) {
-				appendhidden(altTabMon, c->name, buffer, 256);
+				appendhidden(m, c->name, buffer, 256);
 				fw = tw = TEXTW(buffer);
 			}
 			else
 			#endif // PATCH_FLAG_HIDDEN
 				fw = tw = TEXTW(c->name);
-			if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon)
+			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m)
 				tw_mon = drw_fontset_getwidth(drw, c->mon->numstr);
 			fw += tw_mon;
 			#if PATCH_WINDOW_ICONS
@@ -15693,22 +15693,23 @@ drawTab(Monitor *m, int active, int first)
 				#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 			if (c->alticon) {
 				fw += c->alticw + iconspacing;
-				if (altTabMon->tabTextAlign == 0)
+				if (m->tabTextAlign == 0)
 					ox += c->alticw + iconspacing;
 			}
 			#endif // PATCH_WINDOW_ICONS
 
-			w = altTabMon->maxWTab;
+			w = m->maxWTab;
 			if (fw > w)
 				fw = w;
-			if (altTabMon->tabTextAlign == 1)
+			if (m->tabTextAlign == 1)
 				ox = ((w - fw) / 2) + (fw - tw - tw_mon);
-			else if (altTabMon->tabTextAlign == 2)
+			else if (m->tabTextAlign == 2)
 				ox = (w - fw);
 			ox += lrpad / 2;
-			if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != altTabMon) {
+
+			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m) {
 				x = ox;
-				if (altTabMon->tabTextAlign == 2)
+				if (m->tabTextAlign == 2)
 					x += tw - lrpad;
 				drw_text(
 					drw, 0, oy, w, h, x,
@@ -15717,10 +15718,10 @@ drawTab(Monitor *m, int active, int first)
 					#endif // PATCH_CLIENT_INDICATORS
 					c->mon->numstr, 0
 				);
-				if (altTabMon->tabTextAlign == 2) {
+				if (m->tabTextAlign == 2) {
 					x = 0;
-					ox = altTabMon->maxWTab - fw;
-					w = (fw - tw_mon - lrpad);
+					ox = m->maxWTab - fw;
+					w = ox + tw - lrpad / 2;
 				}
 				else {
 					ox = 0;
@@ -15743,12 +15744,12 @@ drawTab(Monitor *m, int active, int first)
 			#if PATCH_WINDOW_ICONS
 			if (c->alticon) {
 				x += ox;
-				switch (altTabMon->tabTextAlign) {
+				switch (m->tabTextAlign) {
 					case 1:
-						x = ((altTabMon->maxWTab - fw) / 2) + lrpad / 2;
+						x = ((m->maxWTab - fw) / 2) + lrpad / 2;
 						break;
 					case 2:
-						x = altTabMon->maxWTab - lrpad / 2 - c->alticw;
+						x = m->maxWTab - lrpad / 2 - c->alticw;
 						break;
 					default:
 					case 0:
@@ -15758,10 +15759,10 @@ drawTab(Monitor *m, int active, int first)
 			}
 			#endif // PATCH_WINDOW_ICONS
 		}
-		if (c == altTabMon->highlight)
-			altTabMon->altTabIndex = i;
+		if (c == m->highlight)
+			m->altTabIndex = i;
 		y += h;
-		oy = (tabswitcher || !(altTabMon->isAlt & ALTTAB_BOTTOMBAR) ? y : m->maxHTab - y - h);
+		oy = (tabswitcher || !(m->isAlt & ALTTAB_BOTTOMBAR) ? y : m->maxHTab - y - h);
 		if (y > m->maxHTab) break;
 	}
 	if (y < m->maxHTab) {
