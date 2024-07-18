@@ -306,7 +306,7 @@ static const supported_json supported_layout_tag[] = {
 	#endif // PATCH_SWITCH_TAG_ON_EMPTY
 	#endif // PATCH_PERTAG
 	#if PATCH_ALT_TAGS
-	{ "set-tag-char",		"show this text instead of the default tag text" },
+	{ "set-tag-text",		"show this text instead of the default tag text" },
 	#endif // PATCH_ALT_TAGS
 };
 
@@ -4268,7 +4268,7 @@ createmon(void)
 						l_node = cJSON_GetObjectItemCaseSensitive(t_json, "index");
 						if (cJSON_IsInteger(l_node) && l_node->valueint == i) {
 							#if PATCH_ALT_TAGS
-							m->tags[i-1] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-tag-char")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->tags[i-1];
+							m->tags[i-1] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-tag-text")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->tags[i-1];
 							#endif // PATCH_ALT_TAGS
 							#if PATCH_PERTAG
 							#if PATCH_ALT_TAGS
