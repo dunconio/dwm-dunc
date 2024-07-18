@@ -7350,9 +7350,13 @@ guessnextfocus(Client *c, Monitor *m)
 		if (!m)
 			m = c->mon;
 
+	// prefer the client's parent for the next focus;
+	if (!sel && c && c->parent && ISVISIBLE(c->parent) && c->parent->mon == c->mon)
+		sel = c->parent;
+
 	#if PATCH_FLAG_GAME
 	// try to avoid disrupting an already focused fullscreen game client;
-	if ((!c || c->isfloating))
+	if (!sel && (!c || c->isfloating))
 		sel = getactivegameclient(m);
 	#endif // PATCH_FLAG_GAME
 
@@ -7361,10 +7365,6 @@ guessnextfocus(Client *c, Monitor *m)
  		if ((sel = getclientatcoords(x, y, True)) && sel == c)
 			sel = NULL;
 	}
-
-	// prefer the client's parent for the next focus;
-	if (!sel && c && c->parent && ISVISIBLE(c->parent) && c->parent->mon == c->mon)
-		sel = c->parent;
 
 	// last resort is next valid focusable client from the stack;
 	if (!sel)
