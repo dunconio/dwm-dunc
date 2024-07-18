@@ -60,6 +60,10 @@
 #include "drw.h"
 #include "util.h"
 
+#if PATCH_BIDIRECTIONAL_TEXT
+#include <fribidi.h>
+#endif // PATCH_BIDIRECTIONAL_TEXT
+
 #if PATCH_FLAG_GAME || PATCH_MOUSE_POINTER_HIDING
 #include <X11/extensions/Xfixes.h>
 #endif // PATCH_FLAG_GAME || PATCH_MOUSE_POINTER_HIDING
@@ -1128,6 +1132,9 @@ static void altTabStart(const Arg *arg);
 #if PATCH_FLAG_HIDDEN && PATCH_ALTTAB
 static void appendhidden(Monitor *m, const char *text, char *buffer, size_t len_buffer);
 #endif // PATCH_FLAG_HIDDEN && PATCH_ALTTAB
+#if PATCH_BIDIRECTIONAL_TEXT
+static void apply_fribidi(char *str);
+#endif // PATCH_BIDIRECTIONAL_TEXT
 static int applyrules(Client *c, int deferred);
 static void applyrulesdeferred(Client *c);
 static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact);
@@ -1630,6 +1637,9 @@ static Systray *systray = NULL;
 #endif // PATCH_SYSTRAY
 static const char broken[] = "broken";
 static char stext[256];
+#if PATCH_BIDIRECTIONAL_TEXT
+static char fribidi_text[256];
+#endif // PATCH_BIDIRECTIONAL_TEXT
 #if PATCH_STATUSCMD
 static int statussig;
 static pid_t statuspid = -1;
@@ -1952,6 +1962,23 @@ alignfloat(Client *c, float relX, float relY)
 	return 0;
 }
 #endif // PATCH_FLAG_FLOAT_ALIGNMENT
+
+#if PATCH_BIDIRECTIONAL_TEXT
+void
+apply_fribidi(char *str)
+{
+	FriBidiStrIndex len = strlen(str);
+	FriBidiChar logical[256];
+	FriBidiChar visual[256];
+	FriBidiParType base = FRIBIDI_PAR_ON;
+	FriBidiCharSet charset;
+
+	charset = fribidi_parse_charset("UTF-8");
+	len = fribidi_charset_to_unicode(charset, str, len, logical);
+	fribidi_log2vis(logical, len, &base, visual, NULL, NULL, NULL);
+	fribidi_unicode_to_charset(charset, visual, len, fribidi_text);
+}
+#endif // PATCH_BIDIRECTIONAL_TEXT
 
 void
 applyrulesdeferred(Client *c)
@@ -4870,6 +4897,9 @@ drawbar(Monitor *m, int skiptags)
 				- pw
 				#endif // PATCH_FLAG_PANEL
 			);
+			#if PATCH_BIDIRECTIONAL_TEXT
+			apply_fribidi(DWM_VERSION_STRING_SHORT);
+			#endif // PATCH_BIDIRECTIONAL_TEXT
 			x = drw_text(drw,
 				m->bar[StatusText].x, 0, m->bar[StatusText].w, bh, lrpad / 2 - 2
 				#if PATCH_SYSTRAY
@@ -4879,7 +4909,12 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
-				DWM_VERSION_STRING_SHORT, 0
+				#if PATCH_BIDIRECTIONAL_TEXT
+				fribidi_text,
+				#else // NO PATCH_BIDIRECTIONAL_TEXT
+				DWM_VERSION_STRING_SHORT,
+				#endif // PATCH_BIDIRECTIONAL_TEXT
+				0
 			);
 		}
 		else {
@@ -4910,7 +4945,10 @@ drawbar(Monitor *m, int skiptags)
 			for (text = s = buffer; --bufsize; s++) {
 				if ((unsigned char)(*s) < ' ') {
 					tw = TEXTW(text) - lrpad / 2;
-					drw_text(drw, 
+					#if PATCH_BIDIRECTIONAL_TEXT
+					apply_fribidi(text);
+					#endif // PATCH_BIDIRECTIONAL_TEXT
+					drw_text(drw,
 						m->bar[StatusText].x + x, 0, tw, bh, lrpad / 2 - 2
 						#if PATCH_SYSTRAY
 						+ (systrayonleft ? m->stw : 0)
@@ -4919,13 +4957,21 @@ drawbar(Monitor *m, int skiptags)
 						#if PATCH_CLIENT_INDICATORS
 						0,
 						#endif // PATCH_CLIENT_INDICATORS
-						text, 0
+						#if PATCH_BIDIRECTIONAL_TEXT
+						fribidi_text,
+						#else // NO PATCH_BIDIRECTIONAL_TEXT
+						text,
+						#endif // PATCH_BIDIRECTIONAL_TEXT
+						0
 					);
 					x += tw;
 					text = s + 1;
 				}
 			}
 			tw = TEXTW(text) - lrpad / 2 + 2;
+			#if PATCH_BIDIRECTIONAL_TEXT
+			apply_fribidi(text);
+			#endif // PATCH_BIDIRECTIONAL_TEXT
 			x = drw_text(drw,
 				m->bar[StatusText].x + x, 0, m->mw - (m->bar[StatusText].x + x), bh, lrpad / 2 - 2
 				#if PATCH_SYSTRAY
@@ -4935,7 +4981,12 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
-				text, 0
+				#if PATCH_BIDIRECTIONAL_TEXT
+				fribidi_text,
+				#else // NO PATCH_BIDIRECTIONAL_TEXT
+				text,
+				#endif // PATCH_BIDIRECTIONAL_TEXT
+				0
 			);
 		}
 		#else // NO PATCH_STATUSCMD
@@ -4950,6 +5001,9 @@ drawbar(Monitor *m, int skiptags)
 			- pw
 			#endif // PATCH_FLAG_PANEL
 		);
+		#if PATCH_BIDIRECTIONAL_TEXT
+		apply_fribidi(m->showstatus == -1 ? DWM_VERSION_STRING_SHORT : stext);
+		#endif // PATCH_BIDIRECTIONAL_TEXT
 		x = drw_text(drw,
 			m->bar[StatusText].x, 0, m->bar[StatusText].w, bh,
 			lrpad / 2 - 2
@@ -4960,7 +5014,12 @@ drawbar(Monitor *m, int skiptags)
 			#if PATCH_CLIENT_INDICATORS
 			0,
 			#endif // PATCH_CLIENT_INDICATORS
-			m->showstatus == -1 ? DWM_VERSION_STRING_SHORT : stext, 0
+			#if PATCH_BIDIRECTIONAL_TEXT
+			fribidi_text,
+			#else // NO PATCH_BIDIRECTIONAL_TEXT
+			m->showstatus == -1 ? DWM_VERSION_STRING_SHORT : stext,
+			#endif // PATCH_BIDIRECTIONAL_TEXT
+			0
 		);
 		#endif // PATCH_STATUSCMD
 	}
@@ -5014,12 +5073,20 @@ drawbar(Monitor *m, int skiptags)
 				#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 				SchemeSel : SchemeNorm
 			]);
+			#if PATCH_BIDIRECTIONAL_TEXT
+			apply_fribidi(showdesktop_button);
+			#endif // PATCH_BIDIRECTIONAL_TEXT
 			drw_text(drw,
 				m->bar[ShowDesktop].x, 0, m->bar[ShowDesktop].w, bh, lrpad / 2,
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
-				showdesktop_button, 0
+				#if PATCH_BIDIRECTIONAL_TEXT
+				fribidi_text,
+				#else // NO PATCH_BIDIRECTIONAL_TEXT
+				showdesktop_button,
+				#endif // PATCH_BIDIRECTIONAL_TEXT
+				0
 			);
 			//drw_rect(drw, m->bar[ShowDesktop].x, -1, m->bar[ShowDesktop].w, bh +2, 0, 0);
 		}
@@ -5203,6 +5270,9 @@ drawbar(Monitor *m, int skiptags)
 						SchemeNorm
 				]);
 
+				#if PATCH_BIDIRECTIONAL_TEXT
+				apply_fribidi(tagdisp);
+				#endif // PATCH_BIDIRECTIONAL_TEXT
 				drw_text(
 					drw, x, 0, w, bh,
 					(lrpad / 2)
@@ -5223,7 +5293,12 @@ drawbar(Monitor *m, int skiptags)
 						#endif // PATCH_FLAG_STICKY
 					) ? offsety : 0,
 					#endif // PATCH_CLIENT_INDICATORS
-					tagdisp, 0
+					#if PATCH_BIDIRECTIONAL_TEXT
+					fribidi_text,
+					#else // NO PATCH_BIDIRECTIONAL_TEXT
+					tagdisp,
+					#endif // PATCH_BIDIRECTIONAL_TEXT
+					0
 				);
 
 				#if PATCH_CLIENT_INDICATORS
@@ -5439,14 +5514,28 @@ drawbar(Monitor *m, int skiptags)
 					}
 				}
 
+				#if PATCH_BIDIRECTIONAL_TEXT
+				apply_fribidi(
+					#if PATCH_FLAG_HIDDEN
+					active->ishidden ? "window hidden" :
+					#endif // PATCH_FLAG_HIDDEN
+					active->name
+				);
+				#endif // PATCH_BIDIRECTIONAL_TEXT
 				drw_text(drw, x, 0, w, bh, pad,
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
+
+
+					#if PATCH_BIDIRECTIONAL_TEXT
+					fribidi_text,
+					#else // NO PATCH_BIDIRECTIONAL_TEXT
 					#if PATCH_FLAG_HIDDEN
 					active->ishidden ? "window hidden" :
 					#endif // PATCH_FLAG_HIDDEN
 					active->name,
+					#endif // PATCH_BIDIRECTIONAL_TEXT
 					0
 				);
 				#if PATCH_TWO_TONE_TITLE
@@ -15736,12 +15825,20 @@ drawTab(Monitor *m, int active, int first)
 				x = ox;
 				if (m->tabTextAlign == 2)
 					x += tw - lrpad;
+				#if PATCH_BIDIRECTIONAL_TEXT
+				apply_fribidi(c->mon->numstr);
+				#endif // PATCH_BIDIRECTIONAL_TEXT
 				drw_text(
 					drw, 0, oy, w, h, x,
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
-					c->mon->numstr, 0
+					#if PATCH_BIDIRECTIONAL_TEXT
+					fribidi_text,
+					#else // NO PATCH_BIDIRECTIONAL_TEXT
+					c->mon->numstr,
+					#endif // PATCH_BIDIRECTIONAL_TEXT
+					0
 				);
 				if (m->tabTextAlign == 2) {
 					x = 0;
@@ -15755,15 +15852,28 @@ drawTab(Monitor *m, int active, int first)
 				}
 			}
 
+			#if PATCH_BIDIRECTIONAL_TEXT
+			apply_fribidi(
+				#if PATCH_FLAG_HIDDEN
+				c->ishidden ? buffer :
+				#endif // PATCH_FLAG_HIDDEN
+				c->name
+			);
+			#endif // PATCH_BIDIRECTIONAL_TEXT
 			drw_text(
 				drw, x, oy, w, h, ox,
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
+				#if PATCH_BIDIRECTIONAL_TEXT
+				fribidi_text,
+				#else // NO PATCH_BIDIRECTIONAL_TEXT
 				#if PATCH_FLAG_HIDDEN
 				c->ishidden ? buffer :
 				#endif // PATCH_FLAG_HIDDEN
-				c->name, 0
+				c->name,
+				#endif // PATCH_BIDIRECTIONAL_TEXT
+				0
 			);
 
 			#if PATCH_WINDOW_ICONS
