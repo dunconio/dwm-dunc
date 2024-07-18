@@ -8259,7 +8259,7 @@ line_to_buffer(const char *text, char *buffer, size_t buffer_size, size_t line_l
 {
 	size_t w;
 	size_t pindex = *index;
-	snprintf(buffer, buffer_size, text + *index, "%s");
+	strncpy(buffer, text + *index,  buffer_size);
 
 	while (text[*index] != '\0') {
 		if (text[*index] == ' ') {
@@ -11586,8 +11586,7 @@ print_supported_rules_json(FILE *f, const supported_rules_json array[], const si
 
 // print 1 - 2 columns, wrapping at col1_size and/or terminal width;
 void
-print_wrap(
-	FILE *f,
+print_wrap(FILE *f,
 	size_t line_length,
 	const char *indent,
 	size_t col1_size,
@@ -11599,7 +11598,7 @@ print_wrap(
 	size_t usable = line_length - (indent ? strlen(indent) : 0);
 	size_t col2_size;
 
-	size_t gapsize = line1_gap ? strlen(line1_gap) : 1;
+	size_t gapsize = (line1_gap ? strlen(line1_gap) : 1);
 
 	if (normal_gap) {
 		col2_size = strlen(normal_gap);
@@ -11617,13 +11616,13 @@ print_wrap(
 			col2_usable = 0;
 	}
 	else if (col2_text) {
-		col2_size = col2_usable - col1_size;
+		col2_usable = col2_size = (col2_usable - col1_size);
 	}
 	else
 		col2_size = col2_usable = 0;
 
 	char c1buff[col1_size + 1];
-	char c2buff[(col2_size ? col2_size : col2_usable) + 1];
+	char c2buff[col2_usable + 1];
 
 	int first = 1;
 	int c1done = 0;
@@ -11634,57 +11633,82 @@ print_wrap(
 
 	if (!c2done) {
 		if (line1_gap)
-			strncpy(gap, line1_gap, gapsize);
+			strncpy(gap, line1_gap, gapsize + 1);	// first line gap is line1_gap;
 		else if (normal_gap)
-			strncpy(gap, normal_gap, gapsize);
+			strncpy(gap, normal_gap, gapsize + 1);	// first line gap is normal_gap;
 		else {
-			gap[0] = ' ';
-			gap[1] = '\0';
+			// first line gap will be a single space;
+			for (i = 0; i < gapsize; i++)
+				gap[i] = ' ';
+			gap[i] = '\0';
 		}
 	}
 
 	while (!c1done || !c2done) {
 		if (!c1done) {
+			// column 1 not finished, fill column 1 buffer;
 			c1done = line_to_buffer(col1_text, c1buff, sizeof c1buff, col1_size, &col1_index);
-			if (col2_text) {
-				i = strlen(c1buff);
-				if (i < (sizeof c1buff - 1)) {
-					for (; i < (sizeof c1buff - 1); i++)
-						c1buff[i] = ' ';
-					c1buff[i] = '\0';
-				}
+		}
+		if (!c2done && (col2_size || c1done == 2)) {
+			// column 2 not finished AND: column 2 in column format OR column 1 is finished;
+			c2done = line_to_buffer(col2_text, c2buff, sizeof c2buff, col2_usable, &col2_index);
+		}
+
+		if (col2_text && col2_size && c2done != 2 && c2buff[0] != '\0') {
+			// column 2 exists in column format and is not an empty row;
+			i = strlen(c1buff);
+			if (i < (sizeof c1buff - 1)) {
+				// pad column 1 buffer with spaces
+				for (; i < (sizeof c1buff - 1); i++)
+					c1buff[i] = ' ';
+				c1buff[i] = '\0';
 			}
 		}
-		if (!c2done && (col2_size || c1done == 2))
-			c2done = line_to_buffer(col2_text, c2buff, sizeof c2buff, (col2_size ? col2_size : col2_usable), &col2_index);
+
+		// output;
 
 		if (c2done == 2) {
+			// column 2 is finished;
 			if (c1done == 2)
 				return;
-			fprintf(f, "%s%s\n", indent ? indent : "", c1buff);
+			fprintf(f, "%s%s\n", indent ? indent : "", c1buff);	// print column 1 output only;
 		}
 		else if (col2_size) {
-			fprintf(f, "%s%s%s%s\n", indent ? indent : "", c1buff, gap, c2buff);
+			// column 2 is not finished and is in column format;
+			if (c2buff[0] == '\0') {
+				// column 2 has an empty row;
+				if (c1done == 2 || c1buff[0] == '\0')
+					fputs("\n", f);
+				else
+					fprintf(f, "%s%s\n", indent ? indent : "", c1buff);	// print column 1 output only;
+			}
+			else
+				fprintf(f, "%s%s%s%s\n", indent ? indent : "", c1buff, gap, c2buff);	// print columns 1 and 2;
 		}
 		else if (col2_text) {
+			// column 2 is not finished and is not in column format;
 			if (c1done == 2)
-				fprintf(f, "%s%s%s\n", indent ? indent : "", gap, c2buff);
+				fprintf(f, "%s%s%s\n", indent ? indent : "", gap, c2buff);	// print column 2 only;
 			else
-				fprintf(f, "%s%s\n", indent ? indent : "", c1buff);
+				fprintf(f, "%s%s\n", indent ? indent : "", c1buff);			// print column 1 only;
 		}
 
 		if (first && (col2_size || c1done == 2)) {
+			// first line AND: in column format OR column 1 is finished;
 			first = 0;
+			// replace the first line gap with normal_gap or spaces;
 			if (normal_gap)
-				strncpy(gap, normal_gap, gapsize);
+				strncpy(gap, normal_gap, gapsize + 1);
 			else {
 				for (i = 0; i < gapsize; i++)
 					gap[i] = ' ';
 				gap[i] = '\0';
 			}
 		}
-		if (c1done == 1 && !c2done) {
-			if (col2_text) {
+		if (c1done == 1) {
+			if (!c2done && col2_size && col2_text) {
+				// column 1 is finished and column 2 is not finished and is in column format;
+				// - fill column 1 with spaces to maintain column 2 alignment;
 				for (i = 0; i < col1_size; i++)
 					c1buff[i] = ' ';
 				c1buff[i] = '\0';
@@ -11692,6 +11716,7 @@ print_wrap(
 			c1done = 2;
 		}
 		if (c2done == 1) {
+			// column 2 is finished;
 			c2buff[0] = '\0';
 			c2done = 2;
 		}
