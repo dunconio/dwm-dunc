@@ -2176,7 +2176,7 @@ appendhidden(Monitor *m, const char *text, char *buffer, size_t len_buffer)
 {
 	size_t len_buffer_hidden = strlen(tabHidden);
 	size_t len_name = strlen(text);
-	if (m->tabTextAlign == 2) {
+	if (m->title_align == 2) {
 		int j;
 		for (j = 0; j < len_buffer_hidden; j++) {
 			if (j >= len_buffer)
@@ -15989,6 +15989,7 @@ drawTab(Monitor *m, int active, int first)
 	int tw;				// text width of caption;
 	int tw_mon = 0;		// text width (without padding) of monnumf caption;
 	int w;				// width of caption area;
+	unsigned int align = (m->isAlt & ALTTAB_MOUSE ? m->title_align : m->tabTextAlign);
 
 	m->altTabIndex = m->altTabVStart = -1;
 	// draw all clients into tabwin;
@@ -16037,7 +16038,7 @@ drawTab(Monitor *m, int active, int first)
 				#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 			if (c->alticon) {
 				fw += c->alticw + iconspacing;
-				if (m->tabTextAlign == 0)
+				if (align == 0)
 					ox += c->alticw + iconspacing;
 			}
 			#endif // PATCH_WINDOW_ICONS
@@ -16045,15 +16046,15 @@ drawTab(Monitor *m, int active, int first)
 			w = m->maxWTab;
 			if (fw > w)
 				fw = w;
-			if (m->tabTextAlign == 1)
+			if (align == 1)
 				ox = ((w - fw) / 2) + (fw - tw - tw_mon);
-			else if (m->tabTextAlign == 2)
+			else if (align == 2)
 				ox = (w - fw);
 			ox += tab_lrpad / 2;
 
 			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m) {
 				x = ox;
-				if (m->tabTextAlign == 2)
+				if (align == 2)
 					x += tw - tab_lrpad;
 				#if PATCH_BIDIRECTIONAL_TEXT
 				apply_fribidi(c->mon->numstr);
@@ -16070,7 +16071,7 @@ drawTab(Monitor *m, int active, int first)
 					#endif // PATCH_BIDIRECTIONAL_TEXT
 					0
 				);
-				if (m->tabTextAlign == 2) {
+				if (align == 2) {
 					x = 0;
 					ox = m->maxWTab - fw;
 					w = ox + tw - tab_lrpad / 2;
@@ -16109,7 +16110,7 @@ drawTab(Monitor *m, int active, int first)
 			#if PATCH_WINDOW_ICONS
 			if (c->alticon) {
 				x += ox;
-				switch (m->tabTextAlign) {
+				switch (align) {
 					case 1:
 						x = ((m->maxWTab - fw) / 2) + tab_lrpad / 2;
 						break;
@@ -16138,13 +16139,13 @@ drawTab(Monitor *m, int active, int first)
 	if (vTabs) {
 		drw_setscheme(drw, scheme[SchemeTabNorm]);
 		drw_rect(drw,
-			(m->tabTextAlign == 2 ? tab_lrpad : (m->maxWTab - tab_lrpad)),
+			(align == 2 ? tab_lrpad : (m->maxWTab - tab_lrpad)),
 			tab_lrpad / 2, 10, m->maxHTab - tab_lrpad, 0, 0
 		);
 		h = (m->maxHTab - tab_lrpad - tab_lrpad/2);
 		sEnd = (h * (sStart + vTabs) / m->nTabs) - (h * sStart / m->nTabs);
 		drw_rect(drw,
-			(m->tabTextAlign == 2 ? (tab_lrpad + 3) : (m->maxWTab - tab_lrpad + 3)),
+			(align == 2 ? (tab_lrpad + 3) : (m->maxWTab - tab_lrpad + 3)),
 			(tab_lrpad / 2) + 3 + (h * sStart / m->nTabs), 4, (sEnd > 0 ? sEnd : 1), 1, 0
 		);
 	}
