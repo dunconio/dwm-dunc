@@ -736,7 +736,7 @@ enum {	ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
 		#endif // PATCH_SHOW_DESKTOP_BUTTON
 		ClkLast }; /* clicks */
 
-enum {	StatusText, LtSymbol, TagBar, WinTitle
+enum {	NoElement = 0, StatusText, LtSymbol, TagBar, WinTitle
 		#if PATCH_SHOW_DESKTOP_BUTTON
 		,ShowDesktop
 		#endif // PATCH_SHOW_DESKTOP_BUTTON
@@ -746,6 +746,7 @@ typedef struct {
 	unsigned int type;
 } BarElementType;
 static const BarElementType BarElementTypes[] = {
+	{ NULL,			NoElement },
 	{ "TagBar",		TagBar },
 	{ "LtSymbol",	LtSymbol },
 	{ "WinTitle",	WinTitle },
@@ -3220,7 +3221,7 @@ buttonpress(XEvent *e)
 
 		// determine zone of interaction;
 		for (i = 0; i < LENGTH(m->bar); i++)
-			if (ev->x >= m->bar[i].x && ev->x <= (m->bar[i].x + m->bar[i].w)) {
+			if (m->bar[i].x != -1 && ev->x >= m->bar[i].x && ev->x <= (m->bar[i].x + m->bar[i].w)) {
 				zone = i;
 				break;
 			}
@@ -4028,6 +4029,7 @@ createmon(void)
 	for (i = 0; i < LENGTH(m->bar); ++i) {
 		m->bar[i].type = i;
 		m->bar[i].x = -1;
+		m->barlayout[i] = NoElement;
 	}
 	for (i = 0; i < LENGTH(barlayout); ++i)
 		m->barlayout[i] = barlayout[i];
@@ -4154,7 +4156,7 @@ createmon(void)
 						e = cJSON_GetArrayItem(l_node, j);
 						if (cJSON_IsString(e))
 							for (k = 0; k < LENGTH(BarElementTypes); k++)
-								if (strcmp(BarElementTypes[k].name, e->valuestring) == 0) {
+								if (BarElementTypes[k].name && strcmp(BarElementTypes[k].name, e->valuestring) == 0) {
 									m->barlayout[n++] = BarElementTypes[k].type;
 									break;
 								}
@@ -5197,6 +5199,11 @@ drawbar(Monitor *m, int skiptags)
 					continue;
 				#endif // PATCH_HIDE_VACANT_TAGS
 
+				if (x >= m->bar[StatusText].x - customwidth) {
+					m->tagw[i] = 0;
+					continue;
+				}
+
 				#if PATCH_ALT_TAGS
 				snprintf(tagdisp, 64, "%s", m->tags[i]);
 				tagw = TEXTW(tagdisp);
@@ -5233,8 +5240,11 @@ drawbar(Monitor *m, int skiptags)
 				}
 				else
 					snprintf(tagdisp, 64, (m->showmaster ? etagf : "%s"), m->alttags ? tags[i] : m->tags[i]);
-				m->tagw[i] = w = (TEXTW(tagdisp) + tagw);
-				if (tagw > 0) {
+				w = (TEXTW(tagdisp) + tagw);
+				if (x + w >= m->bar[StatusText].x - customwidth)
+					w = ((m->bar[StatusText].x - customwidth) - x);
+				m->tagw[i] = w;
+				if (w && tagw > 0) {
 					drw_setscheme(drw, scheme[SchemeNorm]);
 					drw_rect(drw, x, 0, w, bh, 1, 1);
 				}
@@ -5243,16 +5253,23 @@ drawbar(Monitor *m, int skiptags)
 				}
 				else
 					snprintf(tagdisp, 64, (m->showmaster ? etagf : "%s"), tags[i]);
-				m->tagw[i] = w = TEXTW(tagdisp);
+				w = TEXTW(tagdisp);
+				if (x + w >= m->bar[StatusText].x - customwidth)
+					w = ((m->bar[StatusText].x - customwidth) - x);
+				m->tagw[i] = w;
 				#endif // PATCH_ALT_TAGS
 				#else // NO PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				#if PATCH_ALT_TAGS
 				snprintf(tagdisp, 64, "%s", m->alttags ? tags[i] : m->tags[i]);
-				m->tagw[i] = w = (TEXTW(tagdisp) + tagw);
+				w = (TEXTW(tagdisp) + tagw);
 				#else // NO PATCH_ALT_TAGS
-				m->tagw[i] = w = TEXTW(tagdisp);
+				w = TEXTW(tagdisp);
 				#endif // PATCH_ALT_TAGS
+				if (x + w >= m->bar[StatusText].x - customwidth)
+					w = ((m->bar[StatusText].x - customwidth) - x);
+				m->tagw[i] = w;
 				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+
 				drw_setscheme(drw, scheme[
 					(urg & 1 << i) ? SchemeUrg :
 						m->tagset[m->seltags] & 1 << i
@@ -5392,6 +5409,8 @@ drawbar(Monitor *m, int skiptags)
 			}
 			m->bar[TagBar].w = (x - m->bar[TagBar].x);
 		}
+		else
+			m->bar[TagBar].x = -1;
 
 		if (drawbar_elementvisible(m, LtSymbol)) {
 			if (m->lt[m->sellt]->arrange == monocle)
@@ -5409,73 +5428,86 @@ drawbar(Monitor *m, int skiptags)
 				#endif // PATCH_SHOW_DESKTOP
 				TEXTW(m->ltsymbol)
 			;
-			m->bar[LtSymbol].x = x;
-			m->bar[LtSymbol].w = w;
-			drw_setscheme(drw, scheme[SchemeLayout]);
-			x = drw_text(
-					drw, x, 0, w, bh, lrpad / 2,
-					#if PATCH_CLIENT_INDICATORS
-					0,
-					#endif // PATCH_CLIENT_INDICATORS
-					#if PATCH_SHOW_DESKTOP
-					showdesktop && m->showdesktop ? desktopsymbol :
-					#endif // PATCH_SHOW_DESKTOP
-					m->ltsymbol, 0
-				);
+			if (x > m->bar[StatusText].x - customwidth) {
+				m->bar[LtSymbol].x = -1;
+				m->bar[LtSymbol].w = 0;
+			}
+			else {
+				if (x + w > m->bar[StatusText].x - customwidth)
+					w = m->bar[StatusText].x - customwidth - x;
+				m->bar[LtSymbol].x = x;
+				m->bar[LtSymbol].w = w;
+				drw_setscheme(drw, scheme[SchemeLayout]);
+				x = drw_text(
+						drw, x, 0, w, bh, lrpad / 2,
+						#if PATCH_CLIENT_INDICATORS
+						0,
+						#endif // PATCH_CLIENT_INDICATORS
+						#if PATCH_SHOW_DESKTOP
+						showdesktop && m->showdesktop ? desktopsymbol :
+						#endif // PATCH_SHOW_DESKTOP
+						m->ltsymbol, 0
+					);
+			}
 		}
 	}
-	m->bar[WinTitle].x = x = m->bar[TagBar].w + m->bar[LtSymbol].w;
+	m->bar[WinTitle].x = x =
+		(m->bar[TagBar].x != -1 ? m->bar[TagBar].w : 0) +
+		(m->bar[LtSymbol].x != -1 ? m->bar[LtSymbol].w : 0)
+	;
 
-	if (drawbar_elementvisible(m, WinTitle)) {
-		if ((w = m->bar[StatusText].x - x - customwidth) > bh) {
+	if (drawbar_elementvisible(m, WinTitle) && (w = m->bar[StatusText].x - x - customwidth) > 0) {
+
+		Client *active = NULL;
+		if ((m->sel && !m->sel->dormant
+			#if PATCH_FLAG_PANEL
+			&& !m->sel->ispanel
+			#endif // PATCH_FLAG_PANEL
+			#if PATCH_FLAG_IGNORED
+			&& !m->sel->isignored
+			#endif // PATCH_FLAG_IGNORED
+		)
+		#if PATCH_ALTTAB
+		|| (altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m)
+		#endif // PATCH_ALTTAB
+		) {
+			active =
+				#if PATCH_ALTTAB
+				(altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) ? altTabMon->highlight :
+				#endif // PATCH_ALTTAB
+				m->sel
+			;
+		}
+		#if PATCH_TWO_TONE_TITLE
+		if ((
+			#if PATCH_ALTTAB
+			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
+			#endif // PATCH_ALTTAB
+			m == selmon
+		)) {
+			drw_setscheme(drw, scheme[SchemeSel]);
+			drw->bg2 = 1;
+			drw_gradient(drw, x, 0, w, bh, drw->scheme[ColBg].pixel, scheme[SchemeSel2][ColBg].pixel, !elementafter(m, WinTitle, TagBar));
+		}
+		else {
+			drw_setscheme(drw, scheme[SchemeNorm]);
+			drw->bg2 = 0;
+		}
+		#else // NO PATCH_TWO_TONE_TITLE
+		drw_setscheme(drw, scheme[(
+			#if PATCH_ALTTAB
+			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
+			#endif // PATCH_ALTTAB
+			m == selmon) ? SchemeSel : SchemeNorm
+		]);
+		if (!active)
+			drw_rect(drw, x, 0, w, bh, 1, 1);
+		#endif // PATCH_TWO_TONE_TITLE
+
+		if (w > bh) {
 
 			m->bar[WinTitle].w = w;
 
-			Client *active = NULL;
-			if ((m->sel && !m->sel->dormant
-				#if PATCH_FLAG_PANEL
-				&& !m->sel->ispanel
-				#endif // PATCH_FLAG_PANEL
-				#if PATCH_FLAG_IGNORED
-				&& !m->sel->isignored
-				#endif // PATCH_FLAG_IGNORED
-			)
-			#if PATCH_ALTTAB
-			|| (altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m)
-			#endif // PATCH_ALTTAB
-			) {
-				active =
-					#if PATCH_ALTTAB
-					(altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) ? altTabMon->highlight :
-					#endif // PATCH_ALTTAB
-					m->sel
-				;
-			}
-			#if PATCH_TWO_TONE_TITLE
-			if ((
-				#if PATCH_ALTTAB
-				altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
-				#endif // PATCH_ALTTAB
-				m == selmon
-			)) {
-				drw_setscheme(drw, scheme[SchemeSel]);
-				drw->bg2 = 1;
-				drw_gradient(drw, x, 0, w, bh, drw->scheme[ColBg].pixel, scheme[SchemeSel2][ColBg].pixel, !elementafter(m, WinTitle, TagBar));
-			}
-			else {
-				drw_setscheme(drw, scheme[SchemeNorm]);
-				drw->bg2 = 0;
-			}
-			#else // NO PATCH_TWO_TONE_TITLE
-			drw_setscheme(drw, scheme[(
-				#if PATCH_ALTTAB
-				altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
-				#endif // PATCH_ALTTAB
-				m == selmon) ? SchemeSel : SchemeNorm
-			]);
-			if (!active)
-				drw_rect(drw, x, 0, w, bh, 1, 1);
-			#endif // PATCH_TWO_TONE_TITLE
 			if (active) {
 				int lpad = (2 * boxs + boxw);
 				if (lpad < (lrpad / 2))
@@ -5526,8 +5558,6 @@ drawbar(Monitor *m, int skiptags)
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
-
-
 					#if PATCH_BIDIRECTIONAL_TEXT
 					fribidi_text,
 					#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -5596,11 +5626,25 @@ drawbar(Monitor *m, int skiptags)
 			}
 		}
 		else {
+			drw_text(
+				drw, x, 0, w, bh, 0,
+				#if PATCH_CLIENT_INDICATORS
+				0,
+				#endif // PATCH_CLIENT_INDICATORS
+				"", 0
+			);
 			#if PATCH_SYSTRAY
 			w -= m->stw;
 			#endif // PATCH_SYSTRAY
 			m->bar[WinTitle].w = w;
+			#if PATCH_TWO_TONE_TITLE
+			drw->bg2 = 0;
+			#endif // PATCH_TWO_TONE_TITLE
 		}
+	}
+	else {
+		m->bar[WinTitle].x = -1;
+		m->bar[WinTitle].w = 0;
 	}
 	#if PATCH_SYSTRAY
 	if (m->stw && systrayonleft) {
@@ -5615,7 +5659,7 @@ drawbar(Monitor *m, int skiptags)
 	}
 	#endif // PATCH_FLAG_PANEL
 
-	unsigned int j;
+	unsigned int j = 0;
 	#if PATCH_FLAG_PANEL
 	x = px;
 	if (x) {
@@ -5625,19 +5669,27 @@ drawbar(Monitor *m, int skiptags)
 	#else // NO PATCH_FLAG_PANEL
 	x = 0;
 	#endif // PATCH_FLAG_PANEL
-	for (i = 0; i < LENGTH(m->barlayout); i++) {
-		j = m->barlayout[i];
 
+	for (i = 0; i < LENGTH(m->barlayout); i++) {
+		if (m->barlayout[i] == NoElement)
+			continue;
+		j = m->barlayout[i];
 		if (skiptags && (j == TagBar || j == LtSymbol)) {
 			m->bar[j].x = x;
 			x += m->bar[j].w;
 			continue;
 		}
-		else
-
-		drw_maptrans(drw, m->barwin, m->bar[j].x, 0, m->bar[j].w, bh, x, 0);
-		m->bar[j].x = x;
-		x += m->bar[j].w;
+		if (x >= m->mw)
+			m->bar[j].w = 0;
+		else if (m->bar[j].x != -1 && m->bar[j].w) {
+			drw_maptrans(
+				drw, m->barwin, m->bar[j].x, 0,
+				(x + m->bar[j].w > m->mw) ? m->mw - x : m->bar[j].w,
+				bh, x, 0
+			);
+			m->bar[j].x = x;
+			x += m->bar[j].w;
+		}
 	}
 	if (x < m->mw) {
 		drw_maptrans(drw, m->barwin, m->bar[j].x + m->bar[j].w, 0, m->mw - (m->bar[j].x + m->bar[j].w), bh, x, 0);
@@ -5844,6 +5896,7 @@ enternotify(XEvent *e)
 	if ((ev->mode != NotifyNormal || ev->detail == NotifyInferior) && ev->window != root)
 		return;
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	Monitor *selm = selmon;
 	Client *sel = selmon->sel;
 	Client *c = wintoclient(ev->window);
 	if (c && c == sel) {
@@ -5890,6 +5943,8 @@ enternotify(XEvent *e)
 		) {
 		if (c != sel)
 			focus(c, 0);
+		else if (selm != m)
+			drawbar(m, 1);
 	}
 	else if (c && !c->dormant
 		#if PATCH_FLAG_IGNORED
@@ -5897,6 +5952,8 @@ enternotify(XEvent *e)
 		#endif // PATCH_FLAG_IGNORED
 		)
 		focus(NULL, 0);
+	else if (c && selm != m)
+		drawbar(m, 1);
 	/*
 	#else // NO PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_FLAG_GAME
@@ -6202,7 +6259,7 @@ focusmonex(Monitor *m)
 	drawfocusborder(m->sel && ISVISIBLE(m->sel) ? 0 : 1);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	restack(s);
-	drawbar(m, 0);
+//	drawbar(m, 0);
 }
 
 void
@@ -8466,6 +8523,8 @@ logdiagnostics(const Arg *arg)
 
 		unsigned int len = 8;
 		for (int i = 0, j; i < LENGTH(BarElementTypes); i++) {
+			if (!BarElementTypes[i].name)
+				continue;
 			j = strlen(BarElementTypes[i].name);
 			if (j > len)
 				len = j;
@@ -8476,7 +8535,7 @@ logdiagnostics(const Arg *arg)
 			strncpy(buffer, "Unknown!", sizeof buffer);
 			for (j = 0; j < LENGTH(BarElementTypes); j++)
 				if (BarElementTypes[j].type == e.type) {
-					strncpy(buffer, BarElementTypes[j].name, sizeof buffer - 1);
+					strncpy(buffer, (BarElementTypes[j].name ? BarElementTypes[j].name : "NoElement"), sizeof buffer - 1);
 					break;
 				}
 			for (j = 0; j < len-1; j++)
@@ -10679,7 +10738,7 @@ parselayoutjson(cJSON *layout)
 							e = cJSON_GetArrayItem(L, j);
 							if (cJSON_IsString(e)) {
 								for (k = LENGTH(BarElementTypes); k; k--)
-									if (strcmp(BarElementTypes[k - 1].name, e->valuestring) == 0) {
+									if (BarElementTypes[k - 1].name && strcmp(BarElementTypes[k - 1].name, e->valuestring) == 0) {
 										barlayout[n++] = BarElementTypes[k - 1].type;
 										break;
 									}
@@ -11059,7 +11118,7 @@ parselayoutjson(cJSON *layout)
 											e = cJSON_GetArrayItem(c, j);
 											if (cJSON_IsString(e)) {
 												for (k = LENGTH(BarElementTypes); k; k--)
-													if (strcmp(BarElementTypes[k - 1].name, e->valuestring) == 0)
+													if (BarElementTypes[k - 1].name && strcmp(BarElementTypes[k - 1].name, e->valuestring) == 0)
 														break;
 												if (!k)
 													cJSON_AddStringToObject(unsupported_mon, "\"set-bar-layout\" contained unknown element type", e->valuestring);
@@ -13702,10 +13761,10 @@ scan(void)
 					c->ispanel ||
 					#endif // PATCH_FLAG_PANEL
 					#if PATCH_SHOW_DESKTOP
-					c->isdesktop ||
+					c->isdesktop
 					#endif // PATCH_SHOW_DESKTOP
-				0); c = c->next);
-				focus(c, 0);
+				); c = c->next);
+				selmon->sel = c;
 			}
 
 			for (m = mons; m; m = m->next) {
@@ -13714,6 +13773,7 @@ scan(void)
 				if (m->defaulttag)
 					viewmontag(m, (1 << (m->defaulttag - 1)), 1);
 			}
+			focus(NULL, 0);
 		}
 
 		nonstop = 0;
@@ -15574,6 +15634,8 @@ drawTab(Monitor *m, int active, int first)
 		{
 			wa.override_redirect = True;
 			wa.background_pixmap = ParentRelative;
+			wa.background_pixel = 0;
+			wa.border_pixel = scheme[SchemeTabNorm][ColBorder].pixel;
 			wa.event_mask = ButtonPressMask|ExposureMask;
 		};
 
@@ -15754,11 +15816,11 @@ drawTab(Monitor *m, int active, int first)
 
 	// offset if we're upside-down;
 	int oy = (tabswitcher || !(m->isAlt & ALTTAB_BOTTOMBAR) ? y : m->maxHTab - y - h);
-	int ox;			// caption offset ox;
-	int fw;			// full width of entry;
-	int tw;			// text width of caption;
-	int tw_mon = 0;	// text width (without padding) of monnumf caption;
-	int w;			// width of caption area;
+	unsigned int ox;	// caption offset ox;
+	int fw;				// full width of entry;
+	int tw;				// text width of caption;
+	int tw_mon = 0;		// text width (without padding) of monnumf caption;
+	int w;				// width of caption area;
 
 	m->altTabIndex = m->altTabVStart = -1;
 	// draw all clients into tabwin;
@@ -16545,8 +16607,8 @@ tagmon(const Arg *arg)
 		return;
 	#endif // PATCH_SHOW_DESKTOP
 
-	#if PATCH_FLAG_FOLLOW_PARENT
 	Client *sel = c;
+	#if PATCH_FLAG_FOLLOW_PARENT
 	if (c->followparent) {
 		for (
 			c = c->parent;
@@ -19075,17 +19137,16 @@ parsejsonfile(const char *filename, const char *filetype)
 int
 main(int argc, char *argv[], char *envp[])
 {
+	FILE *f = stdout;
 	int r = 0, l = 0;
 	#if PATCH_IPC
 	int ipc = 0;
-	#endif // PATCH_IPC
-
-	FILE *f = stdout;
 	unsigned int wrap_length = WRAP_LENGTH;
 	struct winsize window_size = {0};
 	if (ioctl(fileno(f), TIOCGWINSZ, &window_size) != -1) {
 		wrap_length = window_size.ws_col;
 	}
+	#endif // PATCH_IPC
 
 	if (argc > 1) {
 
