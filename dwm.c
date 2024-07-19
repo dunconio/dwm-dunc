@@ -90,6 +90,13 @@ cJSON *layout_json = NULL;
 cJSON *fonts_json = NULL;
 cJSON *monitors_json = NULL;
 cJSON *rules_json = NULL;
+#if PATCH_FONT_GROUPS
+cJSON *fontgroups_json = NULL;
+cJSON *barelement_fontgroups_json = NULL;
+#if PATCH_ALTTAB
+static char *tabFontgroup = NULL;		// alt-tab switcher font group;
+#endif // PATCH_ALTTAB
+#endif // PATCH_FONT_GROUPS
 
 typedef struct {
 	const char *name;
@@ -105,6 +112,9 @@ typedef struct {
 static const supported_json supported_layout_global[] = {
 	#if PATCH_ALTTAB
 	{ "alt-tab-border",				"alt-tab switcher border width in pixels" },
+	#if PATCH_FONT_GROUPS
+	{ "alt-tab-font-group",			"alt-tab switcher will use the specified font group from \"font-groups\"" },
+	#endif // PATCH_FONT_GROUPS
 	#if PATCH_ALTTAB_HIGHLIGHT
 	{ "alt-tab-highlight",			"alt-tab switcher highlights clients during selection" },
 	#endif // PATCH_ALTTAB_HIGHLIGHT
@@ -114,7 +124,16 @@ static const supported_json supported_layout_global[] = {
 	{ "alt-tab-x",					"alt-tab switcher position - 0:left, 1:centre, 2:right" },
 	{ "alt-tab-y",					"alt-tab switcher position - 0:top, 1:middle, 2:bottom" },
 	#endif // PATCH_ALTTAB
-	{ "bar-layout",					"array of bar elements in order of appearance\n(TagBar, LtSymbol, WinTitle, StatusText)" },
+	#if PATCH_FONT_GROUPS
+	{ "bar-element-font-groups",	"single object or array of objects containing \"bar-element\" string and \"font-group\" string" },
+	#endif // PATCH_FONT_GROUPS
+	{ "bar-layout",					"array of bar elements in order of appearance\n(TagBar, LtSymbol, WinTitle, StatusText"
+	#if PATCH_SHOW_DESKTOP
+	#if PATCH_SHOW_DESKTOP_BUTTON
+	", ShowDesktop"
+	#endif // PATCH_SHOW_DESKTOP_BUTTON
+	#endif // PATCH_SHOW_DESKTOP
+	")" },
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	{ "bar-tag-format-empty",	 	"printf style format of tag displayed when no client is assigned, using %s as placeholder" },
 	{ "bar-tag-format-populated", 	"printf style format of tag displayed when one or more clients are assigned, using %s as placeholders" },
@@ -172,7 +191,10 @@ static const supported_json supported_layout_global[] = {
 	{ "focus-pixel-corner",			"determine to which corner the box is added - NE:top-right, SE:bottom-right, SW:bottom-left, NW:top-left" },
 	{ "focus-pixel-size",			"width/height of box on focused client's bottom right corner, 0 to disable" },
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	{ "fonts",						"font string or array of font strings to use" },
+	#if PATCH_FONT_GROUPS
+	{ "font-groups",				"single object or array of objects containing \"name\" string and \"fonts\" string or array of strings" },
+	#endif // PATCH_FONT_GROUPS
+	{ "fonts",						"font string or array of font strings to use by default" },
 	#if PATCH_HIDE_VACANT_TAGS
 	{ "hide-vacant-tags",			"hide tags with no clients" },
 	#endif // PATCH_HIDE_VACANT_TAGS
@@ -1133,6 +1155,9 @@ static void altTabStart(const Arg *arg);
 #if PATCH_FLAG_HIDDEN && PATCH_ALTTAB
 static void appendhidden(Monitor *m, const char *text, char *buffer, size_t len_buffer);
 #endif // PATCH_FLAG_HIDDEN && PATCH_ALTTAB
+#if PATCH_FONT_GROUPS
+int apply_barelement_fontgroup(int BarElementType);
+#endif // PATCH_FONT_GROUPS
 #if PATCH_BIDIRECTIONAL_TEXT
 static void apply_fribidi(char *str);
 #endif // PATCH_BIDIRECTIONAL_TEXT
@@ -1963,6 +1988,46 @@ alignfloat(Client *c, float relX, float relY)
 	return 0;
 }
 #endif // PATCH_FLAG_FLOAT_ALIGNMENT
+
+#if PATCH_FONT_GROUPS
+int
+apply_barelement_fontgroup(int BarElementType)
+{
+	int i, j, n = -1;
+	cJSON *el, *nom;
+
+	if (!drw || !drw->fonts || !fontgroups_json || !barelement_fontgroups_json)
+		return 0;
+
+	if (cJSON_IsArray(barelement_fontgroups_json))
+		n = cJSON_GetArraySize(barelement_fontgroups_json);
+	else
+		el = barelement_fontgroups_json;
+
+	for (i = 0; i < abs(n); i++) {
+		if (n > 0)
+			el = cJSON_GetArrayItem(barelement_fontgroups_json, i);
+		if (!(nom = cJSON_GetObjectItemCaseSensitive(el, "bar-element")) || !cJSON_IsString(nom))
+			continue;
+
+		// check if named bar-element is the one we want;
+		for (j = LENGTH(BarElementTypes); j > 0; j--)
+			if (BarElementTypes[j - 1].type == BarElementType &&
+				strcmp(BarElementTypes[j - 1].name, nom->valuestring) == 0
+				)
+				break;
+		if (!j)
+			continue;
+
+		if ((el = cJSON_GetObjectItemCaseSensitive(el, "font-group")) && cJSON_IsString(el) &&
+			(drw_select_fontgroup(drw, el->valuestring))
+			)
+			return 1;
+	}
+	drw->selfonts = NULL;
+	return 0;
+}
+#endif // PATCH_FONT_GROUPS
 
 #if PATCH_BIDIRECTIONAL_TEXT
 void
@@ -4886,6 +4951,10 @@ drawbar(Monitor *m, int skiptags)
 	if (m == selmon && m->showstatus) { /* status is only drawn on selected monitor */
 		drw_setscheme(drw, scheme[SchemeNorm]);
 
+		#if PATCH_FONT_GROUPS
+		apply_barelement_fontgroup(StatusText);
+		#endif // PATCH_FONT_GROUPS
+
 		#if PATCH_STATUSCMD
 		if (m->showstatus == -1) {
 			m->bar[StatusText].w = TEXTW(DWM_VERSION_STRING_SHORT) - lrpad / 2 + 2 /* 2px extra right padding */
@@ -5051,6 +5120,10 @@ drawbar(Monitor *m, int skiptags)
 	#if PATCH_SHOW_DESKTOP_BUTTON
 	m->bar[ShowDesktop].w = 0;
 	if (drawbar_elementvisible(m, ShowDesktop) && showdesktop) {
+		#if PATCH_FONT_GROUPS
+		apply_barelement_fontgroup(ShowDesktop);
+		#endif // PATCH_FONT_GROUPS
+
 		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE || PATCH_SHOW_DESKTOP_UNMANAGED
 		c = getdesktopclient(m, &x);
 		if (0
@@ -5100,6 +5173,10 @@ drawbar(Monitor *m, int skiptags)
 
 		if (drawbar_elementvisible(m, TagBar)) {
 			skiptags = 0;
+
+			#if PATCH_FONT_GROUPS
+			apply_barelement_fontgroup(TagBar);
+			#endif // PATCH_FONT_GROUPS
 
 			for (i = 0; i < LENGTH(tags); i++) {
 				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
@@ -5413,6 +5490,10 @@ drawbar(Monitor *m, int skiptags)
 			m->bar[TagBar].x = -1;
 
 		if (drawbar_elementvisible(m, LtSymbol)) {
+			#if PATCH_FONT_GROUPS
+			apply_barelement_fontgroup(LtSymbol);
+			#endif // PATCH_FONT_GROUPS
+
 			if (m->lt[m->sellt]->arrange == monocle)
 			{
 				for (c = nexttiled(m->clients), a = 0, s = 0; c; c = nexttiled(c->next), a++)
@@ -5505,6 +5586,11 @@ drawbar(Monitor *m, int skiptags)
 		#endif // PATCH_TWO_TONE_TITLE
 
 		if (w > bh) {
+
+			#if PATCH_FONT_GROUPS
+			apply_barelement_fontgroup(WinTitle);
+			//drw->selfonts = NULL;
+			#endif // PATCH_FONT_GROUPS
 
 			m->bar[WinTitle].w = w;
 
@@ -5696,6 +5782,9 @@ drawbar(Monitor *m, int skiptags)
 	}
 
 	//drw_maptrans(drw, m->barwin, 0, 0, m->mw, bh, 0, bh);	// for debugging;
+	#if PATCH_FONT_GROUPS
+	drw->selfonts = NULL;
+	#endif // PATCH_FONT_GROUPS
 
 	#if PATCH_TORCH
 	if (torchwin) XRaiseWindow(dpy, torchwin);
@@ -10453,6 +10542,16 @@ parselayoutjson(cJSON *layout)
 				continue;
 			}
 
+			#if PATCH_FONT_GROUPS
+			else if (strcmp(L->string, "bar-element-font-groups")==0) {
+				if (cJSON_IsArray(L) || cJSON_IsObject(L)) {
+					barelement_fontgroups_json = L;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"bar-element-font-groups\" must contain a JSON object or array of objects", 0);
+			}
+			#endif // PATCH_FONT_GROUPS
+
 			#if PATCH_CLIENT_INDICATORS
 			else if (strcmp(L->string, "client-indicators")==0) {
 				if (json_isboolean(L)) {
@@ -10552,6 +10651,15 @@ parselayoutjson(cJSON *layout)
 			}
 
 			#if PATCH_ALTTAB
+			#if PATCH_FONT_GROUPS
+			else if (strcmp(L->string, "alt-tab-font-group")==0) {
+				if (cJSON_IsString(L)) {
+					tabFontgroup = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"alt-tab-font-group\" must contain a string value", 0);
+			}
+			#endif // PATCH_FONT_GROUPS
 			#if PATCH_ALTTAB_HIGHLIGHT
 			else if (strcmp(L->string, "alt-tab-highlight")==0) {
 				if (json_isboolean(L)) {
@@ -10936,6 +11044,16 @@ parselayoutjson(cJSON *layout)
 				cJSON_AddNumberToObject(unsupported, "\"icon-spacing\" must contain an integer value", 0);
 			}
 			#endif // PATCH_WINDOW_ICONS
+
+			#if PATCH_FONT_GROUPS
+			else if (strcmp(L->string, "font-groups")==0) {
+				if (cJSON_IsArray(L) || cJSON_IsObject(L)) {
+					fontgroups_json = L;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"font-groups\" must contain a JSON object or array of objects", 0);
+			}
+			#endif // PATCH_FONT_GROUPS
 
 			else if (strcmp(L->string, "fonts")==0) {
 				if (cJSON_IsArray(L) || cJSON_IsString(L)) {
@@ -14617,6 +14735,11 @@ setup(void)
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	XSetWindowAttributes fwa;
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	#if PATCH_FONT_GROUPS
+	int j, n = -1, fg_lrpad = 0, fg_minbh = 0;
+	cJSON *el, *nom;
+	Fnt *f;
+	#endif // PATCH_FONT_GROUPS
 
 	Atom utf8string;
 	struct sigaction sa;
@@ -14643,11 +14766,47 @@ setup(void)
 	drw = drw_create(dpy, screen, root, sw, sh);
 	#endif // PATCH_ALPHA_CHANNEL
 
-	if (!fonts_json || !drw_fontset_create_json(drw, fonts_json))
-		if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
+	if (!fonts_json || !(drw->fonts = drw_fontset_create_json(drw, fonts_json)))
+		if (!(drw->fonts = drw_fontset_create(drw, fonts, LENGTH(fonts))))
 			die("no fonts could be loaded.");
 	lrpad = 3 * drw->fonts->h / 4;
 	minbh = drw->fonts->h + 2;
+	#if PATCH_FONT_GROUPS
+	if (fontgroups_json && drw_populate_fontgroups(drw, fontgroups_json) && barelement_fontgroups_json) {
+
+		if (cJSON_IsArray(barelement_fontgroups_json))
+			n = cJSON_GetArraySize(barelement_fontgroups_json);
+		else
+			el = barelement_fontgroups_json;
+
+		// iterate through bar element font groups;
+		for (i = 0; i < abs(n); i++) {
+			if (n > 0)
+				el = cJSON_GetArrayItem(barelement_fontgroups_json, i);
+			if (!(nom = cJSON_GetObjectItemCaseSensitive(el, "bar-element")) || !cJSON_IsString(nom))
+				continue;
+
+			// check if named bar-element is current;
+			for (j = LENGTH(BarElementTypes); j > 0; j--)
+				if (strcmp(BarElementTypes[j - 1].name, nom->valuestring) == 0)
+					break;
+			if (!j)
+				continue;
+
+			if ((el = cJSON_GetObjectItemCaseSensitive(el, "font-group")) && cJSON_IsString(el) &&
+				(f = drw_get_fontgroup_fonts(drw, el->valuestring))
+			) {
+				fg_lrpad = f->h;
+				fg_minbh = fg_lrpad + 2;
+				fg_lrpad = 3 * fg_lrpad / 4;
+				if (lrpad < fg_lrpad)
+					lrpad = fg_lrpad;
+				if (minbh < fg_minbh)
+					minbh = fg_minbh;
+			}
+		}
+	}
+	#endif // PATCH_FONT_GROUPS
 	bh = minbh
 		#if PATCH_CLIENT_INDICATORS
 		+ client_ind_size //- 1
@@ -15611,13 +15770,22 @@ drawTab(Monitor *m, int active, int first)
 	#endif // PATCH_FLAG_HIDDEN
 	Client *c;
 	int tabswitcher = ((m->isAlt & ALTTAB_MOUSE) == 0);
-	#if PATCH_WINDOW_ICONS
-	int pad = (tabswitcher ? lrpad : 0);
-	#endif // PATCH_WINDOW_ICONS
+	int tab_lrpad = lrpad;
+	int tab_minh = minbh;
 
 	altTabActive = active;
 
 	unsigned int bw = (tabswitcher ? m->tabBW : 2);
+
+	#if PATCH_FONT_GROUPS
+	if ((tabswitcher && drw_select_fontgroup(drw, tabFontgroup)) || apply_barelement_fontgroup(WinTitle)) {
+		tab_minh = drw->selfonts->h + 2;
+		tab_lrpad = 3 * drw->selfonts->h / 4;
+	}
+	#endif // PATCH_FONT_GROUPS
+	#if PATCH_WINDOW_ICONS
+	int pad = (tabswitcher ? tab_lrpad : 0);
+	#endif // PATCH_WINDOW_ICONS
 
 	if (first) {
 		XSetWindowAttributes wa;
@@ -15646,9 +15814,9 @@ drawTab(Monitor *m, int active, int first)
 		if (tabswitcher) {
 			m->maxWTab = MIN((m->tabMaxW + 2*bw), m->mw);
 			#if PATCH_WINDOW_ICONS
-			m->maxHTab = MIN((((MAX(iconsize_big, minbh) + lrpad*2) * m->nTabs)+2*bw), MIN((m->tabMaxH + 2*bw), m->mh));
+			m->maxHTab = MIN((((MAX(iconsize_big, tab_minh) + tab_lrpad*2) * m->nTabs)+2*bw), MIN((m->tabMaxH + 2*bw), m->mh));
 			#else // NO PATCH_WINDOW_ICONS
-			m->maxHTab = MIN((((minbh + lrpad*2) * m->nTabs)+2*bw), MIN((m->tabMaxH + 2*bw), m->mh));
+			m->maxHTab = MIN((((tab_minh + tab_lrpad*2) * m->nTabs)+2*bw), MIN((m->tabMaxH + 2*bw), m->mh));
 			#endif // PATCH_WINDOW_ICONS
 			if (m->tabPosX == 0)
 				posX += 0;
@@ -15683,9 +15851,9 @@ drawTab(Monitor *m, int active, int first)
 				#if PATCH_WINDOW_ICONS
 				if (!c->alticon)
 					#if PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
-					c->alticon = geticonprop(c, c->win, &c->alticw, &c->altich, MIN((minbh - pad), iconsize));
+					c->alticon = geticonprop(c, c->win, &c->alticw, &c->altich, MIN((tab_minh - pad), iconsize));
 					#else // NO PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
-					c->alticon = geticonprop(c->win, &c->alticw, &c->altich, MIN((minbh - pad), iconsize));
+					c->alticon = geticonprop(c->win, &c->alticw, &c->altich, MIN((tab_minh - pad), iconsize));
 					#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 				if (!icw && c->alticon)
 					icw = c->alticw + (iconspacing*2);
@@ -15704,9 +15872,9 @@ drawTab(Monitor *m, int active, int first)
 				if (w > tw)
 					tw = w;
 			}
-			tw += lrpad
+			tw += tab_lrpad
 				#if PATCH_WINDOW_ICONS
-				+ icw + (iconspacing) - lrpad
+				+ icw + (iconspacing) - tab_lrpad
 				#endif // PATCH_WINDOW_ICONS
 			;
 			m->maxWTab = MIN(
@@ -15714,7 +15882,7 @@ drawTab(Monitor *m, int active, int first)
 							m->mw
 						);
 			m->maxHTab = MIN(
-							((lrpad/2 + minbh) * m->nTabs)+2*bw,
+							((tab_lrpad/2 + tab_minh) * m->nTabs)+2*bw,
 							(m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) < m->mh ? (m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) : m->mh
 						);
 
@@ -15768,7 +15936,7 @@ drawTab(Monitor *m, int active, int first)
 	int sStart = 0;
 	int sEnd = 0;
 
-	int minh = (tabswitcher ? (minbh + lrpad) : minbh);
+	int minh = (tabswitcher ? (tab_minh + tab_lrpad) : tab_minh);
 
 	if (h < minh) {
 		h = minh;
@@ -15881,12 +16049,12 @@ drawTab(Monitor *m, int active, int first)
 				ox = ((w - fw) / 2) + (fw - tw - tw_mon);
 			else if (m->tabTextAlign == 2)
 				ox = (w - fw);
-			ox += lrpad / 2;
+			ox += tab_lrpad / 2;
 
 			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m) {
 				x = ox;
 				if (m->tabTextAlign == 2)
-					x += tw - lrpad;
+					x += tw - tab_lrpad;
 				#if PATCH_BIDIRECTIONAL_TEXT
 				apply_fribidi(c->mon->numstr);
 				#endif // PATCH_BIDIRECTIONAL_TEXT
@@ -15905,12 +16073,12 @@ drawTab(Monitor *m, int active, int first)
 				if (m->tabTextAlign == 2) {
 					x = 0;
 					ox = m->maxWTab - fw;
-					w = ox + tw - lrpad / 2;
+					w = ox + tw - tab_lrpad / 2;
 				}
 				else {
 					ox = 0;
-					x += (tw_mon + lrpad / 2);
-					w -= (tw_mon + lrpad);
+					x += (tw_mon + tab_lrpad / 2);
+					w -= (tw_mon + tab_lrpad);
 				}
 			}
 
@@ -15943,14 +16111,14 @@ drawTab(Monitor *m, int active, int first)
 				x += ox;
 				switch (m->tabTextAlign) {
 					case 1:
-						x = ((m->maxWTab - fw) / 2) + lrpad / 2;
+						x = ((m->maxWTab - fw) / 2) + tab_lrpad / 2;
 						break;
 					case 2:
-						x = m->maxWTab - lrpad / 2 - c->alticw;
+						x = m->maxWTab - tab_lrpad / 2 - c->alticw;
 						break;
 					default:
 					case 0:
-						x = lrpad / 2;
+						x = tab_lrpad / 2;
 				}
 				drw_pic(drw, x, oy + (h - c->altich)/2, c->alticw, c->altich, c->alticon);
 			}
@@ -15970,19 +16138,23 @@ drawTab(Monitor *m, int active, int first)
 	if (vTabs) {
 		drw_setscheme(drw, scheme[SchemeTabNorm]);
 		drw_rect(drw,
-			(m->tabTextAlign == 2 ? lrpad : (m->maxWTab - lrpad)),
-			lrpad / 2, 10, m->maxHTab - lrpad, 0, 0
+			(m->tabTextAlign == 2 ? tab_lrpad : (m->maxWTab - tab_lrpad)),
+			tab_lrpad / 2, 10, m->maxHTab - tab_lrpad, 0, 0
 		);
-		h = (m->maxHTab - lrpad - lrpad/2);
+		h = (m->maxHTab - tab_lrpad - tab_lrpad/2);
 		sEnd = (h * (sStart + vTabs) / m->nTabs) - (h * sStart / m->nTabs);
 		drw_rect(drw,
-			(m->tabTextAlign == 2 ? (lrpad + 3) : (m->maxWTab - lrpad + 3)),
-			(lrpad / 2) + 3 + (h * sStart / m->nTabs), 4, (sEnd > 0 ? sEnd : 1), 1, 0
+			(m->tabTextAlign == 2 ? (tab_lrpad + 3) : (m->maxWTab - tab_lrpad + 3)),
+			(tab_lrpad / 2) + 3 + (h * sStart / m->nTabs), 4, (sEnd > 0 ? sEnd : 1), 1, 0
 		);
 	}
 	else
 		drw_setscheme(drw, scheme[SchemeTabNorm]);
 	drw_map(drw, m->tabwin, 0, 0, m->maxWTab, m->maxHTab);
+
+	#if PATCH_FONT_GROUPS
+	drw_select_fontgroup(drw, NULL);
+	#endif // PATCH_FONT_GROUPS
 }
 
 void

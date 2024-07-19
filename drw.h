@@ -10,8 +10,18 @@ typedef struct Fnt {
 	unsigned int h;
 	XftFont *xfont;
 	FcPattern *pattern;
+	#if PATCH_FONT_GROUPS
+	unsigned int ellipsis_width;
+	#endif // PATCH_FONT_GROUPS
 	struct Fnt *next;
 } Fnt;
+
+#if PATCH_FONT_GROUPS
+typedef struct FntGrp {
+	const char *name;
+	Fnt *fonts;
+} FntGrp;
+#endif // PATCH_FONT_GROUPS
 
 enum { ColFg, ColBg, ColBorder }; /* Clr scheme index */
 typedef XftColor Clr;
@@ -37,6 +47,11 @@ typedef struct {
 	int bg2;
 	#endif // PATCH_TWO_TONE_TITLE
 	Fnt *fonts;
+	#if PATCH_FONT_GROUPS
+	int numfontgroups;		// number of font groups;
+	FntGrp **fontgroups;	// array of font groups;
+	Fnt *selfonts;			// selected font group, NULL to use default fonts;
+	#endif // PATCH_FONT_GROUPS
 } Drw;
 
 /* Drawable abstraction */
@@ -93,3 +108,10 @@ void drw_pic(Drw *drw, int x, int y, unsigned int w, unsigned int h, Picture pic
 /* Map functions */
 void drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h);
 void drw_maptrans(Drw *drw, Window win, int srcx, int srcy, unsigned int w, unsigned int h, int destx, int desty);
+
+#if PATCH_FONT_GROUPS
+Fnt *drw_get_fontgroup_fonts(Drw *drw, char *groupname);
+int drw_select_fontgroup(Drw *drw, char *groupname);
+int drw_populate_fontgroups(Drw *drw, cJSON *fontgroup_array);
+FntGrp *drw_fontgroup_create_json(Drw *drw, cJSON *fontgroup);
+#endif // PATCH_FONT_GROUPS

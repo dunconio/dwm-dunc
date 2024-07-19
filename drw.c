@@ -139,6 +139,32 @@ drw_resize(Drw *drw, unsigned int w, unsigned int h)
 	}
 }
 
+#if PATCH_FONT_GROUPS
+FntGrp *
+drw_fontgroup_create_json(Drw *drw, cJSON *fontgroup)
+{
+	FntGrp *grp;
+	cJSON *f, *g;
+
+	if (!drw || !fontgroup || !cJSON_IsObject(fontgroup))
+		return NULL;
+
+	if (!(f = cJSON_GetObjectItemCaseSensitive(fontgroup, "name")) ||
+		!cJSON_IsString(f) ||
+		!(g = cJSON_GetObjectItemCaseSensitive(fontgroup, "fonts")) ||
+		!cJSON_IsArray(g)
+		)
+		return NULL;
+
+	grp = ecalloc(1, sizeof(FntGrp));
+	grp->name = f->valuestring;
+	grp->fonts = drw_fontset_create_json(drw, g);
+
+	return grp;
+
+}
+#endif // PATCH_FONT_GROUPS
+
 void
 drw_free(Drw *drw)
 {
@@ -148,8 +174,64 @@ drw_free(Drw *drw)
 	XFreePixmap(drw->dpy, drw->drawable);
 	XFreeGC(drw->dpy, drw->gc);
 	drw_fontset_free(drw->fonts);
+	#if PATCH_FONT_GROUPS
+	if (drw->fontgroups) {
+		for (int i = 0; i < drw->numfontgroups; i++)
+			if (drw->fontgroups[i]) {
+				drw_fontset_free(drw->fontgroups[i]->fonts);
+				free(drw->fontgroups[i]);
+			}
+		free(drw->fontgroups);
+	}
+	#endif // PATCH_FONT_GROUPS
 	free(drw);
 }
+
+#if PATCH_FONT_GROUPS
+int
+drw_populate_fontgroups(Drw *drw, cJSON *fontgroup_array)
+{
+	FntGrp *grp;
+	cJSON *fg, *f, *g;
+	int i, j = 0, n = 0;
+
+	if (!drw || !fontgroup_array ||
+		!((cJSON_IsArray(fontgroup_array) && (n = cJSON_GetArraySize(fontgroup_array)) > 0) ||
+			cJSON_IsObject(fontgroup_array)
+		)
+	) {
+		drw->fontgroups = NULL;
+		return 0;
+	}
+
+	if (!n)
+		n = 1;
+	drw->numfontgroups = n;
+	drw->fontgroups = (FntGrp **) malloc(n * sizeof(FntGrp *));
+
+	for (i = 0; i < n; i++) {
+
+		if (cJSON_IsArray(fontgroup_array))
+			fg = cJSON_GetArrayItem(fontgroup_array, i);
+		else
+			fg = fontgroup_array;
+		if (!(f = cJSON_GetObjectItemCaseSensitive(fg, "name")) ||
+			!cJSON_IsString(f) ||
+			!(g = cJSON_GetObjectItemCaseSensitive(fg, "fonts")) ||
+			!cJSON_IsArray(g)
+			)
+			continue;
+
+		grp = ecalloc(1, sizeof(FntGrp));
+		grp->name = f->valuestring;
+		grp->fonts = drw_fontset_create_json(drw, g);
+		drw->fontgroups[j++] = grp;
+	}
+
+	drw->numfontgroups = j;
+	return j;
+}
+#endif // PATCH_FONT_GROUPS
 
 /* This function is an implementation detail. Library users should use
  * drw_fontset_create instead.
@@ -232,6 +314,19 @@ drw_ellipse(Drw *drw, int x, int y, unsigned int w, unsigned int h, int filled, 
 		XDrawArc(drw->dpy, drw->drawable, drw->gc, x, y, w, h, 0, 360*64);
 }
 
+#if PATCH_FONT_GROUPS
+Fnt *
+drw_get_fontgroup_fonts(Drw *drw, char *groupname)
+{
+	if (drw && drw->fontgroups && groupname)
+		for (int i = 0; i < drw->numfontgroups; i++)
+			if (strcmp(drw->fontgroups[i]->name, groupname) == 0)
+				return drw->fontgroups[i]->fonts;
+
+	return NULL;
+}
+#endif // PATCH_FONT_GROUPS
+
 #if PATCH_TWO_TONE_TITLE
 void
 drw_gradient(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned long col1, unsigned long col2, int invert)
@@ -308,7 +403,7 @@ drw_fontset_create(Drw* drw, const char *fonts[], size_t fontcount)
 			ret = cur;
 		}
 	}
-	return (drw->fonts = ret);
+	return ret;
 }
 
 Fnt*
@@ -334,7 +429,7 @@ drw_fontset_create_json(Drw* drw, cJSON *fonts)
 		ret = cur;
 	}
 
-	return (drw->fonts = ret);
+	return ret;
 }
 
 void
@@ -426,6 +521,20 @@ drw_scm_create(Drw *drw, char *clrnames[], size_t clrcount)
 		drw_clr_create(drw, &ret[i], clrnames[i]);
 	return ret;
 }
+
+#if PATCH_FONT_GROUPS
+int
+drw_select_fontgroup(Drw *drw, char *groupname)
+{
+	if (drw && drw->fontgroups && groupname)
+		drw->selfonts = drw_get_fontgroup_fonts(drw, groupname);
+	else {
+		drw->selfonts = NULL;
+	}
+
+	return (drw->selfonts ? 1 : 0);
+}
+#endif // PATCH_FONT_GROUPS
 
 void
 drw_setfontset(Drw *drw, Fnt *set)
@@ -576,7 +685,7 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 	int i, ty, ellipsis_x = 0;
 	unsigned int tmpw, ew, ellipsis_w = 0, ellipsis_len;
 	XftDraw *d = NULL;
-	Fnt *usedfont, *curfont, *nextfont;
+	Fnt *usedfont, *curfont, *nextfont, *fonts;
 	int utf8strlen, utf8charlen, render = x || y || w || h;
 	long utf8codepoint = 0;
 	const char *utf8str;
@@ -588,10 +697,20 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 	/* keep track of a couple codepoints for which we have no match. */
 	enum { nomatches_len = 64 };
 	static struct { long codepoint[nomatches_len]; unsigned int idx; } nomatches;
+	#if PATCH_FONT_GROUPS
+	#define ELLIPSIS_WIDTH	fonts->ellipsis_width
+	#else // NO PATCH_FONT_GROUPS
 	static unsigned int ellipsis_width = 0;
+	#define ELLIPSIS_WIDTH	ellipsis_width
+	#endif // PATCH_FONT_GROUPS
 
-	if (!drw || (render && (!drw->scheme || !w)) || !text || !drw->fonts)
+	if (!drw || (render && (!drw->scheme || !w)) || !text || !(fonts = drw->fonts))
 		return 0;
+
+	#if PATCH_FONT_GROUPS
+	if (drw->selfonts)
+		fonts = drw->selfonts;
+	#endif // PATCH_FONT_GROUPS
 
 	if (!render) {
 		w = invert ? invert : ~invert;
@@ -615,20 +734,20 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 		w -= lpad;
 	}
 
-	usedfont = drw->fonts;
-	if (!ellipsis_width && render)
-		ellipsis_width = drw_fontset_getwidth(drw, ellipsis);
+	usedfont = fonts;
+	if (!ELLIPSIS_WIDTH && render)
+		ELLIPSIS_WIDTH = drw_fontset_getwidth(drw, ellipsis);
 	while (1) {
 		ew = ellipsis_len = utf8strlen = 0;
 		utf8str = text;
 		nextfont = NULL;
 		while (*text) {
 			utf8charlen = utf8decode(text, &utf8codepoint, UTF_SIZ);
-			for (curfont = drw->fonts; curfont; curfont = curfont->next) {
+			for (curfont = fonts; curfont; curfont = curfont->next) {
 				charexists = charexists || XftCharExists(drw->dpy, curfont->xfont, utf8codepoint);
 				if (charexists) {
 					drw_font_getexts(curfont, text, utf8charlen, &tmpw, NULL);
-					if (ew + ellipsis_width <= w) {
+					if (ew + ELLIPSIS_WIDTH <= w) {
 						/* keep track where the ellipsis still fits */
 						ellipsis_x = x + ew;
 						ellipsis_w = w - ew;
@@ -702,12 +821,12 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 			fccharset = FcCharSetCreate();
 			FcCharSetAddChar(fccharset, utf8codepoint);
 
-			if (!drw->fonts->pattern) {
+			if (!fonts->pattern) {
 				/* Refer to the comment in xfont_create for more information. */
 				die("the first font in the cache must be loaded from a font string.");
 			}
 
-			fcpattern = FcPatternDuplicate(drw->fonts->pattern);
+			fcpattern = FcPatternDuplicate(fonts->pattern);
 			FcPatternAddCharSet(fcpattern, FC_CHARSET, fccharset);
 			FcPatternAddBool(fcpattern, FC_SCALABLE, FcTrue);
 			#if PATCH_XFTLIB_EMOJI_WORKAROUND
@@ -724,14 +843,14 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 			if (match) {
 				usedfont = xfont_create(drw, NULL, match);
 				if (usedfont && XftCharExists(drw->dpy, usedfont->xfont, utf8codepoint)) {
-					for (curfont = drw->fonts; curfont->next; curfont = curfont->next)
+					for (curfont = fonts; curfont->next; curfont = curfont->next)
 						; /* NOP */
 					curfont->next = usedfont;
 				} else {
 					xfont_free(usedfont);
 					nomatches.codepoint[++nomatches.idx % nomatches_len] = utf8codepoint;
 no_match:
-					usedfont = drw->fonts;
+					usedfont = fonts;
 				}
 			}
 		}
