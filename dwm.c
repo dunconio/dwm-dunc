@@ -14854,8 +14854,8 @@ setup(void)
 		#if PATCH_CLIENT_INDICATORS
 		if (tagbar_bh + client_ind_size > bh)
 			bh = tagbar_bh + client_ind_size;
-		else
-			client_ind_offset -= ((bh - tagbar_bh) / 2) - 1;
+		else if (tagbar_bh + client_ind_size < bh)
+			client_ind_offset -= ((unsigned int)(bh - tagbar_bh - 1) / 2);
 		#endif // PATCH_CLIENT_INDICATORS
 	}
 	#endif // PATCH_FONT_GROUPS
@@ -15944,9 +15944,22 @@ drawTab(Monitor *m, int active, int first)
 							(m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) < m->mh ? (m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) : m->mh
 						);
 
-			posX += m->bar[WinTitle].x;
-			if (((posX - m->mx) + m->maxWTab) > m->mw)
-				posX = m->mx + m->mw - m->maxWTab;
+			switch (m->title_align) {
+				case 2:
+					posX += (m->bar[WinTitle].x + m->bar[WinTitle].w - m->maxWTab);
+					break;
+				case 1:
+					posX += m->bar[WinTitle].x + ((int)m->bar[WinTitle].w - (int)m->maxWTab) / 2;
+					break;
+				default:
+				case 0:
+					posX += m->bar[WinTitle].x;
+			}
+			if (posX < m->mx)
+				posX = m->mx;
+			if ((first = m->mw - ((posX - m->mx) + m->maxWTab)) < 0)
+				posX += first;
+
 			if (!m->topbar) {
 				posY += m->mh - m->maxHTab - 1;
 				m->isAlt |= ALTTAB_BOTTOMBAR;
