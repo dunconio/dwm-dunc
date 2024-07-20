@@ -15914,7 +15914,7 @@ drawTab(Monitor *m, int active, int first)
 					c->alticon = geticonprop(c->win, &c->alticw, &c->altich, MIN((tab_minh - pad), iconsize));
 					#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 				if (!icw && c->alticon)
-					icw = c->alticw + (iconspacing*2);
+					icw = c->alticw + iconspacing;
 				#endif // PATCH_WINDOW_ICONS
 
 				#if PATCH_FLAG_HIDDEN
@@ -16120,8 +16120,9 @@ drawTab(Monitor *m, int active, int first)
 			if (align == 1)
 				ox = ((w - fw) / 2) + (fw - tw - tw_mon);
 			else if (align == 2)
-				ox = (w - fw);
-			ox += tab_lrpad / 2;
+				ox = (w - fw) + tab_lrpad / 2;
+			else
+				ox += tab_lrpad / 2;
 
 			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m) {
 				x = ox;
@@ -16183,7 +16184,7 @@ drawTab(Monitor *m, int active, int first)
 				x += ox;
 				switch (align) {
 					case 1:
-						x = ((m->maxWTab - fw) / 2) + tab_lrpad / 2;
+						x = ((m->maxWTab - fw) / 2);
 						break;
 					case 2:
 						x = m->maxWTab - tab_lrpad / 2 - c->alticw;
