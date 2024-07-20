@@ -16987,6 +16987,7 @@ togglefloating(const Arg *arg)
 		c->sfy = c->y;
 		c->sfw = c->w;
 		c->sfh = c->h;
+		resizeclient(c, c->x, c->y, c->w, c->h, False);
 	}
 	arrange(selmon);
 	#if PATCH_PERSISTENT_METADATA
