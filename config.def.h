@@ -28,6 +28,10 @@ static               char *tabHidden		= "[Hidden]";	// string to append/prepend 
 #endif // PATCH_FLAG_HIDDEN
 #endif // PATCH_ALTTAB
 
+#if PATCH_BORDERLESS_SOLITARY_CLIENTS
+static Bool borderless_solitary = True;
+#endif // PATCH_BORDERLESS_SOLITARY_CLIENTS
+
 #if PATCH_HIDE_VACANT_TAGS
 static Bool hidevacant = True;
 #endif // PATCH_HIDE_VACANT_TAGS

@@ -6,6 +6,7 @@
 #define PATCH_ALTTAB_HIGHLIGHT				1	// Support for highlighting clients during alt-tab
 #define PATCH_ATTACH_BELOW_AND_NEWMASTER	1
 #define PATCH_BIDIRECTIONAL_TEXT			1
+#define PATCH_BORDERLESS_SOLITARY_CLIENTS	1
 #define PATCH_CFACTS						1
 #define PATCH_CLIENT_INDICATORS				1
 #define PATCH_CLIENT_OPACITY				1

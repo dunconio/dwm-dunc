@@ -140,6 +140,9 @@ static const supported_json supported_layout_global[] = {
 	{ "bar-tag-format-reversed", 	"true to reverse the order of tag number and master client class" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	{ "border-width",				"window border width in pixels" },
+	#if PATCH_BORDERLESS_SOLITARY_CLIENTS
+	{ "borderless-solitary",		"true to hide window borders for solitary tiled clients" },
+	#endif // PATCH_BORDERLESS_SOLITARY_CLIENTS
 	#if PATCH_CLIENT_INDICATORS
 	{ "client-indicators",			"true to show indicators blobs on the edge of each tag to represent the number of clients present" },
 	{ "client-indicator-size",		"size in pixels of client indicators" },
@@ -10912,6 +10915,16 @@ parselayoutjson(cJSON *layout)
 			}
 			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 
+			#if PATCH_BORDERLESS_SOLITARY_CLIENTS
+			else if (strcmp(L->string, "borderless-solitary")==0) {
+				if (json_isboolean(L)) {
+					borderless_solitary = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"borderless-solitary\" must contain a boolean value", 0);
+			}
+			#endif // PATCH_BORDERLESS_SOLITARY_CLIENTS
+
 			else if (strcmp(L->string, "border-width")==0) {
 				if (cJSON_IsInteger(L)) {
 					borderpx = L->valueint;
@@ -15388,19 +15401,30 @@ done:
 int
 solitary(Client *c)
 {
-	return ((nexttiled(c->mon->clients) == c && !nexttiled(c->next))
-	    || &monocle == c->mon->lt[c->mon->sellt]->arrange
-	    || (c->isfullscreen
+	return
+		#if PATCH_BORDERLESS_SOLITARY_CLIENTS
+		borderless_solitary ? (
+			((nexttiled(c->mon->clients) == c && !nexttiled(c->next))
+			|| &monocle == c->mon->lt[c->mon->sellt]->arrange
+			|| (c->isfullscreen
+				#if PATCH_FLAG_FAKEFULLSCREEN
+				&& c->fakefullscreen != 1
+				#endif // PATCH_FLAG_FAKEFULLSCREEN
+			))
+			&& (!c->isfloating || (c->isfullscreen
+				#if PATCH_FLAG_FAKEFULLSCREEN
+				&& c->fakefullscreen != 1
+				#endif // PATCH_FLAG_FAKEFULLSCREEN
+			))
+			&& NULL != c->mon->lt[c->mon->sellt]->arrange
+		) :
+		#endif // PATCH_BORDERLESS_SOLITARY_CLIENTS
+		(c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			&& c->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
-		))
-		&& (!c->isfloating || (c->isfullscreen
-			#if PATCH_FLAG_FAKEFULLSCREEN
-			&& c->fakefullscreen != 1
-			#endif // PATCH_FLAG_FAKEFULLSCREEN
-		))
-	    && NULL != c->mon->lt[c->mon->sellt]->arrange;
+		)
+	;
 }
 
 void
