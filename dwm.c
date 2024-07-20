@@ -1676,6 +1676,9 @@ static int bh;               /* bar height */
 static int minbh;            /* minimum bar height */
 static int lrpad;            /* sum of left and right padding for text */
 static int nonstop = 1;		// scanning for windows or cleaning up before exit;
+#if PATCH_CLIENT_INDICATORS
+static unsigned int client_ind_offset = 0;
+#endif // PATCH_CLIENT_INDICATORS
 
 #if PATCH_FLAG_GAME
 #if PATCH_FLAG_GAME_STRICT
@@ -4873,10 +4876,8 @@ drawbar(Monitor *m, int skiptags)
 	#if PATCH_FLAG_STICKY
 	int sticky[LENGTH(tags)];
 	#endif // PATCH_FLAG_STICKY
-	if (client_ind && m->client_ind_top)
-		offsety = (client_ind_size / 2) + 1;
-	else
-		offsety = -(client_ind_size / 2) - 1;
+	if (client_ind && client_ind_offset)
+		offsety = client_ind_offset * (m->client_ind_top ? 1 : -1);
 	#endif // PATCH_CLIENT_INDICATORS
 	int x = 0, w;
 	unsigned int customwidth = 0;	// extra bar modules (drawn in front of status) total width;
@@ -14737,6 +14738,9 @@ setup(void)
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	#if PATCH_FONT_GROUPS
 	int j, n = -1, fg_lrpad = 0, fg_minbh = 0;
+	#if PATCH_CLIENT_INDICATORS
+	int tagbar_bh;
+	#endif // PATCH_CLIENT_INDICATORS
 	cJSON *el, *nom;
 	Fnt *f;
 	#endif // PATCH_FONT_GROUPS
@@ -14771,8 +14775,18 @@ setup(void)
 			die("no fonts could be loaded.");
 	lrpad = 3 * drw->fonts->h / 4;
 	minbh = drw->fonts->h + 2;
+	bh = minbh
+		#if PATCH_CLIENT_INDICATORS
+		+ client_ind_size
+		#endif // PATCH_CLIENT_INDICATORS
+	;
+	client_ind_offset = (client_ind_size / 2) + 1;
 	#if PATCH_FONT_GROUPS
 	if (fontgroups_json && drw_populate_fontgroups(drw, fontgroups_json) && barelement_fontgroups_json) {
+
+		#if PATCH_CLIENT_INDICATORS
+		tagbar_bh = minbh;
+		#endif // PATCH_CLIENT_INDICATORS
 
 		if (cJSON_IsArray(barelement_fontgroups_json))
 			n = cJSON_GetArraySize(barelement_fontgroups_json);
@@ -14798,6 +14812,12 @@ setup(void)
 			) {
 				fg_lrpad = f->h;
 				fg_minbh = fg_lrpad + 2;
+
+				#if PATCH_CLIENT_INDICATORS
+				if (BarElementTypes[j - 1].type == TagBar && (fg_minbh > tagbar_bh))
+					tagbar_bh = fg_minbh;
+				#endif // PATCH_CLIENT_INDICATORS
+
 				fg_lrpad = 3 * fg_lrpad / 4;
 				if (lrpad < fg_lrpad)
 					lrpad = fg_lrpad;
@@ -14805,13 +14825,16 @@ setup(void)
 					minbh = fg_minbh;
 			}
 		}
+		if (bh < minbh)
+			bh = minbh;
+		#if PATCH_CLIENT_INDICATORS
+		if (tagbar_bh + client_ind_size > bh)
+			bh = tagbar_bh + client_ind_size;
+		else
+			client_ind_offset -= ((bh - tagbar_bh) / 2) - 1;
+		#endif // PATCH_CLIENT_INDICATORS
 	}
 	#endif // PATCH_FONT_GROUPS
-	bh = minbh
-		#if PATCH_CLIENT_INDICATORS
-		+ client_ind_size //- 1
-		#endif // PATCH_CLIENT_INDICATORS
-	;
 	updategeom();
 
 	#if PATCH_FLAG_GAME
