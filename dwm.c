@@ -2027,10 +2027,13 @@ apply_barelement_fontgroup(int BarElementType)
 
 		if ((el = cJSON_GetObjectItemCaseSensitive(el, "font-group")) && cJSON_IsString(el) &&
 			(drw_select_fontgroup(drw, el->valuestring))
-			)
+		) {
+			lrpad = drw->selfonts ? drw->selfonts->lrpad : drw->fonts->lrpad;
 			return 1;
+		}
 	}
 	drw->selfonts = NULL;
+	lrpad = drw->fonts->lrpad;
 	return 0;
 }
 #endif // PATCH_FONT_GROUPS
@@ -3351,6 +3354,9 @@ buttonpress(XEvent *e)
 					x += m->stw;
 				#endif // PATCH_SYSTRAY
 				statussig = 0;
+				#if PATCH_FONT_GROUPS
+				apply_barelement_fontgroup(StatusText);
+				#endif // PATCH_FONT_GROUPS
 				for (text = s = stext; *s && x <= ev->x; s++) {
 					if ((unsigned char)(*s) < ' ') {
 						ch = *s;
@@ -4890,8 +4896,13 @@ drawbar(Monitor *m, int skiptags)
 	#if PATCH_ALT_TAGS
 	int tagw = 0, alttagw = 0;
 	#endif // PATCH_ALT_TAGS
+	#if PATCH_FONT_GROUPS
+	int boxs = 0;
+	int boxw = 0;
+	#else // NO PATCH_FONT_GROUPS
 	int boxs = drw->fonts->h / 9;
 	int boxw = drw->fonts->h / 6 + 2;
+	#endif // PATCH_FONT_GROUPS
 	unsigned int i, occ = 0, urg = 0;
 	unsigned int a = 0, s = 0;
 	#if PATCH_FLAG_PANEL
@@ -5593,7 +5604,9 @@ drawbar(Monitor *m, int skiptags)
 
 			#if PATCH_FONT_GROUPS
 			apply_barelement_fontgroup(WinTitle);
-			//drw->selfonts = NULL;
+			boxs = (drw->selfonts ? drw->selfonts : drw->fonts)->h;
+			boxw = boxs / 6 + 2;
+			boxs /= 9;
 			#endif // PATCH_FONT_GROUPS
 
 			m->bar[WinTitle].w = w;
@@ -14750,7 +14763,7 @@ setup(void)
 	XSetWindowAttributes fwa;
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	#if PATCH_FONT_GROUPS
-	int j, n = -1, fg_lrpad = 0, fg_minbh = 0;
+	int j, n = -1, fg_minbh = 0;
 	#if PATCH_CLIENT_INDICATORS
 	int tagbar_bh;
 	#endif // PATCH_CLIENT_INDICATORS
@@ -14786,7 +14799,9 @@ setup(void)
 	if (!fonts_json || !(drw->fonts = drw_fontset_create_json(drw, fonts_json)))
 		if (!(drw->fonts = drw_fontset_create(drw, fonts, LENGTH(fonts))))
 			die("no fonts could be loaded.");
-	lrpad = 3 * drw->fonts->h / 4;
+	#if !PATCH_FONT_GROUPS
+	lrpad = LRPAD(drw->fonts);
+	#endif // PATCH_FONT_GROUPS
 	minbh = drw->fonts->h + 2;
 	bh = minbh
 		#if PATCH_CLIENT_INDICATORS
@@ -14823,17 +14838,13 @@ setup(void)
 			if ((el = cJSON_GetObjectItemCaseSensitive(el, "font-group")) && cJSON_IsString(el) &&
 				(f = drw_get_fontgroup_fonts(drw, el->valuestring))
 			) {
-				fg_lrpad = f->h;
-				fg_minbh = fg_lrpad + 2;
+				fg_minbh = f->h + 2;
 
 				#if PATCH_CLIENT_INDICATORS
 				if (BarElementTypes[j - 1].type == TagBar && (fg_minbh > tagbar_bh))
 					tagbar_bh = fg_minbh;
 				#endif // PATCH_CLIENT_INDICATORS
 
-				fg_lrpad = 3 * fg_lrpad / 4;
-				if (lrpad < fg_lrpad)
-					lrpad = fg_lrpad;
 				if (minbh < fg_minbh)
 					minbh = fg_minbh;
 			}
@@ -16202,6 +16213,7 @@ drawTab(Monitor *m, int active, int first)
 
 	#if PATCH_FONT_GROUPS
 	drw_select_fontgroup(drw, NULL);
+	lrpad = drw->fonts->lrpad;
 	#endif // PATCH_FONT_GROUPS
 }
 

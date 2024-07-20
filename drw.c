@@ -286,6 +286,9 @@ xfont_create(Drw *drw, const char *fontname, FcPattern *fontpattern)
 	font->xfont = xfont;
 	font->pattern = pattern;
 	font->h = xfont->ascent + xfont->descent;
+	#if PATCH_FONT_GROUPS
+	font->lrpad = LRPAD(font);
+	#endif // PATCH_FONT_GROUPS
 	font->dpy = drw->dpy;
 
 	return font;
@@ -528,9 +531,8 @@ drw_select_fontgroup(Drw *drw, char *groupname)
 {
 	if (drw && drw->fontgroups && groupname)
 		drw->selfonts = drw_get_fontgroup_fonts(drw, groupname);
-	else {
+	else
 		drw->selfonts = NULL;
-	}
 
 	return (drw->selfonts ? 1 : 0);
 }

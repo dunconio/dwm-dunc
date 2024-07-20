@@ -1,6 +1,9 @@
 /* See LICENSE file for copyright and license details. */
 #include "cJSON/cJSON-dunc.h"
 
+// lrpad formula based on Fnt object F;
+#define LRPAD(F)		(3 * (F)->h / 4)
+
 typedef struct {
 	Cursor cursor;
 } Cur;
@@ -12,6 +15,7 @@ typedef struct Fnt {
 	FcPattern *pattern;
 	#if PATCH_FONT_GROUPS
 	unsigned int ellipsis_width;
+	unsigned int lrpad;
 	#endif // PATCH_FONT_GROUPS
 	struct Fnt *next;
 } Fnt;
