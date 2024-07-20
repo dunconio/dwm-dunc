@@ -178,6 +178,8 @@ layout-file.json supported names:
     global section:
     ---------------
         alt-tab-border             - alt-tab switcher border width in pixels
+        alt-tab-font-group         - alt-tab switcher will use the specified
+                                     font group from "font-groups"
         alt-tab-highlight          - alt-tab switcher highlights clients during
                                      selection
         alt-tab-monitor-format     - printf style format of monitor identifier
@@ -189,9 +191,13 @@ layout-file.json supported names:
                                      1:centre, 2:right
         alt-tab-y                  - alt-tab switcher position - 0:top,
                                      1:middle, 2:bottom
+        bar-element-font-groups    - single object or array of objects
+                                     containing "bar-element" string and
+                                     "font-group" string
         bar-layout                 - array of bar elements in order of
                                      appearance
-                                     (TagBar, LtSymbol, WinTitle, StatusText)
+                                     (TagBar, LtSymbol, WinTitle, StatusText,
+                                     ShowDesktop)
         bar-tag-format-empty       - printf style format of tag displayed when
                                      no client is assigned, using %s as
                                      placeholder
@@ -201,6 +207,8 @@ layout-file.json supported names:
         bar-tag-format-reversed    - true to reverse the order of tag number and
                                      master client class
         border-width               - window border width in pixels
+        borderless-solitary        - true to hide window borders for solitary
+                                     tiled clients
         client-indicators          - true to show indicators blobs on the edge
                                      of each tag to represent the number of
                                      clients present
@@ -252,7 +260,11 @@ layout-file.json supported names:
                                      SW:bottom-left, NW:top-left
         focus-pixel-size           - width/height of box on focused client's
                                      bottom right corner, 0 to disable
+        font-groups                - single object or array of objects
+                                     containing "name" string and "fonts" string
+                                     or array of strings
         fonts                      - font string or array of font strings to use
+                                     by default
         hide-vacant-tags           - hide tags with no clients
         icon-size                  - size of window icons on the bar
         icon-size-big              - size of large window icons in the alt-tab
@@ -390,7 +402,7 @@ layout-file.json supported names:
         set-showbar             - whether to show the bar by default on this tag
         set-switch-on-empty     - switch to the specified tag when no more
                                   clients are visible under this tag
-        set-tag-char            - show this text instead of the default tag text
+        set-tag-text            - show this text instead of the default tag text
 
 
 rules-file.json supported names:
