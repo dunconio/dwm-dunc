@@ -19,7 +19,9 @@ static       unsigned int tabPosX 			= 1;	/* tab position on X axis, 0 = left, 1
 static 	     unsigned int tabMaxW 			= 600;	/* tab menu width */
 static 	     unsigned int tabMaxH 			= 400;	/* tab menu maximum height */
 static       unsigned int tabBW				= 4;	// default tab menu border width;
-static       unsigned int tabTextAlign		= 0;	// default tab menu text alignment, 0 = left, 1 = centre, 2 = right */
+static       unsigned int tabTextAlign		= 0;	// default tab menu text alignment, 0 = left, 1 = centre, 2 = right;
+static const unsigned int tabNoCentrePopup	= 1;	// a centred WinTitle element will have a left-aligned popup;
+static const        float tabVertFactor	= 1/3.0f;	// vertical padding scale factor for popup menu items;
 #if PATCH_ALTTAB_HIGHLIGHT
 static               Bool tabHighlight      = True;	// highlight clients during switching;
 #endif // PATCH_ALTTAB_HIGHLIGHT

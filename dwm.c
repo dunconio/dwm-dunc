@@ -5621,31 +5621,41 @@ drawbar(Monitor *m, int skiptags)
 					+ (active->icon ? active->icw + iconspacing : 0)
 					#endif // PATCH_WINDOW_ICONS
 				);
+				int rpad = 0;
 				unsigned int tw = 0;
 				if (m->title_align) {
 					tw =
 						#if PATCH_FLAG_HIDDEN
-						TEXTW(active->ishidden ? "window hidden" : active->name)
+						drw_fontset_getwidth(drw, (active->ishidden ? "window hidden" : active->name))
 						#else // NO PATCH_FLAG_HIDDEN
-						TEXTW(active->name)
+						drw_fontset_getwidth(drw, active->name)
 						#endif // PATCH_FLAG_HIDDEN
+						+ lrpad / 2
 						#if PATCH_WINDOW_ICONS
 						+ (active->icon ? active->icw + iconspacing : 0)
 						#endif // PATCH_WINDOW_ICONS
 					;
-					if ((tw + lpad + lrpad / 2) < w && m->title_align) {
+					if ((tw + lpad) < w && m->title_align) {
 						if (m->title_align == 1)
-							pad = ((w - tw) / 2)
+							pad = ((w - lpad - tw) / 2) + lpad
 								#if PATCH_WINDOW_ICONS
 								+ (active->icon ? active->icw + iconspacing : 0)
 								#endif // PATCH_WINDOW_ICONS
 							;
 						else if (m->title_align == 2)
-							pad = (w - tw - lpad)
+							pad = (w - tw)
 								#if PATCH_WINDOW_ICONS
-								+ (active->icon ? active->icw : 0)
+								- (active->icon ? iconspacing : 0)
 								#endif // PATCH_WINDOW_ICONS
 							;
+					}
+					else if (m->title_align == 2) {
+						pad = lrpad / 2;
+						rpad = lpad
+							#if PATCH_WINDOW_ICONS
+							+ (active->icon ? active->icw + iconspacing : 0)
+							#endif // PATCH_WINDOW_ICONS
+						;
 					}
 				}
 
@@ -5657,7 +5667,7 @@ drawbar(Monitor *m, int skiptags)
 					active->name
 				);
 				#endif // PATCH_BIDIRECTIONAL_TEXT
-				drw_text(drw, x, 0, w, bh, pad,
+				drw_text(drw, x, 0, w - rpad, bh, pad,
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
@@ -14799,9 +14809,7 @@ setup(void)
 	if (!fonts_json || !(drw->fonts = drw_fontset_create_json(drw, fonts_json)))
 		if (!(drw->fonts = drw_fontset_create(drw, fonts, LENGTH(fonts))))
 			die("no fonts could be loaded.");
-	#if !PATCH_FONT_GROUPS
 	lrpad = LRPAD(drw->fonts);
-	#endif // PATCH_FONT_GROUPS
 	minbh = drw->fonts->h + 2;
 	bh = minbh
 		#if PATCH_CLIENT_INDICATORS
@@ -14855,7 +14863,7 @@ setup(void)
 		if (tagbar_bh + client_ind_size > bh)
 			bh = tagbar_bh + client_ind_size;
 		else if (tagbar_bh + client_ind_size < bh)
-			client_ind_offset -= ((unsigned int)(bh - tagbar_bh - 1) / 2);
+			client_ind_offset = 0;
 		#endif // PATCH_CLIENT_INDICATORS
 	}
 	#endif // PATCH_FONT_GROUPS
@@ -15831,16 +15839,36 @@ drawTab(Monitor *m, int active, int first)
 	int tab_lrpad = lrpad;
 	int tab_minh = minbh;
 
+	int boxs, boxw, lpad = 0;
+	if (!tabswitcher) {
+		boxs = drw->fonts->h / 9;
+		boxw = drw->fonts->h / 6 + 2;
+		lpad = (2 * boxs + boxw);
+	}
+
 	altTabActive = active;
 
 	unsigned int bw = (tabswitcher ? m->tabBW : 2);
 
 	#if PATCH_FONT_GROUPS
-	if ((tabswitcher && drw_select_fontgroup(drw, tabFontgroup)) || apply_barelement_fontgroup(WinTitle)) {
+	if ((tabswitcher && drw_select_fontgroup(drw, tabFontgroup))
+	|| (!tabswitcher && apply_barelement_fontgroup(WinTitle)))
+	{
 		tab_minh = drw->selfonts->h + 2;
 		tab_lrpad = 3 * drw->selfonts->h / 4;
+		if (!tabswitcher) {
+			boxs = (drw->selfonts ? drw->selfonts : drw->fonts)->h;
+			boxw = boxs / 6 + 2;
+			boxs /= 9;
+			lpad = 2 * boxs + boxw;
+		}
 	}
 	#endif // PATCH_FONT_GROUPS
+	if (tabswitcher)
+		lpad = tab_lrpad / 2;
+	else {
+		lpad = MAX(lpad, (tab_lrpad / 2));
+	}
 	#if PATCH_WINDOW_ICONS
 	int pad = (tabswitcher ? tab_lrpad : 0);
 	#endif // PATCH_WINDOW_ICONS
@@ -15892,6 +15920,9 @@ drawTab(Monitor *m, int active, int first)
 		}
 		else {
 
+			if ((tab_minh + (tab_lrpad * tabVertFactor)) >= (bh - 2*bw))
+				tab_minh -= bw;
+
 			unsigned int tw = 0;
 			#if PATCH_WINDOW_ICONS
 			unsigned int icw = 0;
@@ -15920,40 +15951,48 @@ drawTab(Monitor *m, int active, int first)
 				#if PATCH_FLAG_HIDDEN
 				if (c->ishidden) {
 					appendhidden(m, c->name, buffer, 256);
-					w = TEXTW(buffer);
+					w = drw_fontset_getwidth(drw, buffer) + tab_lrpad / 2 + lpad;
 				}
 				else
 				#endif // PATCH_FLAG_HIDDEN
-				w = TEXTW(c->name);
+				w = drw_fontset_getwidth(drw, c->name) + tab_lrpad / 2 + lpad;
 				if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m)
-					w += TEXTW(c->mon->numstr);
+					w += drw_fontset_getwidth(drw, c->mon->numstr) + tab_lrpad / 2;
 				if (w > tw)
 					tw = w;
 			}
-			tw += tab_lrpad
-				#if PATCH_WINDOW_ICONS
-				+ icw + (iconspacing) - tab_lrpad
-				#endif // PATCH_WINDOW_ICONS
-			;
+			#if PATCH_WINDOW_ICONS
+			tw += icw + (iconspacing);
+			#endif // PATCH_WINDOW_ICONS
+
 			m->maxWTab = MIN(
 							MAX(m->bar[WinTitle].w, tw),
 							m->mw
 						);
 			m->maxHTab = MIN(
-							((tab_lrpad/2 + tab_minh) * m->nTabs)+2*bw,
+							(((tab_lrpad * tabVertFactor) + tab_minh) * m->nTabs)+2*bw,
 							(m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) < m->mh ? (m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) : m->mh
 						);
+
+			if (!tabswitcher)
+				tw -= 2*bw;
 
 			switch (m->title_align) {
 				case 2:
 					posX += (m->bar[WinTitle].x + m->bar[WinTitle].w - m->maxWTab);
+					if ((posX + m->maxWTab) > (m->bar[WinTitle].x + m->bar[WinTitle].w))
+						lpad = tab_lrpad / 2;
 					break;
 				case 1:
 					posX += m->bar[WinTitle].x + ((int)m->bar[WinTitle].w - (int)m->maxWTab) / 2;
+					if (posX != m->bar[WinTitle].x)
+						lpad = tab_lrpad / 2;
 					break;
 				default:
 				case 0:
 					posX += m->bar[WinTitle].x;
+					if (posX + m->maxWTab > m->mw)
+						lpad = tab_lrpad / 2;
 			}
 			if (posX < m->mx)
 				posX = m->mx;
@@ -16060,7 +16099,14 @@ drawTab(Monitor *m, int active, int first)
 	int tw;				// text width of caption;
 	int tw_mon = 0;		// text width (without padding) of monnumf caption;
 	int w;				// width of caption area;
-	unsigned int align = (m->isAlt & ALTTAB_MOUSE ? m->title_align : m->tabTextAlign);
+	unsigned int align = m->tabTextAlign;
+	if (m->isAlt & ALTTAB_MOUSE) {
+		align = m->title_align;
+		if (align == 1 && tabNoCentrePopup)
+			align = 0;
+	}
+	if (!tabswitcher)
+		lpad -= bw;
 
 	m->altTabIndex = m->altTabVStart = -1;
 	// draw all clients into tabwin;
@@ -16092,13 +16138,13 @@ drawTab(Monitor *m, int active, int first)
 			#if PATCH_FLAG_HIDDEN
 			if (c->ishidden) {
 				appendhidden(m, c->name, buffer, 256);
-				fw = tw = TEXTW(buffer);
+				fw = tw = drw_fontset_getwidth(drw, buffer) + tab_lrpad / 2 + lpad;
 			}
 			else
 			#endif // PATCH_FLAG_HIDDEN
-				fw = tw = TEXTW(c->name);
+				fw = tw = drw_fontset_getwidth(drw, c->name) + tab_lrpad / 2 + lpad;
 			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m)
-				tw_mon = drw_fontset_getwidth(drw, c->mon->numstr);
+				tw_mon = drw_fontset_getwidth(drw, c->mon->numstr) + tab_lrpad / 2;
 			fw += tw_mon;
 			#if PATCH_WINDOW_ICONS
 			if (!c->alticon)
@@ -16115,19 +16161,25 @@ drawTab(Monitor *m, int active, int first)
 			#endif // PATCH_WINDOW_ICONS
 
 			w = m->maxWTab;
-			if (fw > w)
+			if (fw > w) {
+				tw -= (fw - w);
 				fw = w;
+			}
+
 			if (align == 1)
-				ox = ((w - fw) / 2) + (fw - tw - tw_mon);
+				ox = ((unsigned int)(w - fw) / 2) + (fw - tw - tw_mon);
 			else if (align == 2)
-				ox = (w - fw) + tab_lrpad / 2;
-			else
-				ox += tab_lrpad / 2;
+				ox = (unsigned int)(w - fw) + bw
+					#if PATCH_WINDOW_ICONS
+					- (c->icon ? iconspacing : 0)
+					#endif // PATCH_WINDOW_ICONS
+				;
+			ox += lpad;
 
 			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m) {
 				x = ox;
 				if (align == 2)
-					x += tw - tab_lrpad;
+					x += tw - lpad;
 				#if PATCH_BIDIRECTIONAL_TEXT
 				apply_fribidi(c->mon->numstr);
 				#endif // PATCH_BIDIRECTIONAL_TEXT
@@ -16145,13 +16197,13 @@ drawTab(Monitor *m, int active, int first)
 				);
 				if (align == 2) {
 					x = 0;
-					ox = m->maxWTab - fw;
+					ox = (unsigned int)(m->maxWTab - fw) + tab_lrpad / 2;
 					w = ox + tw - tab_lrpad / 2;
 				}
 				else {
 					ox = 0;
-					x += (tw_mon + tab_lrpad / 2);
-					w -= (tw_mon + tab_lrpad);
+					x += tw_mon;
+					w -= x;
 				}
 			}
 
@@ -16184,14 +16236,14 @@ drawTab(Monitor *m, int active, int first)
 				x += ox;
 				switch (align) {
 					case 1:
-						x = ((m->maxWTab - fw) / 2);
+						x = ((m->maxWTab - fw) / 2) + lpad; // + lrpad / 2;
 						break;
 					case 2:
-						x = m->maxWTab - tab_lrpad / 2 - c->alticw;
+						x = m->maxWTab - lpad - c->alticw;
 						break;
 					default:
 					case 0:
-						x = tab_lrpad / 2;
+						x = lpad;
 				}
 				drw_pic(drw, x, oy + (h - c->altich)/2, c->alticw, c->altich, c->alticon);
 			}
@@ -16212,13 +16264,13 @@ drawTab(Monitor *m, int active, int first)
 		drw_setscheme(drw, scheme[SchemeTabNorm]);
 		drw_rect(drw,
 			(align == 2 ? tab_lrpad : (m->maxWTab - tab_lrpad)),
-			tab_lrpad / 2, 10, m->maxHTab - tab_lrpad, 0, 0
+			(tab_lrpad * tabVertFactor), 10, m->maxHTab - tab_lrpad, 0, 0
 		);
-		h = (m->maxHTab - tab_lrpad - tab_lrpad/2);
+		h = (m->maxHTab - tab_lrpad - (tab_lrpad * tabVertFactor));
 		sEnd = (h * (sStart + vTabs) / m->nTabs) - (h * sStart / m->nTabs);
 		drw_rect(drw,
 			(align == 2 ? (tab_lrpad + 3) : (m->maxWTab - tab_lrpad + 3)),
-			(tab_lrpad / 2) + 3 + (h * sStart / m->nTabs), 4, (sEnd > 0 ? sEnd : 1), 1, 0
+			((tab_lrpad * tabVertFactor)) + 3 + (h * sStart / m->nTabs), 4, (sEnd > 0 ? sEnd : 1), 1, 0
 		);
 	}
 	else
