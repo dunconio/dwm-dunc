@@ -112,6 +112,8 @@ typedef struct {
 static const supported_json supported_layout_global[] = {
 	#if PATCH_ALTTAB
 	{ "alt-tab-border",				"alt-tab switcher border width in pixels" },
+	{ "alt-tab-dropdown-vpad-extra","alt-tab switcher dropdown menu item vertical padding extra gap in pixels" },
+	{ "alt-tab-dropdown-vpad-factor","alt-tab switcher dropdown menu item vertical padding factor" },
 	#if PATCH_FONT_GROUPS
 	{ "alt-tab-font-group",			"alt-tab switcher will use the specified font group from \"font-groups\"" },
 	#endif // PATCH_FONT_GROUPS
@@ -119,6 +121,7 @@ static const supported_json supported_layout_global[] = {
 	{ "alt-tab-highlight",			"alt-tab switcher highlights clients during selection" },
 	#endif // PATCH_ALTTAB_HIGHLIGHT
 	{ "alt-tab-monitor-format",		"printf style format of monitor identifier using %s as placeholder" },
+	{ "alt-tab-no-centre-dropdown",	"true to make alt-tab dropdown left-aligned when WinTitle is centre-aligned" },
 	{ "alt-tab-size",				"maximum size of alt-tab switcher (WxH)" },
 	{ "alt-tab-text-align",			"alt-tab text alignment - 0:left, 1:centre, 2:right" },
 	{ "alt-tab-x",					"alt-tab switcher position - 0:left, 1:centre, 2:right" },
@@ -10701,7 +10704,21 @@ parselayoutjson(cJSON *layout)
 					tabBW = L->valueint;
 					continue;
 				}
-				cJSON_AddNumberToObject(unsupported, "\"alt-tab-border\" must contain a numeric value", 0);
+				cJSON_AddNumberToObject(unsupported, "\"alt-tab-border\" must contain an integer value", 0);
+			}
+			else if (strcmp(L->string, "alt-tab-dropdown-vpad-extra")==0) {
+				if (cJSON_IsInteger(L) && L->valueint >= 0) {
+					tabMenuVertGap = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"alt-tab-dropdown-vpad-extra\" must contain an integer value", 0);
+			}
+			else if (strcmp(L->string, "alt-tab-dropdown-vpad-factor")==0) {
+				if (cJSON_IsNumeric(L) && L->valuedouble >= 0) {
+					tabMenuVertFactor = (float)L->valuedouble;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"alt-tab-dropdown-vpad-factor\" must contain a numeric value", 0);
 			}
 			else if (strcmp(L->string, "alt-tab-monitor-format")==0) {
 				if (cJSON_IsString(L)) {
@@ -10709,6 +10726,13 @@ parselayoutjson(cJSON *layout)
 					continue;
 				}
 				cJSON_AddNumberToObject(unsupported, "\"alt-tab-monitor-format\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "alt-tab-no-centre-dropdown")==0) {
+				if (json_isboolean(L)) {
+					tabMenuNoCentreAlign = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"no-centre-dropdown\" must contain a boolean value", 0);
 			}
 			else if (strcmp(L->string, "alt-tab-size")==0) {
 				if (cJSON_IsString(L)) {
@@ -15920,8 +15944,9 @@ drawTab(Monitor *m, int active, int first)
 		}
 		else {
 
-			if ((tab_minh + (tab_lrpad * tabVertFactor)) >= (bh - 2*bw))
-				tab_minh -= bw;
+			if ((tab_lrpad * tabMenuVertFactor) + tabMenuVertGap >= bw)
+				if ((tab_minh + (tab_lrpad * tabMenuVertFactor) + tabMenuVertGap) >= (bh - 2*bw))
+					tab_minh -= bw;
 
 			unsigned int tw = 0;
 			#if PATCH_WINDOW_ICONS
@@ -15970,7 +15995,7 @@ drawTab(Monitor *m, int active, int first)
 							m->mw
 						);
 			m->maxHTab = MIN(
-							(((tab_lrpad * tabVertFactor) + tab_minh) * m->nTabs)+2*bw,
+							(((tab_lrpad * tabMenuVertFactor) + tabMenuVertGap + tab_minh) * m->nTabs)+2*bw,
 							(m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) < m->mh ? (m->tabMaxH + (m->mh / 2) - (m->tabMaxH / 2)) : m->mh
 						);
 
@@ -16102,7 +16127,7 @@ drawTab(Monitor *m, int active, int first)
 	unsigned int align = m->tabTextAlign;
 	if (m->isAlt & ALTTAB_MOUSE) {
 		align = m->title_align;
-		if (align == 1 && tabNoCentrePopup)
+		if (align == 1 && tabMenuNoCentreAlign)
 			align = 0;
 	}
 	if (!tabswitcher)
@@ -16264,13 +16289,14 @@ drawTab(Monitor *m, int active, int first)
 		drw_setscheme(drw, scheme[SchemeTabNorm]);
 		drw_rect(drw,
 			(align == 2 ? tab_lrpad : (m->maxWTab - tab_lrpad)),
-			(tab_lrpad * tabVertFactor), 10, m->maxHTab - tab_lrpad, 0, 0
+			(tab_lrpad * tabMenuVertFactor) + tabMenuVertGap, 10, m->maxHTab - tab_lrpad, 0, 0
 		);
-		h = (m->maxHTab - tab_lrpad - (tab_lrpad * tabVertFactor));
+		h = (m->maxHTab - tab_lrpad - (tab_lrpad * tabMenuVertFactor) - tabMenuVertGap);
 		sEnd = (h * (sStart + vTabs) / m->nTabs) - (h * sStart / m->nTabs);
 		drw_rect(drw,
 			(align == 2 ? (tab_lrpad + 3) : (m->maxWTab - tab_lrpad + 3)),
-			((tab_lrpad * tabVertFactor)) + 3 + (h * sStart / m->nTabs), 4, (sEnd > 0 ? sEnd : 1), 1, 0
+			((tab_lrpad * tabMenuVertFactor) + tabMenuVertGap) + 3 + (h * sStart / m->nTabs),
+			4, (sEnd > 0 ? sEnd : 1), 1, 0
 		);
 	}
 	else
