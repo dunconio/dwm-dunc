@@ -16125,13 +16125,14 @@ drawTab(Monitor *m, int active, int first)
 	int tw_mon = 0;		// text width (without padding) of monnumf caption;
 	int w;				// width of caption area;
 	unsigned int align = m->tabTextAlign;
-	if (m->isAlt & ALTTAB_MOUSE) {
+	if (!tabswitcher) {
 		align = m->title_align;
-		if (align == 1 && tabMenuNoCentreAlign)
+		if (align == 1 && tabMenuNoCentreAlign) {
 			align = 0;
-	}
-	if (!tabswitcher)
+			lpad = tab_lrpad / 2;
+		}
 		lpad -= bw;
+	}
 
 	m->altTabIndex = m->altTabVStart = -1;
 	// draw all clients into tabwin;
