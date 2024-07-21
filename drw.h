@@ -2,7 +2,7 @@
 #include "cJSON/cJSON-dunc.h"
 
 // lrpad formula based on Fnt object F;
-#define LRPAD(F)		(3 * (F)->h / 4)
+#define LRPAD(F)		(4 * (F)->h / 5)
 
 typedef struct {
 	Cursor cursor;
