@@ -17380,14 +17380,26 @@ void
 unhidewin(const Arg *arg) {
 	Monitor *m = selmon;
 
+	#if PATCH_SHOW_DESKTOP
+	unsigned int n = 0;
+	#endif // PATCH_SHOW_DESKTOP
+
 	// show all hidden windows in this tag
 	for (Client *c = m->clients; c; c = c->next)
-		if (c->ishidden && ISVISIBLE(c)) {
+		if (c->ishidden && ISVISIBLEONTAG(c, m->tagset[m->seltags])) {
+			#if PATCH_SHOW_DESKTOP
+			n++;
+			#endif // PATCH_SHOW_DESKTOP
 			sethidden(c, False);
 			#if PATCH_PERSISTENT_METADATA
 			setclienttagprop(c);
 			#endif // PATCH_PERSISTENT_METADATA
 		}
+
+	#if PATCH_SHOW_DESKTOP
+	if (m->showdesktop && n)
+		m->showdesktop = 0;
+	#endif // PATCH_SHOW_DESKTOP
 
 	arrangemon(m);
 
