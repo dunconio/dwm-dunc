@@ -14795,7 +14795,11 @@ setfullscreen(Client *c, int fullscreen)
 		#endif // PATCH_FLAG_GAME
 
 	} else if (ISVISIBLE(c)) {
-		if (c->isfullscreen) {
+		if (c->isfullscreen
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			&& !c->fakefullscreen
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+		) {
 			resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
 			DEBUG("Resized to screen size c:%s\n", c->name);
 		}
@@ -14889,7 +14893,11 @@ setfullscreen(Client *c, int fullscreen)
 		#endif // PATCH_FLAG_GAME
 
 	} else {
-		if (c->isfullscreen) {
+		if (c->isfullscreen
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			&& !c->fakefullscreen
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+		) {
 			resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
 			DEBUG("Resized to screen size c:%s\n", c->name);
 		}
