@@ -31,6 +31,7 @@
 #define PATCH_PAUSE_PROCESS					1
 #define PATCH_PERSISTENT_METADATA			1	// Store client metadata, restore metadata after a restart
 #define PATCH_PERTAG						1
+#define PATCH_RAINBOW_TAGS					1
 #define PATCH_SCAN_OVERRIDE_REDIRECTS		0	// Not usually necessary - only picks up windows during scan();
 #define PATCH_SHOW_DESKTOP					1
 #define PATCH_SHOW_DESKTOP_BUTTON			1

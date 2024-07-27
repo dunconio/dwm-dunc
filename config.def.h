@@ -194,6 +194,18 @@ static char *colours[][3] = {
 	#if PATCH_TORCH
 	[SchemeTorch]   = {	col_black,	col_yellow,		col_yellow	},
 	#endif // PATCH_TORCH
+	#if PATCH_RAINBOW_TAGS
+	// Border not used for rainbow tags;
+	[SchemeTag1]	= {	col_white,	"#ff0000",		col_black	},
+	[SchemeTag2]	= {	col_black,	"#ff8000",		col_black	},
+	[SchemeTag3]	= {	col_black,	"#ffe020",		col_black	},
+	[SchemeTag4]	= {	col_black,	"#40a020",		col_black	},
+	[SchemeTag5]	= {	col_black,	"#00ff40",		col_black	},
+	[SchemeTag6]	= {	col_white,	"#4040ff",		col_black	},
+	[SchemeTag7]	= {	col_white,	"#2020a0",		col_black	},
+	[SchemeTag8]	= {	col_white,	"#800080",		col_black	},
+	[SchemeTag9]	= {	col_black,	"#c020c0",		col_black	},
+	#endif // PATCH_RAINBOW_TAGS
 };
 
 /* tagging */

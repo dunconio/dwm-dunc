@@ -719,6 +719,10 @@ enum {	SchemeNorm, SchemeSel,
 		#if PATCH_TORCH
 		, SchemeTorch
 		#endif // PATCH_TORCH
+		#if PATCH_RAINBOW_TAGS
+		, SchemeTag1, SchemeTag2, SchemeTag3, SchemeTag4, SchemeTag5, SchemeTag6
+		, SchemeTag7, SchemeTag8, SchemeTag9
+		#endif // PATCH_RAINBOW_TAGS
 }; // colour schemes;
 enum {	NetSupported, NetWMName,
 		#if PATCH_WINDOW_ICONS
@@ -5478,7 +5482,13 @@ drawbar(Monitor *m, int skiptags)
 						#if PATCH_SHOW_DESKTOP
 						&& !m->showdesktop
 						#endif // PATCH_SHOW_DESKTOP
-						? SchemeSel :
+						?
+							#if PATCH_RAINBOW_TAGS
+							SchemeTag1 + i
+							#else // NO PATCH_RAINBOW_TAGS
+							SchemeSel
+							#endif // PATCH_RAINBOW_TAGS
+						:
 						#if PATCH_FLAG_HIDDEN
 						visible[i] < 0
 						#if PATCH_SHOW_DESKTOP
