@@ -9934,31 +9934,47 @@ DEBUGENDIF
 				#endif // PATCH_MOUSE_POINTER_WARPING
 
 				losefullscreen(c->mon->sel, c);
-				unfocus(c->mon->sel, 0);
+				unfocus(c->mon->sel,
+					#if PATCH_FLAG_PANEL
+					c->ispanel ? 1 :
+					#endif // PATCH_FLAG_PANEL
+				0);
 
 				#if PATCH_SHOW_DESKTOP || PATCH_MOUSE_POINTER_WARPING
 				//focus(c, 1);
 				#endif // PATCH_SHOW_DESKTOP || PATCH_MOUSE_POINTER_WARPING
+				#if PATCH_FLAG_PANEL
+				if (!c->ispanel)
+				#endif // PATCH_FLAG_PANEL
 				focus(c, 1);
 
 				#if PATCH_MOUSE_POINTER_WARPING
-				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				#if PATCH_FOCUS_FOLLOWS_MOUSE
-				#if PATCH_FLAG_GREEDY_FOCUS
-				if (c->isgreedy && (
-						(c->isfloating && c->autofocus)
-						#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-						|| (!c->isfloating && c->newmaster)
-						#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
-					))
-					warptoclient(c, 0, 1);
-				else
-				#endif // PATCH_FLAG_GREEDY_FOCUS
-				#endif // PATCH_FOCUS_FOLLOWS_MOUSE
-				warptoclient(c, 1, 0);
-				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, 0);
-				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+				#if PATCH_FLAG_PANEL
+				// avoid warping when the new client is 'attached' to its parent panel;
+				if (!c->ispanel && (!c->isfloating || !c->parent || !c->parent->ispanel ||
+					(c->y + HEIGHT(c)) < c->parent->y || c->y > (c->parent->y + c->parent->h) ||
+					(c->x + WIDTH(c)) < c->parent->x || c->x > (c->parent->x + c->parent->w)
+				))
+				#endif // PATCH_FLAG_PANEL
+				{
+					#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+					#if PATCH_FOCUS_FOLLOWS_MOUSE
+					#if PATCH_FLAG_GREEDY_FOCUS
+					if (c->isgreedy && (
+							(c->isfloating && c->autofocus)
+							#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+							|| (!c->isfloating && c->newmaster)
+							#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+						))
+						warptoclient(c, 0, 1);
+					else
+					#endif // PATCH_FLAG_GREEDY_FOCUS
+					#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+					warptoclient(c, 1, 0);
+					#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+					warptoclient(c, 0);
+					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+				}
 				#endif // PATCH_MOUSE_POINTER_WARPING
 			}
 		}
@@ -17718,6 +17734,8 @@ unfocus(Client *c, int setfocus)
 	fpcurpos = 0;
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
+	publishwindowstate(c);	// reset window state;
+
 	if (setfocus) {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
 		XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
@@ -17889,6 +17907,7 @@ unmanage(Client *c, int destroyed, int cleanup)
 		XSelectInput(dpy, c->win, NoEventMask);
 		XConfigureWindow(dpy, c->win, CWBorderWidth, &wc); /* restore border */
 		XUngrabButton(dpy, AnyButton, AnyModifier, c->win);
+		publishwindowstate(c);	// reset window state;
 		setclientstate(c, WithdrawnState);
 		XSync(dpy, False);
 		XSetErrorHandler(xerror);
