@@ -5516,6 +5516,10 @@ drawbar(Monitor *m, int skiptags)
 						);
 					if ((tagw = mc[i]->tagicw))
 						tagw += lrpad;
+					else {
+						snprintf(tagdisp, 64, "%s", m->tags[i]);
+						tagw = TEXTW(tagdisp);
+					}
 				}
 				else
 				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
