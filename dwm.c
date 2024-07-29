@@ -5039,7 +5039,7 @@ elementafter(Monitor *m, unsigned int el1, unsigned int el2)
 void
 drawbar(Monitor *m, int skiptags)
 {
-	if (running != 1
+	if (running != 1 || nonstop
 		#if PATCH_TORCH
 		|| torchwin
 		#endif // PATCH_TORCH
@@ -5370,12 +5370,12 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				masterclientontag[i] = NULL;
 				masterclientontagmem[i] = 0;
+				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				#if PATCH_WINDOW_ICONS
 				#if PATCH_WINDOW_ICONS_ON_TAGS
 				mc[i] = NULL;
 				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
 				#endif // PATCH_WINDOW_ICONS
-				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				#if PATCH_FLAG_HIDDEN
 				visible[i] = 0;
 				#endif // PATCH_FLAG_HIDDEN
@@ -5498,11 +5498,9 @@ drawbar(Monitor *m, int skiptags)
 					continue;
 				}
 
-				#if PATCH_ALT_TAGS
 				#if PATCH_WINDOW_ICONS
 				#if PATCH_WINDOW_ICONS_ON_TAGS
-				if (m->showiconsontags && mc[i]) {
-					if (!mc[i]->tagicon)
+				if (m->showiconsontags && mc[i] && !mc[i]->tagicon)
 						mc[i]->tagicon = geticonprop(
 							#if PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 							mc[i],
@@ -5514,6 +5512,13 @@ drawbar(Monitor *m, int skiptags)
 							MIN((bh - 4), (minbh - 2))
 							#endif // PATCH_CLIENT_INDICATORS
 						);
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
+				#endif // PATCH_WINDOW_ICONS
+
+				#if PATCH_ALT_TAGS
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				if (m->showiconsontags && mc[i] && mc[i]->tagicon && mc[i]->tagicw) {
 					if ((tagw = mc[i]->tagicw))
 						tagw += lrpad;
 					else {
@@ -5556,7 +5561,7 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_ALT_TAGS
 					#if PATCH_WINDOW_ICONS
 					#if PATCH_WINDOW_ICONS_ON_TAGS
-					if (!m->alttags && mc[i] && mc[i]->tagicw) {
+					if (!m->alttags && mc[i] && mc[i]->tagicon && mc[i]->tagicw) {
 						if (m->reversemaster)
 							snprintf(tagdisp, 64, m->ptagf, masterclientbuff, "%s");
 						else
@@ -5575,14 +5580,14 @@ drawbar(Monitor *m, int skiptags)
 				else
 				#if PATCH_WINDOW_ICONS
 				#if PATCH_WINDOW_ICONS_ON_TAGS
-				if (m->alttags || !mc[i] || !mc[i]->icw)
+				if (m->alttags || !mc[i] || !mc[i]->tagicw)
 				#endif // PATCH_WINDOW_ICONS_ON_TAGS
 				#endif // PATCH_WINDOW_ICONS
 					snprintf(tagdisp, 64, (m->showmaster ? m->etagf : "%s"), m->alttags ? tags[i] : m->tags[i]);
 
 				#if PATCH_WINDOW_ICONS
 				#if PATCH_WINDOW_ICONS_ON_TAGS
-				if (!m->alttags && mc[i] && mc[i]->icw) {
+				if (!m->alttags && mc[i] && mc[i]->tagicon && mc[i]->tagicw) {
 					w = mc[i]->tagicw + tagw + lrpad;
 					if (m->showmaster)
 						w += (drw_fontset_getwidth(drw, tagdisp) - drw_fontset_getwidth(drw, "%s"));
@@ -5599,22 +5604,58 @@ drawbar(Monitor *m, int skiptags)
 					drw_rect(drw, x, 0, w, bh, 1, 1);
 				}
 				#else // NO PATCH_ALT_TAGS
+					#if PATCH_WINDOW_ICONS
+					#if PATCH_WINDOW_ICONS_ON_TAGS
+					if (mc[i] && mc[i]->tagicw) {
+						if (m->reversemaster)
+							snprintf(tagdisp, 64, m->ptagf, masterclientbuff, "%s");
+						else
+							snprintf(tagdisp, 64, m->ptagf, "%s", masterclientbuff);
+					}
+					else
+					#endif // PATCH_WINDOW_ICONS_ON_TAGS;
+					#endif // PATCH_WINDOW_ICONS
 					snprintf(tagdisp, 64, m->ptagf, tags[i], masterclientbuff);
 				}
 				else
 					snprintf(tagdisp, 64, (m->showmaster ? m->etagf : "%s"), tags[i]);
+
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				if (mc[i] && mc[i]->tagicon && mc[i]->tagicw) {
+					w = mc[i]->tagicw + lrpad;
+					if (m->showmaster)
+						w += (drw_fontset_getwidth(drw, tagdisp) - drw_fontset_getwidth(drw, "%s"));
+				}
+				else
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS
+				#endif // PATCH_WINDOW_ICONS
 				w = TEXTW(tagdisp);
 				if (x + w >= m->bar[StatusText].x - customwidth)
 					w = ((m->bar[StatusText].x - customwidth) - x);
 				m->tagw[i] = w;
 				#endif // PATCH_ALT_TAGS
 				#else // NO PATCH_SHOW_MASTER_CLIENT_ON_TAG
-				#if PATCH_ALT_TAGS
-				snprintf(tagdisp, 64, "%s", m->alttags ? tags[i] : m->tags[i]);
-				w = (TEXTW(tagdisp) + tagw);
-				#else // NO PATCH_ALT_TAGS
-				w = TEXTW(tagdisp);
-				#endif // PATCH_ALT_TAGS
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				if (
+					#if PATCH_ALT_TAGS
+					!m->alttags &&
+					#endif // PATCH_ALT_TAGS
+					mc[i] && mc[i]->tagicon && mc[i]->tagicw
+					)
+					w = mc[i]->tagicw + lrpad;
+				else
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS
+				#endif // PATCH_WINDOW_ICONS
+				{
+					#if PATCH_ALT_TAGS
+					snprintf(tagdisp, 64, "%s", m->alttags ? tags[i] : m->tags[i]);
+					w = (TEXTW(tagdisp) + tagw);
+					#else // NO PATCH_ALT_TAGS
+					w = TEXTW(tagdisp);
+					#endif // PATCH_ALT_TAGS
+				}
 				if (x + w >= m->bar[StatusText].x - customwidth)
 					w = ((m->bar[StatusText].x - customwidth) - x);
 				m->tagw[i] = w;
@@ -5646,13 +5687,13 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_WINDOW_ICONS
 				#if PATCH_WINDOW_ICONS_ON_TAGS
 				if (
+					(!m->showiconsontags || !mc[i] || !mc[i]->tagicon || !mc[i]->tagicw)
 					#if PATCH_ALT_TAGS
-					m->alttags ||
+					|| m->alttags
 					#endif // PATCH_ALT_TAGS
 					#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-					m->showmaster ||
+					|| m->showmaster
 					#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-					(!m->showiconsontags || !mc[i] || !mc[i]->tagicw)
 				)
 				#endif // PATCH_WINDOW_ICONS_ON_TAGS
 				#endif // PATCH_WINDOW_ICONS
@@ -5660,13 +5701,14 @@ drawbar(Monitor *m, int skiptags)
 					#if PATCH_BIDIRECTIONAL_TEXT
 					apply_fribidi(tagdisp);
 					#endif // PATCH_BIDIRECTIONAL_TEXT
+					#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 					#if PATCH_WINDOW_ICONS
 					#if PATCH_WINDOW_ICONS_ON_TAGS
 					if (
 						#if PATCH_ALT_TAGS
 						!m->alttags &&
 						#endif // PATCH_ALT_TAGS
-						m->showiconsontags && mc[i] && mc[i]->tagicw
+						m->showiconsontags && mc[i] && mc[i]->tagicon && mc[i]->tagicw
 						)
 						textwithicon(
 							#if PATCH_BIDIRECTIONAL_TEXT
@@ -5677,7 +5719,11 @@ drawbar(Monitor *m, int skiptags)
 							mc[i]->tagicon,
 							mc[i]->tagicw,
 							mc[i]->tagich,
+							#if PATCH_ALT_TAGS
 							m->tags[i],
+							#else // NO PATCH_ALT_TAGS
+							tags[i],
+							#endif // PATCH_ALT_TAGS
 							x, 0, w, bh,
 							(lrpad / 2),
 							#if PATCH_CLIENT_INDICATORS
@@ -5692,6 +5738,7 @@ drawbar(Monitor *m, int skiptags)
 					else
 					#endif // PATCH_WINDOW_ICONS_ON_TAGS
 					#endif // PATCH_WINDOW_ICONS
+					#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 					drw_text(
 						drw, x, 0, w, bh,
 						(lrpad / 2)
@@ -5722,7 +5769,7 @@ drawbar(Monitor *m, int skiptags)
 				}
 				#if PATCH_WINDOW_ICONS
 				#if PATCH_WINDOW_ICONS_ON_TAGS
-				else if (m->showiconsontags && mc[i] && mc[i]->tagicw
+				else if (m->showiconsontags && mc[i] && mc[i]->tagicon && mc[i]->tagicw
 					#if PATCH_ALT_TAGS
 					&& !m->alttags
 					#endif // PATCH_ALT_TAGS
