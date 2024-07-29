@@ -99,7 +99,9 @@ static Bool showdesktop_floating = True;
 #endif // PATCH_MOVE_FLOATING_WINDOWS
 
 #if PATCH_WINDOW_ICONS
-static Bool iconsontags = True;			// show window icons on tags;
+#if PATCH_WINDOW_ICONS_ON_TAGS
+static Bool showiconsontags = True;			// show window icons on tags;
+#endif // PATCH_WINDOW_ICONS_ON_TAGS
 #if PATCH_WINDOW_ICONS_DEFAULT_ICON
 // define default icon for clients without icons;
 static char *default_icon = "";
@@ -214,11 +216,11 @@ static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 //static char *tags[] = { "󾠮", "󾠯", "󾠰", "󾠱", "󾠲", "󾠳", "󾠴", "󾠵", "󾠶" };
 
 #if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-static int showmaster = 1;			// show master client on tag bar;
-static char *ptagf = "[%s %s]";		// format of a tag label
+static int showmaster = 1;				// show master client on tag bar;
+static char *ptagf = "[%s %s]";	// format of a tag label
 static char *etagf = "[%s]";		// format of an empty tag
-static int lcaselbl = 1;			// 1 means make tag label lowercase
-static int reverselbl = 0;			// 1 means reverse the order for ptagf;
+static int lcaselbl = 1;				// 1 means make tag label lowercase
+static int reverselbl = 0;				// 1 means reverse the order for ptagf;
 #endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 
 /* layout(s) */

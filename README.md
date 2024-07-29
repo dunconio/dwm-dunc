@@ -92,6 +92,7 @@ These can be enabled/disabled by editing `patches.h`
 | <ul>`PATCH_WINDOW_ICONS_CUSTOM_ICONS`</ul> | Enable per-client a user-specified icon; |
 | <ul>`PATCH_WINDOW_ICONS_DEFAULT_ICON`</ul> | Set a default icon for clients without; |
 | <ul>`PATCH_WINDOW_ICONS_LEGACY_ICCCM`</ul> | Kludge to populate window icons the old way, for legacy applications; |
+| <ul>`PATCH_WINDOW_ICONS_ON_TAGS`</ul> | Show the primary client's icon in place of each tag's identifier; |
 | `PATCH_XFTLIB_EMOJI_WORKAROUND` | Workaround for a crash with colour emojis on some systems (set to `0` when `XftLib` version is 2.3.5 or greater); |
 |- |- |
 
@@ -178,212 +179,233 @@ layout-file.json supported names:
 
     global section:
     ---------------
-        alt-tab-border             - alt-tab switcher border width in pixels
-        alt-tab-font-group         - alt-tab switcher will use the specified
-                                     font group from "font-groups"
-        alt-tab-highlight          - alt-tab switcher highlights clients during
-                                     selection
-        alt-tab-monitor-format     - printf style format of monitor identifier
-                                     using %s as placeholder
-        alt-tab-size               - maximum size of alt-tab switcher (WxH)
-        alt-tab-text-align         - alt-tab text alignment - 0:left, 1:centre,
-                                     2:right
-        alt-tab-x                  - alt-tab switcher position - 0:left,
-                                     1:centre, 2:right
-        alt-tab-y                  - alt-tab switcher position - 0:top,
-                                     1:middle, 2:bottom
-        bar-element-font-groups    - single object or array of objects
-                                     containing "bar-element" string and
-                                     "font-group" string
-        bar-layout                 - array of bar elements in order of
-                                     appearance
-                                     (TagBar, LtSymbol, WinTitle, StatusText,
-                                     ShowDesktop)
-        bar-tag-format-empty       - printf style format of tag displayed when
-                                     no client is assigned, using %s as
-                                     placeholder
-        bar-tag-format-populated   - printf style format of tag displayed when
-                                     one or more clients are assigned, using %s
-                                     as placeholders
-        bar-tag-format-reversed    - true to reverse the order of tag number and
-                                     master client class
-        border-width               - window border width in pixels
-        borderless-solitary        - true to hide window borders for solitary
-                                     tiled clients
-        client-indicators          - true to show indicators blobs on the edge
-                                     of each tag to represent the number of
-                                     clients present
-        client-indicator-size      - size in pixels of client indicators
-        client-indicators-top      - true to show indicators at the top of the
-                                     bar, false to show indicators at the bottom
-        client-opacity-active      - opacity of active clients (between 0 and 1)
-        client-opacity-enabled     - true to enable variable window opacity
-        client-opacity-inactive    - opacity of inactive clients (between 0 and
-                                     1)
-        colours-layout             - colour of layout indicator, in the form
-                                     [<foreground>, <background>, <border>]
-        colours-hidden             - colour of hidden elements, in the form
-                                     [<foreground>, <background>, <border>]
-        colours-normal             - colour of normal elements, in the form
-                                     [<foreground>, <background>, <border>]
-        colours-selected           - colour of selected elements, in the form
-                                     [<foreground>, <background>, <border>]
-        colour-selected-bg2        - active client title background colour 2
-                                     (for the gradient fill)
-        colours-torch              - torch colours, in the form
-                                     [<foreground>, <background>, <border>]
-        colours-urgent             - colour of urgent elements, in the form
-                                     [<foreground>, <background>, <border>]
-        colours-alt-tab-hidden     - colour of alt-tab switcher hidden elements,
-                                     in the form
-                                     [<foreground>, <background>, <border>]
-        colours-alt-tab-normal     - colour of alt-tab switcher elements, in the
-                                     form
-                                     [<foreground>, <background>, <border>]
-        colours-alt-tab-selected   - colour of alt-tab switcher selected
-                                     elements, in the form
-                                     [<foreground>, <background>, <border>]
-        colours-alt-tab-urgent     - colour of alt-tab switcher urgent elements,
-                                     in the form
-                                     [<foreground>, <background>, <border>]
-        cursor-autohide            - true to hide cursor when stationary or keys
-                                     are pressed, for all clients
-        cursor-autohide-delay      - the number of seconds before a stationary
-                                     cursor can be hidden, 0 to disable
-        default-icon               - path to default icon file for clients
-                                     without icons
-        desktop-icon               - path to default icon file for desktop
-                                     clients
-        default-tags               - array of single character strings for the
-                                     default character for each tag
-        focus-pixel-corner         - determine to which corner the box is added
-                                     - NE:top-right, SE:bottom-right,
-                                     SW:bottom-left, NW:top-left
-        focus-pixel-size           - width/height of box on focused client's
-                                     bottom right corner, 0 to disable
-        font-groups                - single object or array of objects
-                                     containing "name" string and "fonts" string
-                                     or array of strings
-        fonts                      - font string or array of font strings to use
-                                     by default
-        hide-vacant-tags           - hide tags with no clients
-        icon-size                  - size of window icons on the bar
-        icon-size-big              - size of large window icons in the alt-tab
-                                     switcher
-        icon-spacing               - size of gap between icon and window title
-        mirror-layout              - switch master area and stack area
-        monitors                   - array of monitor objects (see "monitor
-                                     sections")
-        show-desktop               - true to enable management of desktop
-                                     clients, and toggle desktop
-        show-desktop-button-symbol - symbol to show on the clickable show
-                                     desktop button (ShowDesktop bar element)
-        show-desktop-layout-symbol - symbol to show in place of layout when the
-                                     desktop is visible
-        show-desktop-unmanaged     - true to ignore NetWMWindowTypeDesktop
-                                     windows (if the desktop manager expects to
-                                     span all monitors)
-        show-desktop-when-active   - true to only allow switching to the
-                                     desktop, when a desktop client exists
-        show-desktop-with-floating - true to allow floating clients to be
-                                     visible when showing the desktop
-        showmaster                 - set to true if the master client class
-                                     should be shown on each tag on the bar
-        system-tray                - true to enable system tray handling
-        system-tray-align          - align the system tray to side of the status
-                                     area:
-                                     0:left, 1:right
-        system-tray-pinning        - pin system tray to specific monitor, -1 to
-                                     follow the active monitor
-        system-tray-spacing        - number of pixels between system tray icons
-        terminal-swallowing        - true to enable terminal swallowing
-        title-align                - active client title alignment: 0:left,
-                                     1:centred, 2:right
-        title-border-width         - WinTitle bar element border width in
-                                     pixels, for when monitor is selected
-                                     without a client selected
-        top-bar                    - true to show the bar at the top of each
-                                     monitor
-        urgency-hinting            - disable urgency hinting for clients
-                                     (doesn't affect set-urgency rule
-                                     functionality)
-        vanity-gaps                - true for vanity gaps (default), false for
-                                     no gaps between windows
-        vanity-gaps-inner-h        - inner horizontal gap between windows in
-                                     pixels
-        vanity-gaps-inner-v        - inner vertical gap between windows in
-                                     pixels
-        vanity-gaps-outer-h        - outer horizontal gap between windows and
-                                     monitor edges in pixels
-        vanity-gaps-outer-v        - outer vertical gap between windows and
-                                     monitor edges in pixels
-        view-on-tag                - switch view when tagging a client
+        alt-tab-border               - alt-tab switcher border width in pixels
+        alt-tab-dropdown-vpad-extra  - alt-tab switcher dropdown menu item
+                                       vertical padding extra gap in pixels
+        alt-tab-dropdown-vpad-factor - alt-tab switcher dropdown menu item
+                                       vertical padding factor
+        alt-tab-font-group           - alt-tab switcher will use the specified
+                                       font group from "font-groups"
+        alt-tab-highlight            - alt-tab switcher highlights clients
+                                       during selection
+        alt-tab-monitor-format       - printf style format of monitor identifier
+                                       using %s as placeholder
+        alt-tab-no-centre-dropdown   - true to make alt-tab dropdown
+                                       left-aligned when WinTitle is
+                                       centre-aligned
+        alt-tab-size                 - maximum size of alt-tab switcher (WxH)
+        alt-tab-text-align           - alt-tab text alignment - 0:left,
+                                       1:centre, 2:right
+        alt-tab-x                    - alt-tab switcher position - 0:left,
+                                       1:centre, 2:right
+        alt-tab-y                    - alt-tab switcher position - 0:top,
+                                       1:middle, 2:bottom
+        bar-element-font-groups      - single object or array of objects
+                                       containing "bar-element" string and
+                                       "font-group" string
+        bar-layout                   - array of bar elements in order of
+                                       appearance
+                                       (TagBar, LtSymbol, WinTitle, StatusText,
+                                       ShowDesktop)
+        bar-tag-format-empty         - printf style format of tag displayed when
+                                       no client is assigned, using %s as
+                                       placeholder
+        bar-tag-format-populated     - printf style format of tag displayed when
+                                       one or more clients are assigned, using
+                                       %s as placeholders
+        bar-tag-format-reversed      - true to reverse the order of tag number
+                                       and master client class
+        border-width                 - window border width in pixels
+        borderless-solitary          - true to hide window borders for solitary
+                                       tiled clients
+        client-indicators            - true to show indicators blobs on the edge
+                                       of each tag to represent the number of
+                                       clients present
+        client-indicator-size        - size in pixels of client indicators
+        client-indicators-top        - true to show indicators at the top of the
+                                       bar, false to show indicators at the
+                                       bottom
+        client-opacity-active        - opacity of active clients (between 0 and
+                                       1)
+        client-opacity-enabled       - true to enable variable window opacity
+        client-opacity-inactive      - opacity of inactive clients (between 0
+                                       and 1)
+        colours-layout               - colour of layout indicator, in the form
+                                       [<foreground>, <background>, <border>]
+        colours-hidden               - colour of hidden elements, in the form
+                                       [<foreground>, <background>, <border>]
+        colours-normal               - colour of normal elements, in the form
+                                       [<foreground>, <background>, <border>]
+        colours-selected             - colour of selected elements, in the form
+                                       [<foreground>, <background>, <border>]
+        colour-selected-bg2          - active client title background colour 2
+                                       (for the gradient fill)
+        colours-torch                - torch colours, in the form
+                                       [<foreground>, <background>, <border>]
+        colours-urgent               - colour of urgent elements, in the form
+                                       [<foreground>, <background>, <border>]
+        colours-alt-tab-hidden       - colour of alt-tab switcher hidden
+                                       elements, in the form
+                                       [<foreground>, <background>, <border>]
+        colours-alt-tab-normal       - colour of alt-tab switcher elements, in
+                                       the form
+                                       [<foreground>, <background>, <border>]
+        colours-alt-tab-selected     - colour of alt-tab switcher selected
+                                       elements, in the form
+                                       [<foreground>, <background>, <border>]
+        colours-alt-tab-urgent       - colour of alt-tab switcher urgent
+                                       elements, in the form
+                                       [<foreground>, <background>, <border>]
+        cursor-autohide              - true to hide cursor when stationary or
+                                       keys are pressed, for all clients
+        cursor-autohide-delay        - the number of seconds before a stationary
+                                       cursor can be hidden, 0 to disable
+        default-icon                 - path to default icon file for clients
+                                       without icons
+        desktop-icon                 - path to default icon file for desktop
+                                       clients
+        default-tags                 - array of single character strings for the
+                                       default character for each tag
+        focus-pixel-corner           - determine to which corner the box is
+                                       added - NE:top-right, SE:bottom-right,
+                                       SW:bottom-left, NW:top-left
+        focus-pixel-size             - width/height of box on focused client's
+                                       bottom right corner, 0 to disable
+        font-groups                  - single object or array of objects
+                                       containing "name" string and "fonts"
+                                       string or array of strings
+        fonts                        - font string or array of font strings to
+                                       use by default
+        hide-vacant-tags             - hide tags with no clients
+        icon-size                    - size of window icons on the bar
+        icon-size-big                - size of large window icons in the alt-tab
+                                       switcher
+        icon-spacing                 - size of gap between icon and window title
+        mirror-layout                - switch master area and stack area
+        monitors                     - array of monitor objects (see "monitor
+                                       sections")
+        show-desktop                 - true to enable management of desktop
+                                       clients, and toggle desktop
+        show-desktop-button-symbol   - symbol to show on the clickable show
+                                       desktop button (ShowDesktop bar element)
+        show-desktop-layout-symbol   - symbol to show in place of layout when
+                                       the desktop is visible
+        show-desktop-unmanaged       - true to ignore NetWMWindowTypeDesktop
+                                       windows (if the desktop manager expects
+                                       to span all monitors)
+        show-desktop-when-active     - true to only allow switching to the
+                                       desktop, when a desktop client exists
+        show-desktop-with-floating   - true to allow floating clients to be
+                                       visible when showing the desktop
+        show-icons-on-tags           - true to show primary master client's icon
+                                       in place of tag identifier (for each tag)
+        showmaster                   - set to true if the master client class
+                                       should be shown on each tag on the bar
+        system-tray                  - true to enable system tray handling
+        system-tray-align            - align the system tray to side of the
+                                       status area:
+                                       0:left, 1:right
+        system-tray-pinning          - pin system tray to specific monitor, -1
+                                       to follow the active monitor
+        system-tray-spacing          - number of pixels between system tray
+                                       icons
+        terminal-swallowing          - true to enable terminal swallowing
+        title-align                  - active client title alignment: 0:left,
+                                       1:centred, 2:right
+        title-border-width           - WinTitle bar element border width in
+                                       pixels, for when monitor is selected
+                                       without a client selected
+        top-bar                      - true to show the bar at the top of each
+                                       monitor
+        urgency-hinting              - disable urgency hinting for clients
+                                       (doesn't affect set-urgency rule
+                                       functionality)
+        vanity-gaps                  - true for vanity gaps (default), false for
+                                       no gaps between windows
+        vanity-gaps-inner-h          - inner horizontal gap between windows in
+                                       pixels
+        vanity-gaps-inner-v          - inner vertical gap between windows in
+                                       pixels
+        vanity-gaps-outer-h          - outer horizontal gap between windows and
+                                       monitor edges in pixels
+        vanity-gaps-outer-v          - outer vertical gap between windows and
+                                       monitor edges in pixels
+        view-on-tag                  - switch view when tagging a client
 
     monitor sections:
     -----------------
-        comment                 - ignored
-        log-rules               - log all matching rules for this monitor
-        monitor                 - monitor number
-        set-alt-tab-border      - alt-tab switcher border width in pixels on
-                                  this monitor
-        set-alt-tab-size        - maximum size of alt-tab switcher (WxH) on this
-                                  monitor
-        set-alt-tab-text-align  - alt-tab text alignment on this monitor -
-                                  0:left, 1:centre, 2:right
-        set-alt-tab-x           - alt-tab switcher position on this monitor -
-                                  0:left, 1:centre, 2:right
-        set-alt-tab-y           - alt-tab switcher position on this monitor -
-                                  0:top, 1:middle, 2:bottom
-        set-bar-layout          - array of bar elements in order of appearance
-                                  (TagBar, LtSymbol, WinTitle, StatusText)
-        set-cursor-autohide     - true to hide cursor when stationary on this
-                                  monitor
-        set-cursor-hide-on-keys - true to hide cursor when keys are pressed on
-                                  this monitor
-        set-default             - set this monitor to be the default selected on
-                                  startup
-        set-enable-gaps         - set to true to enable vanity gaps between
-                                  clients (default)
-        set-gap-inner-h         - horizontal inner gap between clients
-        set-gap-inner-v         - vertical inner gap between clients
-        set-gap-outer-h         - horizontal outer gap between clients and the
-                                  screen edges
-        set-gap-outer-v         - vertical outer gap between clients and the
-                                  screen edges
-        set-hide-vacant-tags    - hide tags with no clients on this monitor
-        set-indicators-top      - set to true to show client indicators on the
-                                  top edge of the bar
-        set-layout              - layout number or layout symbol
-        set-mfact               - size of master client area for all tags on
-                                  this monitor
-        set-mirror-layout       - switch master area and stack area on this
-                                  monitor
-        set-opacity-active      - level of opacity for clients when active on
-                                  this monitor
-        set-opacity-inactive    - level of opacity for clients when inactive on
-                                  this monitor
-        set-nmaster             - number of master clients for all tags on this
-                                  monitor
-        set-quiet-alt-tags      - don't raise the bar or show over fullscreen
-                                  clients on this monitor
-        set-reverse-master      - set to true if the master client class should
-                                  be shown before the tag indicator
-        set-showbar             - whether to show the bar by default on this
-                                  monitor
-        set-showmaster          - set to true if the master client class should
-                                  be shown on each tag on the bar
-        set-showstatus          - set to 1 if the status text should be
-                                  displayed, -1 to ignore root window name
-                                  changes
-        set-start-tag           - default tag to activate on startup
-        set-switch-on-empty     - switch to the specified tag when no more
-                                  clients are visible under the active tag
-        set-title-align         - active client title alignment: 0:left,
-                                  1:centred, 2:right
-        set-topbar              - set to true if the bar should be at the top of
-                                  the screen for this monitor
-        tags                    - array of tag-specific settings (see "tags
-                                  sections (per monitor)")
+        comment                  - ignored
+        log-rules                - log all matching rules for this monitor
+        monitor                  - monitor number
+        set-alt-tab-border       - alt-tab switcher border width in pixels on
+                                   this monitor
+        set-alt-tab-size         - maximum size of alt-tab switcher (WxH) on
+                                   this monitor
+        set-alt-tab-text-align   - alt-tab text alignment on this monitor -
+                                   0:left, 1:centre, 2:right
+        set-alt-tab-x            - alt-tab switcher position on this monitor -
+                                   0:left, 1:centre, 2:right
+        set-alt-tab-y            - alt-tab switcher position on this monitor -
+                                   0:top, 1:middle, 2:bottom
+        set-bar-layout           - array of bar elements in order of appearance
+                                   (TagBar, LtSymbol, WinTitle, StatusText)
+        set-cursor-autohide      - true to hide cursor when stationary on this
+                                   monitor
+        set-cursor-hide-on-keys  - true to hide cursor when keys are pressed on
+                                   this monitor
+        set-default              - set this monitor to be the default selected
+                                   on startup
+        set-enable-gaps          - set to true to enable vanity gaps between
+                                   clients (default)
+        set-gap-inner-h          - horizontal inner gap between clients
+        set-gap-inner-v          - vertical inner gap between clients
+        set-gap-outer-h          - horizontal outer gap between clients and the
+                                   screen edges
+        set-gap-outer-v          - vertical outer gap between clients and the
+                                   screen edges
+        set-hide-vacant-tags     - hide tags with no clients on this monitor
+        set-indicators-top       - set to true to show client indicators on the
+                                   top edge of the bar
+        set-layout               - layout number or layout symbol
+        set-mfact                - size of master client area for all tags on
+                                   this monitor
+        set-mirror-layout        - switch master area and stack area on this
+                                   monitor
+        set-opacity-active       - level of opacity for clients when active on
+                                   this monitor
+        set-opacity-inactive     - level of opacity for clients when inactive on
+                                   this monitor
+        set-nmaster              - number of master clients for all tags on this
+                                   monitor
+        set-quiet-alt-tags       - don't raise the bar or show over fullscreen
+                                   clients on this monitor
+        set-reverse-master       - set to true if the master client class should
+                                   be shown before the tag indicator
+        set-show-icons-on-tags   - true to show primary master client's icon in
+                                   place of tag identifier (for each tag) on
+                                   this monitor
+        set-showbar              - whether to show the bar by default on this
+                                   monitor
+        set-showmaster           - set to true if the master client class should
+                                   be shown on each tag on the bar
+        set-showstatus           - set to 1 if the status text should be
+                                   displayed, -1 to ignore root window name
+                                   changes
+        set-start-tag            - default tag to activate on startup
+        set-switch-on-empty      - switch to the specified tag when no more
+                                   clients are visible under the active tag
+        set-tag-format-empty     - printf style format of tag displayed when no
+                                   client is assigned, using %s as placeholder
+                                   on this monitor
+        set-tag-format-populated - printf style format of tag displayed when one
+                                   or more clients are assigned, using %s as
+                                   placeholders on this monitor
+        set-title-align          - active client title alignment: 0:left,
+                                   1:centred, 2:right
+        set-topbar               - set to true if the bar should be at the top
+                                   of the screen for this monitor
+        tags                     - array of tag-specific settings (see "tags
+                                   sections (per monitor)")
 
     tags sections (per monitor):
     ----------------------------
