@@ -99,6 +99,7 @@ static Bool showdesktop_floating = True;
 #endif // PATCH_MOVE_FLOATING_WINDOWS
 
 #if PATCH_WINDOW_ICONS
+static Bool iconsontags = True;			// show window icons on tags;
 #if PATCH_WINDOW_ICONS_DEFAULT_ICON
 // define default icon for clients without icons;
 static char *default_icon = "";

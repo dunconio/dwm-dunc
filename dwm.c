@@ -5031,6 +5031,12 @@ drawbar(Monitor *m, int skiptags)
 	char *masterclientontag[LENGTH(tags)];
 	int masterclientontagmem[LENGTH(tags)];
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+	#if PATCH_WINDOW_ICONS
+	#if PATCH_WINDOW_ICONS_ON_TAGS
+	Client *masterclient[LENGTH(tags)];
+	int offsetx = 0;
+	#endif // PATCH_WINDOW_ICONS_ON_TAGS
+	#endif // PATCH_WINDOW_ICONS
 
 	if ((m->showbar && (
 		!m->sel || !m->sel->isfullscreen
@@ -5311,6 +5317,11 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				masterclientontag[i] = NULL;
 				masterclientontagmem[i] = 0;
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				masterclient[i] = NULL;
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
+				#endif // PATCH_WINDOW_ICONS
 				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				#if PATCH_FLAG_HIDDEN
 				visible[i] = 0;
@@ -5366,9 +5377,32 @@ drawbar(Monitor *m, int skiptags)
 								if (ch.res_name)
 									XFree(ch.res_name);
 							}
+							#if PATCH_WINDOW_ICONS
+							#if PATCH_WINDOW_ICONS_ON_TAGS
+							masterclient[i] = c;
+							#endif // PATCH_WINDOW_ICONS_ON_TAGS;
+							#endif // PATCH_WINDOW_ICONS
 						}
 				}
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				else
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS
+				#endif // PATCH_WINDOW_ICONS
 				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				{
+					for (i = 0; i < LENGTH(tags); i++)
+						if (!masterclient[i] && c->tags & (1<<i)
+							#if PATCH_SHOW_DESKTOP
+							&& !(c->isdesktop || c->ondesktop)
+							#endif // PATCH_SHOW_DESKTOP
+							)
+							masterclient[i] = c;
+				}
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS
+				#endif // PATCH_WINDOW_ICONS
 				#if PATCH_FLAG_HIDDEN || PATCH_CLIENT_INDICATORS
 				for (i = 0; i < LENGTH(tags); i++) {
 					if (
@@ -5411,8 +5445,20 @@ drawbar(Monitor *m, int skiptags)
 				}
 
 				#if PATCH_ALT_TAGS
-				snprintf(tagdisp, 64, "%s", m->tags[i]);
-				tagw = TEXTW(tagdisp);
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				offsetx = 0;
+				if (iconsontags && masterclient[i] && (tagw = masterclient[i]->icw)) {
+					offsetx = m->alttags ? 0 : tagw;
+					tagw += lrpad;
+				}
+				else
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
+				#endif // PATCH_WINDOW_ICONS
+				{
+					snprintf(tagdisp, 64, "%s", m->tags[i]);
+					tagw = TEXTW(tagdisp);
+				}
 				snprintf(tagdisp, 64, "%s", tags[i]);
 				alttagw = TEXTW(tagdisp);
 				if (tagw > alttagw)
@@ -5420,6 +5466,13 @@ drawbar(Monitor *m, int skiptags)
 				else
 					tagw = (!m->alttags ? (alttagw - tagw) : 0);
 				#else // NO PATCH_ALT_TAGS
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				if (!iconsontags || !masterclient[i] ||
+					(!(offsetx = masterclient[i]->icw) && (offsetx += lrpad))
+					)
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
+				#endif // PATCH_WINDOW_ICONS
 				snprintf(tagdisp, 64, "%s", tags[i]);
 				#endif // PATCH_ALT_TAGS
 
@@ -5439,14 +5492,41 @@ drawbar(Monitor *m, int skiptags)
 					if (masterclientontagmem[i])
 						XFree(masterclientontag[i]);
 				#if PATCH_ALT_TAGS
-					if (m->reversemaster)
-						snprintf(tagdisp, 64, ptagf, masterclientbuff, m->alttags ? tags[i] : m->tags[i]);
+					#if PATCH_WINDOW_ICONS
+					#if PATCH_WINDOW_ICONS_ON_TAGS
+					if (!m->alttags && masterclient[i] && masterclient[i]->icw) {
+						if (m->reversemaster)
+							snprintf(tagdisp, 64, ptagf, masterclientbuff, "");
+						else
+							snprintf(tagdisp, 64, ptagf, "", masterclientbuff);
+					}
 					else
-						snprintf(tagdisp, 64, ptagf, m->alttags ? tags[i] : m->tags[i], masterclientbuff);
+					#endif // PATCH_WINDOW_ICONS_ON_TAGS;
+					#endif // PATCH_WINDOW_ICONS
+					{
+						if (m->reversemaster)
+							snprintf(tagdisp, 64, ptagf, masterclientbuff, m->alttags ? tags[i] : m->tags[i]);
+						else
+							snprintf(tagdisp, 64, ptagf, m->alttags ? tags[i] : m->tags[i], masterclientbuff);
+					}
 				}
 				else
 					snprintf(tagdisp, 64, (m->showmaster ? etagf : "%s"), m->alttags ? tags[i] : m->tags[i]);
+
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				if (!m->alttags && !masterclientontag[i] && masterclient[i])
+					w = (masterclient[i]->icw + lrpad + tagw);
+				else
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS
+				#endif // PATCH_WINDOW_ICONS
 				w = (TEXTW(tagdisp) + tagw);
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				if (m->showmaster)
+					w += offsetx;
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS
+				#endif // PATCH_WINDOW_ICONS
 				if (x + w >= m->bar[StatusText].x - customwidth)
 					w = ((m->bar[StatusText].x - customwidth) - x);
 				m->tagw[i] = w;
@@ -5499,36 +5579,82 @@ drawbar(Monitor *m, int skiptags)
 						SchemeNorm
 				]);
 
-				#if PATCH_BIDIRECTIONAL_TEXT
-				apply_fribidi(tagdisp);
-				#endif // PATCH_BIDIRECTIONAL_TEXT
-				drw_text(
-					drw, x, 0, w, bh,
-					(lrpad / 2)
+				#if PATCH_WINDOW_ICONS
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				if (
 					#if PATCH_ALT_TAGS
-					+ (
-						#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-						m->showmaster && m->reversemaster ? 0 :
-						m->showmaster ? tagw : 
-						#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-						(tagw / 2)
-					)
+					m->alttags ||
 					#endif // PATCH_ALT_TAGS
-					,
-					#if PATCH_CLIENT_INDICATORS
-					(total[i]
-						#if PATCH_FLAG_STICKY
-						+ sticky[i]
-						#endif // PATCH_FLAG_STICKY
-					) ? offsety : 0,
-					#endif // PATCH_CLIENT_INDICATORS
+					#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+					m->showmaster ||
+					#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+					(!iconsontags || !masterclient[i] || !masterclient[i]->icw)
+				)
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS
+				#endif // PATCH_WINDOW_ICONS
+				{
 					#if PATCH_BIDIRECTIONAL_TEXT
-					fribidi_text,
-					#else // NO PATCH_BIDIRECTIONAL_TEXT
-					tagdisp,
+					apply_fribidi(tagdisp);
 					#endif // PATCH_BIDIRECTIONAL_TEXT
-					0
-				);
+					drw_text(
+						drw, x, 0, w, bh,
+						(lrpad / 2)
+						#if PATCH_ALT_TAGS
+						+ (
+							#if 0 //PATCH_WINDOW_ICONS_ON_TAGS
+							(
+								!m->alttags &&
+								iconsontags && masterclient[i] && masterclient[i]->icw
+								#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+								&& m->showmaster
+								#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+							) ? 0 :
+							#endif // PATCH_WINDOW_ICONS_ON_TAGS
+							#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+							(m->showmaster && m->reversemaster) ? 0 :
+							m->showmaster ? tagw :
+							#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+							(tagw / 2)
+						)
+						#endif // PATCH_ALT_TAGS
+						#if PATCH_WINDOW_ICONS_ON_TAGS
+						+ offsetx
+						#endif // PATCH_WINDOW_ICONS_ON_TAGS
+						,
+						#if PATCH_CLIENT_INDICATORS
+						(total[i]
+							#if PATCH_FLAG_STICKY
+							+ sticky[i]
+							#endif // PATCH_FLAG_STICKY
+						) ? offsety : 0,
+						#endif // PATCH_CLIENT_INDICATORS
+						#if PATCH_BIDIRECTIONAL_TEXT
+						fribidi_text,
+						#else // NO PATCH_BIDIRECTIONAL_TEXT
+						tagdisp,
+						#endif // PATCH_BIDIRECTIONAL_TEXT
+						0
+					);
+				}
+				#if PATCH_WINDOW_ICONS_ON_TAGS
+				else
+					drw_rect(drw, x, 0, w, bh, 1, 1);
+				if (iconsontags && masterclient[i] && masterclient[i]->icw
+					#if PATCH_ALT_TAGS
+					&& !m->alttags
+					#endif // PATCH_ALT_TAGS
+				) {
+					drw_pic(
+						drw, x + (
+						#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+						m->showmaster ? lrpad / 2 :
+						#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+						(w - masterclient[i]->icw) / 2),
+						(bh - masterclient[i]->ich) / 2 + offsety,
+						masterclient[i]->icw, masterclient[i]->ich, masterclient[i]->icon
+					);
+				}
+				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
 
 				#if PATCH_CLIENT_INDICATORS
 				if (client_ind && (

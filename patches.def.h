@@ -50,6 +50,7 @@
 #define PATCH_WINDOW_ICONS_CUSTOM_ICONS		1	// Enable per-client a user-specified icon;
 #define PATCH_WINDOW_ICONS_DEFAULT_ICON		1	// Set a default icon for clients without;
 #define PATCH_WINDOW_ICONS_LEGACY_ICCCM		1	// Kludge to populate window icons the old way;
+#define PATCH_WINDOW_ICONS_ON_TAGS			1
 
 // Layouts
 #define PATCH_LAYOUT_BSTACK					1
