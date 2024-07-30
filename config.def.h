@@ -684,7 +684,7 @@ static const Button buttons[] = {
 	{ ClkLtSymbol,          0,              Button4,       cyclelayoutmouse,{.i = -1 } },
 	{ ClkLtSymbol,          0,              Button5,       cyclelayoutmouse,{.i = +1 } },
 	{ ClkLtSymbol,          0,              Button1,        setlayoutmouse, {0} },
-	{ ClkLtSymbol,          0,              Button3,        setlayoutmouse, {.v = &layouts[1]} },
+	{ ClkLtSymbol,          0,              Button3,        setlayoutmouse, {.v = "[M]"} },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
 	{ ClkWinTitle,          MODKEY,         Button2,        killgroup,      {.ui = (KILLGROUP_BY_NAME | KILLGROUP_BY_CLASS | KILLGROUP_BY_INSTANCE) } },
 #if PATCH_ALTTAB
