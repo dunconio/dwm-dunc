@@ -5507,10 +5507,9 @@ drawbar(Monitor *m, int skiptags)
 							#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 							mc[i]->win, &mc[i]->tagicw, &mc[i]->tagich,
 							#if PATCH_CLIENT_INDICATORS
-							MIN((bh - (client_ind_size / 2) - 1 - 4), (minbh - 2))
-							#else // NO PATCH_CLIENT_INDICATORS
-							MIN((bh - 4), (minbh - 2))
+							client_ind ? (MIN((bh - (client_ind_size / 2) - 7), (minbh - 2))) :
 							#endif // PATCH_CLIENT_INDICATORS
+							(MIN((bh - 8), (minbh - 2)))
 						);
 				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
 				#endif // PATCH_WINDOW_ICONS
@@ -5727,7 +5726,7 @@ drawbar(Monitor *m, int skiptags)
 							x, 0, w, bh,
 							(lrpad / 2),
 							#if PATCH_CLIENT_INDICATORS
-							(total[i]
+							client_ind && (total[i]
 								#if PATCH_FLAG_STICKY
 								+ sticky[i]
 								#endif // PATCH_FLAG_STICKY
@@ -5753,7 +5752,7 @@ drawbar(Monitor *m, int skiptags)
 						#endif // PATCH_ALT_TAGS
 						,
 						#if PATCH_CLIENT_INDICATORS
-						(total[i]
+						client_ind && (total[i]
 							#if PATCH_FLAG_STICKY
 							+ sticky[i]
 							#endif // PATCH_FLAG_STICKY
@@ -15527,11 +15526,11 @@ setup(void)
 	minbh = drw->fonts->h + 2;
 	bh = minbh
 		#if PATCH_CLIENT_INDICATORS
-		+ client_ind_size
+		+ (client_ind ? client_ind_size : 0)
 		#endif // PATCH_CLIENT_INDICATORS
 	;
 	#if PATCH_CLIENT_INDICATORS
-	client_ind_offset = (client_ind_size / 2) + 1;
+	client_ind_offset = client_ind ? ((client_ind_size / 2) + 1) : 0;
 	#endif // PATCH_CLIENT_INDICATORS
 	#if PATCH_FONT_GROUPS
 	if (fontgroups_json && drw_populate_fontgroups(drw, fontgroups_json) && barelement_fontgroups_json) {
