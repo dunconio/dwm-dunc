@@ -1020,6 +1020,9 @@ struct Client {
 	Monitor *mon;
 	int monindex;	// keep the monitor number;
 	Window win;
+	#if PATCH_CROP_WINDOWS
+	Client *crop;
+	#endif // PATCH_CROP_WINDOWS
 	int index;
 	#if PATCH_IPC
 	ClientState prevstate;
@@ -1245,6 +1248,13 @@ static void createbarrier(Client *c);
 static void createbarriermon(Monitor *m);
 #endif // PATCH_CONSTRAIN_MOUSE
 static Monitor *createmon(void);
+#if PATCH_CROP_WINDOWS
+static Client *cropwintoclient(Window w);
+static void cropwindow(Client *c);
+static void cropdelete(Client *c);
+static void cropmove(Client *c);
+static void cropresize(Client *c);
+#endif // PATCH_CROP_WINDOWS
 static void cyclelayout(const Arg *arg);
 static void cyclelayoutmouse(const Arg *arg);
 #if PATCH_SHOW_DESKTOP
@@ -1616,6 +1626,7 @@ static void toggledesktop(const Arg *arg);
 static void togglefakefullscreen(const Arg *arg);
 #endif // PATCH_FLAG_FAKEFULLSCREEN
 static void togglefloating(const Arg *arg);
+static void togglefloatingex(Client *c);
 static void togglefullscreen(const Arg *arg);
 #if PATCH_FLAG_GAME
 static void toggleisgame(const Arg *arg);
@@ -3809,7 +3820,11 @@ clientmessage(XEvent *e)
 	else
 	#endif // PATCH_SYSTRAY
 
-	if (!c)
+	if (!c
+		#if PATCH_CROP_WINDOWS
+		&& !(c = cropwintoclient(cme->window))
+		#endif // PATCH_CROP_WINDOWS
+		)
 		return;
 	if (cme->message_type == netatom[NetWMState]) {
 		if (cme->data.l[1] == netatom[NetWMAttention]
@@ -4047,11 +4062,19 @@ void
 configurerequest(XEvent *e)
 {
 	Client *c;
+	#if PATCH_CROP_WINDOWS
+	Client *cc = NULL;
+	#endif // PATCH_CROP_WINDOWS
 	Monitor *m;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
 	XWindowChanges wc;
 
-	if ((c = wintoclient(ev->window)) && !c->dormant
+	if (((c = wintoclient(ev->window))
+		#if PATCH_CROP_WINDOWS
+		|| (c = cc = cropwintoclient(ev->window))
+		#endif // PATCH_CROP_WINDOWS
+		)
+		&& !c->dormant
 		#if PATCH_FLAG_IGNORED
 		&& !c->isignored
 		#endif // PATCH_FLAG_IGNORED
@@ -4075,6 +4098,10 @@ configurerequest(XEvent *e)
 		) {
 
 			m = c->mon;
+			#if PATCH_CROP_WINDOWS
+			if (c->crop)
+				c = c->crop;
+			#endif // PATCH_CROP_WINDOWS
 
 			if (1
 				#if PATCH_FLAG_NEVER_RESIZE
@@ -4136,6 +4163,10 @@ configurerequest(XEvent *e)
 			}
 			if (ISVISIBLE(c))
 				resizeclient(c, c->x, c->y, c->w, c->h, 0);
+			#if PATCH_CROP_WINDOWS
+			if (cc)
+				cropresize(cc);
+			#endif // PATCH_CROP_WINDOWS
 			#if PATCH_FLAG_PANEL
 			if (c->ispanel)
 				drawbar(m, 0);
@@ -4583,6 +4614,99 @@ createmon(void)
 	return m;
 }
 
+#if PATCH_CROP_WINDOWS
+Client *
+cropwintoclient(Window w)
+{
+	Client *c;
+	Monitor *m;
+
+	for (m = mons; m; m = m->next)
+		for (c = m->clients; c; c = c->next)
+			if (c->crop && c->crop->win == w)
+				return c;
+	return NULL;
+}
+void
+cropwindow(Client *c)
+{
+	XEvent ev;
+	XSetWindowAttributes wa = { .event_mask = SubstructureRedirectMask };
+
+	if (!c->crop) {
+		c->crop = ecalloc(1, sizeof(Client));
+		memcpy(c->crop, c, sizeof(Client));
+		c->crop->crop = NULL;
+		c->crop->x = c->crop->y = c->crop->bw = 0;
+		c->basew = c->baseh = c->mina = 0;
+		//c->maxa = c->maxw = c->maxh = c->incw = c->inch = 0;
+		c->minw = c->minh = 1;
+		if (!c->isfloating)
+			togglefloatingex(c);
+		c->win = XCreateWindow(dpy, root,
+			c->x, c->y, c->w, c->h, c->bw, 0, 0, 0, CWEventMask, &wa
+		);
+		XReparentWindow(dpy, c->crop->win, c->win, 0, 0);
+		XMapWindow(dpy, c->win);
+		focus(c, 0);
+		XCheckTypedWindowEvent(dpy, c->crop->win, UnmapNotify, &ev);
+		if (XCheckTypedWindowEvent(dpy, root, UnmapNotify, &ev) &&
+			ev.xunmap.window != c->crop->win
+			)
+			XPutBackEvent(dpy, &ev);
+	}
+}
+void
+cropdelete(Client *c)
+{
+	Client *crop;
+	XEvent ev;
+
+	c->crop->x += c->x;
+	c->crop->y += c->y;
+	c->crop->bw = c->bw;
+	c->crop->next = c->next;
+	c->crop->snext = c->snext;
+	c->crop->tags = c->tags;
+	c->crop->mon = c->mon;
+	XReparentWindow(dpy, c->crop->win, root, c->crop->x, c->crop->y);
+	XDestroyWindow(dpy, c->win);
+	crop = c->crop;
+	memcpy(c, c->crop, sizeof(Client));
+	c->crop = NULL;
+	free(crop);
+	resize(c, c->x, c->y, c->w, c->h, 0);
+	focus(c, 0);
+	XCheckTypedWindowEvent(dpy, c->win, UnmapNotify, &ev);
+}
+void
+cropmove(Client *c)
+{
+	if (c->crop->x > 0 || c->crop->w < c->w)
+		c->crop->x = 0;
+	if (c->crop->x + c->crop->w < c->w)
+		c->crop->x = c->w - c->crop->w;
+	if (c->crop->y > 0 || c->crop->h < c->h)
+		c->crop->y = 0;
+	if (c->crop->y + c->crop->h < c->h)
+		c->crop->y = c->h - c->crop->h;
+	resizeclient(c->crop,
+		BETWEEN(c->crop->x, -(c->crop->w), 0) ? c->crop->x : 0,
+		BETWEEN(c->crop->y, -(c->crop->h), 0) ? c->crop->y : 0,
+		c->crop->w, c->crop->h, False
+	);
+}
+void
+cropresize(Client *c)
+{
+	cropmove(c);
+	resize(c, c->x, c->y,
+		MIN(c->w, c->crop->x + c->crop->w),
+		MIN(c->h, c->crop->y + c->crop->h), 0
+	);
+}
+#endif // PATCH_CROP_WINDOWS
+
 void
 cyclelayoutmouse(const Arg *arg)
 {
@@ -4710,7 +4834,11 @@ destroynotify(XEvent *e)
 	else
 	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 	#endif // PATCH_SHOW_DESKTOP
-	if ((c = wintoclient(ev->window)))
+	if ((c = wintoclient(ev->window))
+		#if PATCH_CROP_WINDOWS
+		|| (c = cropwintoclient(ev->window))
+		#endif // PATCH_CROP_WINDOWS
+		)
 		unmanage(c, 1, 0);
 	#if PATCH_SYSTRAY
 	else if ((c = wintosystrayicon(ev->window))) {
@@ -6392,6 +6520,10 @@ enternotify(XEvent *e)
 	Monitor *selm = selmon;
 	Client *sel = selmon->sel;
 	Client *c = wintoclient(ev->window);
+	#if PATCH_CROP_WINDOWS
+	if (!c)
+		c = cropwintoclient(ev->window);
+	#endif // PATCH_CROP_WINDOWS
 	if (c && c == sel) {
 		while (XCheckMaskEvent(dpy, EnterWindowMask, &xev));
 		return;
@@ -8489,6 +8621,11 @@ killclient(const Arg *arg)
 {
 	if (!selmon || !selmon->sel)
 		return;
+	#if PATCH_CROP_WINDOWS
+	if (selmon->sel->crop)
+		cropdelete(selmon->sel);
+	#endif // PATCH_CROP_WINDOWS
+
 	#if PATCH_FLAG_GAME
 	#if PATCH_FLAG_GAME_STRICT
 	if (selmon->sel == game)
@@ -10693,6 +10830,9 @@ movemouse(const Arg *arg)
 {
 	int x, y, ocx, ocy, nx, ny;
 	Client *c;
+	#if PATCH_MODAL_SUPPORT
+	Client *mc = NULL;
+	#endif // PATCH_MODAL_SUPPORT
 	Monitor *m;
 	XEvent ev;
 	Time lasttime = 0;
@@ -10712,6 +10852,10 @@ movemouse(const Arg *arg)
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
 		) /* no support moving fullscreen windows by mouse */
 		return;
+	#if PATCH_CROP_WINDOWS
+	if (arg->i == 1 && !c->crop)
+		return;
+	#endif // PATCH_CROP_WINDOWS
 
 	restack(selmon);
 
@@ -10723,8 +10867,14 @@ movemouse(const Arg *arg)
 	if (!getrootptr(&x, &y))
 		return;
 
+	#if PATCH_CROP_WINDOWS
+	if (arg->i == 1) {
+		nx = ocx = c->crop->x;
+		ny = ocy = c->crop->y;
+	}
+	else
+	#endif // PATCH_CROP_WINDOWS
 	#if PATCH_MODAL_SUPPORT
-	Client *mc = NULL;
 	if (c->ismodal && c->parent && c->parent->isfloating
 		#if PATCH_SHOW_DESKTOP
 		&& !c->ondesktop
@@ -10747,6 +10897,7 @@ movemouse(const Arg *arg)
 		ny = ocy = c->y;
 	}
 	#endif // PATCH_MODAL_SUPPORT
+
 	XRaiseWindow(dpy, c->win);
 	#if PATCH_MODAL_SUPPORT
 	if (mc)
@@ -10774,6 +10925,15 @@ movemouse(const Arg *arg)
 			nx = ocx + (ev.xmotion.x - x);
 			ny = ocy + (ev.xmotion.y - y);
 
+			#if PATCH_CROP_WINDOWS
+			if (arg->i == 1) {
+				c->crop->x = nx;
+				c->crop->y = ny;
+				cropmove(c);
+				continue;
+			}
+			#endif // PATCH_CROP_WINDOWS
+
 			if (abs(selmon->wx - nx) < snap)
 				nx = selmon->wx;
 			else if (abs((selmon->wx + selmon->ww) - (nx + WIDTH(c))) < snap)
@@ -10784,7 +10944,7 @@ movemouse(const Arg *arg)
 				ny = selmon->wy + selmon->wh - HEIGHT(c);
 			if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
 			&& (abs(nx - c->x) > snap || abs(ny - c->y) > snap))
-				togglefloating(NULL);
+				togglefloatingex(c);
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
 				resize(c, nx, ny, c->w, c->h, 1);
 			#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
@@ -10801,6 +10961,11 @@ movemouse(const Arg *arg)
 		XMapWindow(dpy, focuswin);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
+
+	#if PATCH_CROP_WINDOWS
+	if (arg && arg->i == 1 && c->crop);
+	else
+	#endif // PATCH_CROP_WINDOWS
 	if ((m = recttomon(c->x, c->y, c->w, c->h)) != selmon) {
 		if (
 			#if PATCH_MODAL_SUPPORT
@@ -10856,7 +11021,7 @@ movemouse(const Arg *arg)
 void
 moveorplace(const Arg *arg) {
 	if ((!selmon->lt[selmon->sellt]->arrange || (selmon->sel && selmon->sel->isfloating)))
-		movemouse(arg);
+		movemouse(&(Arg){.i = 0});
 	else
 		placemouse(arg);
 }
@@ -12588,7 +12753,15 @@ propertynotify(XEvent *e)
 		updatestatus();
 	else if (ev->state == PropertyDelete)
 		return; /* ignore */
-	else if ((c = wintoclient(ev->window))) {
+	else if ((c = wintoclient(ev->window))
+		#if PATCH_CROP_WINDOWS
+		|| (c = cropwintoclient(ev->window))
+		#endif // PATCH_CROP_WINDOWS
+	) {
+		#if PATCH_CROP_WINDOWS
+		if (c->crop)
+			c = c->crop;
+		#endif // PATCH_CROP_WINDOWS
 		switch(ev->atom) {
 			default: break;
 			case XA_WM_TRANSIENT_FOR:
@@ -13584,6 +13757,13 @@ resizemouse(const Arg *arg)
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
 		) /* no support resizing fullscreen windows by mouse */
 		return;
+	#if PATCH_CROP_WINDOWS
+	if (arg->i == 1) {
+		if (!c->isfloating)
+			return;
+		cropwindow(c);
+	}
+	#endif // PATCH_CROP_WINDOWS
 	restack(selmon);
 	ocx = c->x;
 	ocy = c->y
@@ -13591,8 +13771,8 @@ resizemouse(const Arg *arg)
 		+ fh
 		#endif // PATCH_FOCUS_BORDER
 	;
-	nh = och = c->h;
-	nw = ocw = c->w;
+	och = c->h;
+	ocw = c->w;
 	if (!XQueryPointer(dpy, c->win, &dummy, &dummy, &opx, &opy, &nx, &ny, &dui))
 		return;
 	horizcorner = nx < c->w / 2;
@@ -13622,12 +13802,23 @@ resizemouse(const Arg *arg)
 			nw = MAX(horizcorner ? (ocx + ocw - nx) : (ocw + (ev.xmotion.x - opx)), 1);
 			nh = MAX(vertcorner ? (ocy + och - ny) : (och + (ev.xmotion.y - opy)), 1);
 
+			#if PATCH_CROP_WINDOWS
+			if (arg->i == 1 && c->crop) {
+				if (nw > c->crop->w)
+					nw = c->crop->w;
+				if (nh > c->crop->h)
+					nh = c->crop->h;
+				resize(c, nx, ny, nw, nh, 1);
+				cropresize(c);
+				break;
+			}
+			#endif // PATCH_CROP_WINDOWS
 			if (c->mon->wx + nw >= selmon->wx && c->mon->wx + nw <= selmon->wx + selmon->ww
 			&& c->mon->wy + nh >= selmon->wy && c->mon->wy + nh <= selmon->wy + selmon->wh)
 			{
 				if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
 				&& (abs(nw - c->w) > snap || abs(nh - c->h) > snap))
-					togglefloating(NULL);
+					togglefloatingex(c);
 			}
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
 				resize(c, nx, ny, nw, nh, 1);
@@ -14862,6 +15053,10 @@ setclientstate(Client *c, long state)
 {
 	long data[] = { state, None };
 
+	#if PATCH_CROP_WINDOWS
+	if (c->crop)
+		c = c->crop;
+	#endif // PATCH_CROP_WINDOWS
 	XChangeProperty(dpy, c->win, wmatom[WMState], wmatom[WMState], 32,
 		PropModeReplace, (unsigned char *)data, 2);
 }
@@ -14985,6 +15180,10 @@ setfocus(Client *c)
 {
 	if (!c)
 		return;
+	#if PATCH_CROP_WINDOWS
+	if (c->crop)
+		c = c->crop;
+	#endif // PATCH_CROP_WINDOWS
 
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 	if (c->pauseinvisible == -1 && c->pid) {
@@ -15055,6 +15254,10 @@ setfocus(Client *c)
 void
 setfullscreen(Client *c, int fullscreen)
 {
+	#if PATCH_CROP_WINDOWS
+	if (c->crop)
+		c = c->crop;
+	#endif // PATCH_CROP_WINDOWS
 	#if PATCH_FLAG_NEVER_FULLSCREEN
 	if (fullscreen && c->neverfullscreen)
 		return;
@@ -17798,7 +18001,12 @@ togglefakefullscreen(const Arg *arg)
 void
 togglefloating(const Arg *arg)
 {
-	Client *c = selmon->sel;
+	togglefloatingex(selmon->sel);
+}
+void
+togglefloatingex(Client *c)
+{
+	int vis;
 	if (!c)
 		return;
 	#if PATCH_SHOW_DESKTOP
@@ -17812,22 +18020,37 @@ togglefloating(const Arg *arg)
 		) /* no support for fullscreen windows */
 		return;
 	c->isfloating = !c->isfloating || c->isfixed;
-	if (c->isfloating)
-		resize(c, c->sfx, c->sfy, c->sfw, c->sfh, False);	// restore last known float dimensions
+	vis = ISVISIBLE(c);
+	if (c->isfloating) {
+		if (vis)
+			resize(c, c->sfx, c->sfy, c->sfw, c->sfh, False);	// restore last known float dimensions
+		else {
+			c->x = c->sfx;
+			c->y = c->sfy;
+			c->w = c->sfw;
+			c->h = c->sfh;
+		}
+	}
 	else {
 		// save last known float dimensions;
 		c->sfx = c->x;
 		c->sfy = c->y;
 		c->sfw = c->w;
 		c->sfh = c->h;
-		resizeclient(c, c->x, c->y, c->w, c->h, False);
+		if (vis)
+			resizeclient(c, c->x, c->y, c->w, c->h, False);
 	}
-	arrange(selmon);
+	#if PATCH_CROP_WINDOWS
+	if (!c->isfloating && c->crop)
+		cropdelete(c);
+	#endif // PATCH_CROP_WINDOWS
+	if (vis)
+		arrange(selmon);
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	if (!c->isfloating && focuswin)
+	if (vis && !c->isfloating && focuswin)
 		focus(NULL, 0);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 }
@@ -18171,6 +18394,11 @@ unmanage(Client *c, int destroyed, int cleanup)
 	setopacity(c, 0);
 	#endif // PATCH_CLIENT_OPACITY
 
+	#if PATCH_CROP_WINDOWS
+	if (c->crop)
+		c = c->crop;
+	#endif // PATCH_CROP_WINDOWS
+
 	XWindowChanges wc;
 	int wasfocused = (
 		ISVISIBLE(c)
@@ -18363,7 +18591,11 @@ unmapnotify(XEvent *e)
 	else
 	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 	#endif // PATCH_SHOW_DESKTOP
-	if ((c = wintoclient(ev->window))) {
+	if ((c = wintoclient(ev->window))
+		#if PATCH_CROP_WINDOWS
+		|| (c = cropwintoclient(ev->window))
+		#endif // PATCH_CROP_WINDOWS
+	) {
 		#if PATCH_FLAG_GAME
 		#if PATCH_FLAG_GAME_STRICT
 		if (c == game)
@@ -19949,7 +20181,11 @@ wintomon(Window w)
 	for (m = mons; m; m = m->next)
 		if (w == m->barwin)
 			return m;
-	if ((c = wintoclient(w)))
+	if ((c = wintoclient(w))
+		#if PATCH_CROP_WINDOWS
+		|| (c = cropwintoclient(w))
+		#endif // PATCH_CROP_WINDOWS
+		)
 		return c->mon;
 	return selmon;
 }

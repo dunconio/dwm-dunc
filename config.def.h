@@ -602,6 +602,9 @@ static const Button buttons[] = {
 	 * into a floating position).
 	 */
 	{ ClkClientWin,         MODKEY,         Button1,        moveorplace,    {.i = 1} },
+#if PATCH_CROP_WINDOWS
+	{ ClkClientWin,     MODKEY|ControlMask, Button1,        movemouse,      {.i = 1} },
+#endif // PATCH_CROP_WINDOWS
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 #if PATCH_CFACTS
 	{ ClkClientWin,       MODKEY|ShiftMask, Button2,        setcfact,       {.f =  0.00} },
@@ -613,6 +616,9 @@ static const Button buttons[] = {
 #else // NO PATCH_DRAG_FACTS
 	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
 #endif // PATCH_DRAG_FACTS
+#if PATCH_CROP_WINDOWS
+	{ ClkClientWin,     MODKEY|ControlMask, Button3,        resizemouse,    {.i = 1} },
+#endif // PATCH_CROP_WINDOWS
 #if PATCH_CLIENT_OPACITY
 	{ ClkClientWin,         MODKEY,         Button4,    changefocusopacity, {.f = +0.025 }},
 	{ ClkClientWin,         MODKEY,         Button5,    changefocusopacity, {.f = -0.025} },

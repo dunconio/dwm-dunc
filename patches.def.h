@@ -11,6 +11,7 @@
 #define PATCH_CLIENT_INDICATORS				1
 #define PATCH_CLIENT_OPACITY				1
 #define PATCH_CONSTRAIN_MOUSE				1	// Toggle constraining mouse pointer within monitor bounds
+#define PATCH_CROP_WINDOWS					1
 #define PATCH_DRAG_FACTS					1
 #define PATCH_EWMH_TAGS						0	// Supports reporting workspace(tag) changes
 #define PATCH_EXTERNAL_WINDOW_ACTIVATION	1	// Behaves like spawn except will allow focus stealing for the life of the spawnee

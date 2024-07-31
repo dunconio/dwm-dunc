@@ -53,6 +53,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_CLIENT_INDICATORS` | Add blobs to the bar tag to indicate clients visible on that tag; |
 | `PATCH_CLIENT_OPACITY` | Define opacity levels (between 0 and 1) for focused and unfocused clients; |
 | `PATCH_CONSTRAIN_MOUSE` | Add a toggle to constrain the mouse pointer to the current monitor; |
+| `PATCH_CROP_WINDOWS` | |
 | `PATCH_DRAG_FACTS` | Resize master area size and tiled clients with the mouse; |
 | `PATCH_EWMH_TAGS` | Supports reporting workspace(tag) changes; |
 | `PATCH_EXTERNAL_WINDOW_ACTIVATION` | Behaves like spawn except will allow focus stealing for the life of the spawnee; |
