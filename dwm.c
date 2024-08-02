@@ -5292,6 +5292,7 @@ drawbar(Monitor *m, int skiptags)
 				+ (systrayonleft ? m->stw : 0)
 				#endif // PATCH_SYSTRAY
 				,
+				0,
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
@@ -5340,6 +5341,7 @@ drawbar(Monitor *m, int skiptags)
 						+ (systrayonleft ? m->stw : 0)
 						#endif // PATCH_SYSTRAY
 						,
+						0,
 						#if PATCH_CLIENT_INDICATORS
 						0,
 						#endif // PATCH_CLIENT_INDICATORS
@@ -5364,6 +5366,7 @@ drawbar(Monitor *m, int skiptags)
 				+ (systrayonleft ? m->stw : 0)
 				#endif // PATCH_SYSTRAY
 				,
+				0,
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
@@ -5397,6 +5400,7 @@ drawbar(Monitor *m, int skiptags)
 			+ (systrayonleft ? m->stw : 0)
 			#endif // PATCH_SYSTRAY
 			,
+			0,
 			#if PATCH_CLIENT_INDICATORS
 			0,
 			#endif // PATCH_CLIENT_INDICATORS
@@ -5468,7 +5472,7 @@ drawbar(Monitor *m, int skiptags)
 			apply_fribidi(showdesktop_button);
 			#endif // PATCH_BIDIRECTIONAL_TEXT
 			drw_text(drw,
-				m->bar[ShowDesktop].x, 0, m->bar[ShowDesktop].w, bh, lrpad / 2,
+				m->bar[ShowDesktop].x, 0, m->bar[ShowDesktop].w, bh, lrpad / 2, 0,
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
@@ -5879,6 +5883,7 @@ drawbar(Monitor *m, int skiptags)
 						)
 						#endif // PATCH_ALT_TAGS
 						,
+						0,
 						#if PATCH_CLIENT_INDICATORS
 						client_ind && (total[i]
 							#if PATCH_FLAG_STICKY
@@ -6040,7 +6045,7 @@ drawbar(Monitor *m, int skiptags)
 				m->bar[LtSymbol].w = w;
 				drw_setscheme(drw, scheme[SchemeLayout]);
 				x = drw_text(
-						drw, x, 0, w, bh, lrpad / 2,
+						drw, x, 0, w, bh, lrpad / 2, 0,
 						#if PATCH_CLIENT_INDICATORS
 						0,
 						#endif // PATCH_CLIENT_INDICATORS
@@ -6172,7 +6177,7 @@ drawbar(Monitor *m, int skiptags)
 					active->name
 				);
 				#endif // PATCH_BIDIRECTIONAL_TEXT
-				drw_text(drw, x, 0, w - rpad, bh, pad,
+				drw_text(drw, x, 0, w - rpad, bh, pad, 0,
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
@@ -6245,7 +6250,7 @@ drawbar(Monitor *m, int skiptags)
 		}
 		else {
 			drw_text(
-				drw, x, 0, w, bh, 0,
+				drw, x, 0, w, bh, 0, 0,
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
@@ -13518,7 +13523,7 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 
 	if (!il && !ir)
 		drw_text(
-			drw, x, y, w, h, offsetx,
+			drw, x, y, w, h, offsetx, 0,
 			#if PATCH_CLIENT_INDICATORS
 			offsety,
 			#endif // PATCH_CLIENT_INDICATORS
@@ -13526,7 +13531,7 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 		);
 	else {
 		drw_text(
-			drw, x, y, w, h, offsetx,
+			drw, x, y, w, h, offsetx, 0,
 			#if PATCH_CLIENT_INDICATORS
 			offsety,
 			#endif // PATCH_CLIENT_INDICATORS
@@ -13548,7 +13553,7 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 		}
 		else {
 			drw_text(
-				drw, posx, y, w, h, 0,
+				drw, posx, y, w, h, 0, 0,
 				#if PATCH_CLIENT_INDICATORS
 				offsety,
 				#endif // PATCH_CLIENT_INDICATORS
@@ -13559,7 +13564,7 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 			w -= plw;
 		}
 		drw_text(
-			drw, posx, y, w, h, 0,
+			drw, posx, y, w, h, 0, 0,
 			#if PATCH_CLIENT_INDICATORS
 			offsety,
 			#endif // PATCH_CLIENT_INDICATORS
@@ -17030,6 +17035,7 @@ drawTab(Monitor *m, int active, int first)
 	int tw;				// text width of caption;
 	int tw_mon = 0;		// text width (without padding) of monnumf caption;
 	int w;				// width of caption area;
+	int ow;				// width of right padding;
 	unsigned int align = m->tabTextAlign;
 	if (!tabswitcher) {
 		align = m->title_align;
@@ -17065,7 +17071,7 @@ drawTab(Monitor *m, int active, int first)
 				]
 			);
 
-			x = ox = 0;
+			x = ox = ow = 0;
 			fw = tw = 0;
 			#if PATCH_FLAG_HIDDEN
 			if (c->ishidden) {
@@ -17090,6 +17096,8 @@ drawTab(Monitor *m, int active, int first)
 				fw += c->alticw + iconspacing;
 				if (align == 0)
 					ox += c->alticw + iconspacing;
+				else if (align == 2)
+					ow += c->alticw + iconspacing;
 			}
 			#endif // PATCH_WINDOW_ICONS
 
@@ -17117,7 +17125,7 @@ drawTab(Monitor *m, int active, int first)
 				apply_fribidi(c->mon->numstr);
 				#endif // PATCH_BIDIRECTIONAL_TEXT
 				drw_text(
-					drw, 0, oy, w, h, x,
+					drw, 0, oy, w, h, x, ow,
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
@@ -17129,7 +17137,7 @@ drawTab(Monitor *m, int active, int first)
 					0
 				);
 				if (align == 2) {
-					x = 0;
+					x = ow = 0;
 					ox = (unsigned int)(m->maxWTab - fw) + tab_lrpad / 2;
 					w = ox + tw - tab_lrpad / 2;
 				}
@@ -17149,7 +17157,7 @@ drawTab(Monitor *m, int active, int first)
 			);
 			#endif // PATCH_BIDIRECTIONAL_TEXT
 			drw_text(
-				drw, x, oy, w, h, ox,
+				drw, x, oy, w, h, ox, ow,
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS

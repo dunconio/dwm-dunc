@@ -679,9 +679,9 @@ drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, int filled, int
 
 int
 #if PATCH_CLIENT_INDICATORS
-drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, int tpad, const char *text, int invert)
+drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, int tpad, const char *text, int invert)
 #else // NO PATCH_CLIENT_INDICATORS
-drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, const char *text, int invert)
+drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, const char *text, int invert)
 #endif // PATCH_CLIENT_INDICATORS
 {
 	int i, ty, ellipsis_x = 0;
@@ -733,7 +733,7 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 		                  DefaultVisual(drw->dpy, drw->screen),
 		                  DefaultColormap(drw->dpy, drw->screen));
 		x += lpad;
-		w -= lpad;
+		w -= (lpad + rpad);
 	}
 
 	usedfont = fonts;
@@ -797,7 +797,7 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 		}
 		if (render && overflow)
 			drw_text(
-				drw, ellipsis_x, y, ellipsis_w, h, 0,
+				drw, ellipsis_x, y, ellipsis_w, h, 0, 0,
 				#if PATCH_CLIENT_INDICATORS
 				tpad,
 				#endif // PATCH_CLIENT_INDICATORS
@@ -899,7 +899,7 @@ drw_fontset_getwidth(Drw *drw, const char *text)
 	if (!drw || !drw->fonts || !text)
 		return 0;
 	return drw_text(
-		drw, 0, 0, 0, 0, 0,
+		drw, 0, 0, 0, 0, 0, 0,
 		#if PATCH_CLIENT_INDICATORS
 		0,
 		#endif // PATCH_CLIENT_INDICATORS
@@ -913,7 +913,7 @@ drw_fontset_getwidth_clamp(Drw *drw, const char *text, unsigned int n)
 	unsigned int tmp = 0;
 	if (drw && drw->fonts && text && n)
 		tmp = drw_text(
-			drw, 0, 0, 0, 0, 0,
+			drw, 0, 0, 0, 0, 0, 0,
 			#if PATCH_CLIENT_INDICATORS
 			0,
 			#endif // PATCH_CLIENT_INDICATORS
