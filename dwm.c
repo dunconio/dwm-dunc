@@ -5296,6 +5296,7 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
+				1,
 				#if PATCH_BIDIRECTIONAL_TEXT
 				fribidi_text,
 				#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -5345,6 +5346,7 @@ drawbar(Monitor *m, int skiptags)
 						#if PATCH_CLIENT_INDICATORS
 						0,
 						#endif // PATCH_CLIENT_INDICATORS
+						1,
 						#if PATCH_BIDIRECTIONAL_TEXT
 						fribidi_text,
 						#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -5370,6 +5372,7 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
+				1,
 				#if PATCH_BIDIRECTIONAL_TEXT
 				fribidi_text,
 				#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -5404,6 +5407,7 @@ drawbar(Monitor *m, int skiptags)
 			#if PATCH_CLIENT_INDICATORS
 			0,
 			#endif // PATCH_CLIENT_INDICATORS
+			1,
 			#if PATCH_BIDIRECTIONAL_TEXT
 			fribidi_text,
 			#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -5476,6 +5480,7 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
+				1,
 				#if PATCH_BIDIRECTIONAL_TEXT
 				fribidi_text,
 				#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -5891,6 +5896,7 @@ drawbar(Monitor *m, int skiptags)
 							#endif // PATCH_FLAG_STICKY
 						) ? offsety : 0,
 						#endif // PATCH_CLIENT_INDICATORS
+						1,
 						#if PATCH_BIDIRECTIONAL_TEXT
 						fribidi_text,
 						#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -6049,6 +6055,7 @@ drawbar(Monitor *m, int skiptags)
 						#if PATCH_CLIENT_INDICATORS
 						0,
 						#endif // PATCH_CLIENT_INDICATORS
+						1,
 						#if PATCH_SHOW_DESKTOP
 						showdesktop && m->showdesktop ? desktopsymbol :
 						#endif // PATCH_SHOW_DESKTOP
@@ -6181,6 +6188,7 @@ drawbar(Monitor *m, int skiptags)
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
+					m->title_align,
 					#if PATCH_BIDIRECTIONAL_TEXT
 					fribidi_text,
 					#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -6254,7 +6262,7 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
-				"", 0
+				1, "", 0
 			);
 			#if PATCH_SYSTRAY
 			w -= m->stw;
@@ -13527,7 +13535,7 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 			#if PATCH_CLIENT_INDICATORS
 			offsety,
 			#endif // PATCH_CLIENT_INDICATORS
-			text, invert
+			1, text, invert
 		);
 	else {
 		drw_text(
@@ -13535,7 +13543,7 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 			#if PATCH_CLIENT_INDICATORS
 			offsety,
 			#endif // PATCH_CLIENT_INDICATORS
-			buffer, invert
+			1, buffer, invert
 		);
 		posx = offsetx + TEXTW(buffer) - lrpad;
 		w -= posx;
@@ -13557,7 +13565,7 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 				#if PATCH_CLIENT_INDICATORS
 				offsety,
 				#endif // PATCH_CLIENT_INDICATORS
-				placeholder_text, invert
+				1, placeholder_text, invert
 			);
 			plw = drw_fontset_getwidth(drw, placeholder_text);
 			posx += plw;
@@ -13568,7 +13576,7 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 			#if PATCH_CLIENT_INDICATORS
 			offsety,
 			#endif // PATCH_CLIENT_INDICATORS
-			buffer + ir, invert
+			1, buffer + ir, invert
 		);
 
 	}
@@ -16760,11 +16768,6 @@ altTabEnd(void)
 void
 drawTab(Monitor *m, int active, int first)
 {
-	/* little documentation of functions */
-	/* void drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, int filled, int invert); */
-	/* int drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, const char *text, int invert); */
-	/* void drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h); */
-
 	#if PATCH_FLAG_HIDDEN
 	char buffer[256];
 	#endif // PATCH_FLAG_HIDDEN
@@ -17129,6 +17132,7 @@ drawTab(Monitor *m, int active, int first)
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
+					align,
 					#if PATCH_BIDIRECTIONAL_TEXT
 					fribidi_text,
 					#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -17161,6 +17165,7 @@ drawTab(Monitor *m, int active, int first)
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
+				align,
 				#if PATCH_BIDIRECTIONAL_TEXT
 				fribidi_text,
 				#else // NO PATCH_BIDIRECTIONAL_TEXT

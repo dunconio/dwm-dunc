@@ -679,13 +679,13 @@ drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, int filled, int
 
 int
 #if PATCH_CLIENT_INDICATORS
-drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, int tpad, const char *text, int invert)
+drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, int tpad, unsigned int ellipsis_align, const char *text, int invert)
 #else // NO PATCH_CLIENT_INDICATORS
-drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, const char *text, int invert)
+drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, unsigned int ellipsis_align, const char *text, int invert)
 #endif // PATCH_CLIENT_INDICATORS
 {
 	int i, ty, ellipsis_x = 0;
-	unsigned int tmpw, ew, ellipsis_w = 0, ellipsis_len;
+	unsigned int tmpw, ew = strlen(text), ellipsis_w = 0, ellipsis_len;
 	XftDraw *d = NULL;
 	Fnt *usedfont, *curfont, *nextfont, *fonts;
 	int utf8strlen, utf8charlen, render = x || y || w || h;
@@ -695,6 +695,8 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 	FcPattern *fcpattern;
 	FcPattern *match;
 	XftResult result;
+	char buff[ew + 1], rbuff[ew + 1];
+	char *buffer = NULL;
 	int charexists = 0, overflow = 0;
 	/* keep track of a couple codepoints for which we have no match. */
 	enum { nomatches_len = 64 };
@@ -736,19 +738,35 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 		w -= (lpad + rpad);
 	}
 
+	strncpy(buff, text, sizeof buff);
+	if (!ew)
+		ellipsis_align = 0;
+	switch (ellipsis_align) {
+		case 1:
+		default:
+		case 0:
+		case 2:
+			buffer = buff;
+			break;
+		case 3:
+			for (i = 0; i < ew; i++)
+				rbuff[i] = buff[ew - i - 1];
+			buffer = rbuff;
+	}
+
 	usedfont = fonts;
 	if (!ELLIPSIS_WIDTH && render)
 		ELLIPSIS_WIDTH = drw_fontset_getwidth(drw, ellipsis);
 	while (1) {
 		ew = ellipsis_len = utf8strlen = 0;
-		utf8str = text;
+		utf8str = buffer;
 		nextfont = NULL;
-		while (*text) {
-			utf8charlen = utf8decode(text, &utf8codepoint, UTF_SIZ);
+		while (*buffer) {
+			utf8charlen = utf8decode(buffer, &utf8codepoint, UTF_SIZ);
 			for (curfont = fonts; curfont; curfont = curfont->next) {
 				charexists = charexists || XftCharExists(drw->dpy, curfont->xfont, utf8codepoint);
 				if (charexists) {
-					drw_font_getexts(curfont, text, utf8charlen, &tmpw, NULL);
+					drw_font_getexts(curfont, buffer, utf8charlen, &tmpw, NULL);
 					if (ew + ELLIPSIS_WIDTH <= w) {
 						/* keep track where the ellipsis still fits */
 						ellipsis_x = x + ew;
@@ -767,7 +785,7 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 							utf8strlen = ellipsis_len;
 					} else if (curfont == usedfont) {
 						utf8strlen += utf8charlen;
-						text += utf8charlen;
+						buffer += utf8charlen;
 						ew += tmpw;
 					} else {
 						nextfont = curfont;
@@ -801,10 +819,10 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 				#if PATCH_CLIENT_INDICATORS
 				tpad,
 				#endif // PATCH_CLIENT_INDICATORS
-				ellipsis, invert
+				ellipsis_align, ellipsis, invert
 			);
 
-		if (!*text || overflow) {
+		if (!*buffer || overflow) {
 			break;
 		} else if (nextfont) {
 			charexists = 0;
@@ -903,7 +921,7 @@ drw_fontset_getwidth(Drw *drw, const char *text)
 		#if PATCH_CLIENT_INDICATORS
 		0,
 		#endif // PATCH_CLIENT_INDICATORS
-		text, 0
+		0, text, 0
 	);
 }
 
@@ -917,7 +935,7 @@ drw_fontset_getwidth_clamp(Drw *drw, const char *text, unsigned int n)
 			#if PATCH_CLIENT_INDICATORS
 			0,
 			#endif // PATCH_CLIENT_INDICATORS
-			text, n
+			0, text, n
 		);
 	return MIN(n, tmp);
 }
