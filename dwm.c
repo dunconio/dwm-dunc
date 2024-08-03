@@ -6703,14 +6703,14 @@ focus(Client *c, int force)
 		#if PATCH_ALTTAB
 		&& !altTabMon
 		#endif // PATCH_ALTTAB
-		) {
+	) {
 		for (Client *s = c->mon->stack; s; s = s->snext)
 			if (s->ultparent == c->ultparent && s->ismodal && s->index > c->index) {
 				if (!ISVISIBLE(s)
 					#if PATCH_FLAG_HIDDEN
 					|| s->ishidden
 					#endif // PATCH_FLAG_HIDDEN
-				)
+					)
 					break;
 				DEBUG("focus(c) modal: %s\n", s->name);
 				focus(s, 0);
@@ -11104,7 +11104,7 @@ movetiled(const Arg *arg)
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
-	focus(c, 0);
+	focus(c, 1);
 	arrange(c->mon);
 
 	#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
@@ -12461,7 +12461,7 @@ placemouse(const Arg *arg)
 			nx = -9999;
 	}
 
-	focus(c, 0);
+	focus(c, 1);
 	c->beingmoved = 0;
 
 	if (nx != -9999)
@@ -12531,7 +12531,7 @@ pop(Client *c)
 {
 	detach(c);
 	attach(c);
-	focus(c, 0);
+	focus(c, 1);
 	arrange(c->mon);
 }
 
@@ -12808,12 +12808,15 @@ propertynotify(XEvent *e)
 		}
 		#endif // PATCH_WINDOW_ICONS
 		else if (ev->atom == netatom[NetWMState]) {
-			if (updatewindowstate(c))
-				focus(NULL, 0);
+			if (updatewindowstate(c)) {
+				if (selmon->sel == c && !ISVISIBLE(c))
+					focus(NULL, 0);
+			}
 		}
 		else if (ev->atom == netatom[NetWMWindowType]) {
 			updatewindowtype(c);
-			focus(NULL, 0);
+			if (selmon->sel == c && !ISVISIBLE(c))
+				focus(NULL, 0);
 		}
 	}
 }
