@@ -6184,7 +6184,7 @@ drawbar(Monitor *m, int skiptags)
 					active->name
 				);
 				#endif // PATCH_BIDIRECTIONAL_TEXT
-				drw_text(drw, x, 0, w - rpad, bh, pad, 0,
+				drw_text(drw, x, 0, w, bh, pad, rpad,
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
@@ -16776,7 +16776,7 @@ drawTab(Monitor *m, int active, int first)
 	int tab_lrpad = lrpad;
 	int tab_minh = minbh;
 
-	int boxs, boxw, lpad = 0;
+	int boxs, boxw, lpad = 0, rpad = 0;
 	if (!tabswitcher) {
 		boxs = drw->fonts->h / 9;
 		boxw = drw->fonts->h / 6 + 2;
@@ -16806,6 +16806,7 @@ drawTab(Monitor *m, int active, int first)
 	else {
 		lpad = MAX(lpad, (tab_lrpad / 2));
 	}
+	rpad = tab_lrpad / 2;
 	#if PATCH_WINDOW_ICONS
 	int pad = (tabswitcher ? tab_lrpad : 0);
 	#endif // PATCH_WINDOW_ICONS
@@ -16890,11 +16891,11 @@ drawTab(Monitor *m, int active, int first)
 				#if PATCH_FLAG_HIDDEN
 				if (c->ishidden) {
 					appendhidden(m, c->name, buffer, 256);
-					w = drw_fontset_getwidth(drw, buffer) + tab_lrpad / 2 + lpad;
+					w = drw_fontset_getwidth(drw, buffer) + rpad + lpad;
 				}
 				else
 				#endif // PATCH_FLAG_HIDDEN
-				w = drw_fontset_getwidth(drw, c->name) + tab_lrpad / 2 + lpad;
+				w = drw_fontset_getwidth(drw, c->name) + rpad + lpad;
 				if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m)
 					w += drw_fontset_getwidth(drw, c->mon->numstr) + tab_lrpad / 2;
 				if (w > tw)
@@ -17079,14 +17080,15 @@ drawTab(Monitor *m, int active, int first)
 			#if PATCH_FLAG_HIDDEN
 			if (c->ishidden) {
 				appendhidden(m, c->name, buffer, 256);
-				fw = tw = drw_fontset_getwidth(drw, buffer) + tab_lrpad / 2 + lpad;
+				fw = tw = drw_fontset_getwidth(drw, buffer) + rpad + lpad;
 			}
 			else
 			#endif // PATCH_FLAG_HIDDEN
-				fw = tw = drw_fontset_getwidth(drw, c->name) + tab_lrpad / 2 + lpad;
+				fw = tw = drw_fontset_getwidth(drw, c->name) + rpad + lpad;
 			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m)
 				tw_mon = drw_fontset_getwidth(drw, c->mon->numstr) + tab_lrpad / 2;
 			fw += tw_mon;
+			ow = rpad;
 			#if PATCH_WINDOW_ICONS
 			if (!c->alticon)
 				c->alticon = geticonprop(
@@ -17115,7 +17117,7 @@ drawTab(Monitor *m, int active, int first)
 			else if (align == 2)
 				ox = (unsigned int)(w - fw) + bw
 					#if PATCH_WINDOW_ICONS
-					- (c->icon ? iconspacing : 0)
+					- (c->alticon ? iconspacing : 0)
 					#endif // PATCH_WINDOW_ICONS
 				;
 			ox += lpad;
@@ -17141,9 +17143,9 @@ drawTab(Monitor *m, int active, int first)
 					0
 				);
 				if (align == 2) {
+					w = x;
 					x = ow = 0;
-					ox = (unsigned int)(m->maxWTab - fw) + tab_lrpad / 2;
-					w = ox + tw - tab_lrpad / 2;
+					ox = (unsigned int)(m->maxWTab - fw) + rpad;
 				}
 				else {
 					ox = 0;

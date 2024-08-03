@@ -101,9 +101,9 @@ void drw_gradient(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsign
 #endif // PATCH_TWO_TONE_TITLE
 void drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, int filled, int invert);
 #if PATCH_CLIENT_INDICATORS
-int drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, int tpad, unsigned int ellipsis_align, const char *text, int invert);
+int drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, int tpad, int ellipsis_align, const char *text, int invert);
 #else // NO PATCH_CLIENT_INDICATORS
-int drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, unsigned int ellipsis_align, const char *text, int invert);
+int drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, int ellipsis_align, const char *text, int invert);
 #endif // PATCH_CLIENT_INDICATORS
 #if PATCH_WINDOW_ICONS
 void drw_pic(Drw *drw, int x, int y, unsigned int w, unsigned int h, Picture pic);
