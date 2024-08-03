@@ -10184,7 +10184,10 @@ manage(Window w, XWindowAttributes *wa)
 
 	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 	if (
-		(nonstop || c->newmaster || (ISVISIBLE(c) && c->mon->lt[c->mon->sellt]->arrange == monocle)) &&
+		(nonstop || c->newmaster || (
+			((ISVISIBLE(c) && c->mon == selmon) || (c->tags & c->mon->tagset[c->mon->seltags]))
+			&& c->mon->lt[c->mon->sellt]->arrange == monocle
+		)) &&
 		((!c->mon->sel || !c->mon->sel->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			|| c->mon->sel->fakefullscreen
