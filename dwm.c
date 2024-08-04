@@ -5691,7 +5691,8 @@ drawbar(Monitor *m, int skiptags)
 						++total[i];
 						#endif // PATCH_CLIENT_INDICATORS
 						#if PATCH_FLAG_HIDDEN
-						visible[i] += (c->ishidden ? -1 : 1);
+						if (!c->ishidden)
+							++visible[i];
 						#endif // PATCH_FLAG_HIDDEN
 					}
 					#if PATCH_FLAG_STICKY && PATCH_CLIENT_INDICATORS
