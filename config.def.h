@@ -161,11 +161,11 @@ static       Bool viewontag         = True;     /* Switch view on tag switch */
 static const char *fonts[]          = { "monospace:size=10" };
 //static const char *monofonts[]      = { "MesloLGS Nerd Font Mono:size=10:style=Nomral" };
 static const char dmenufont[]       = "monospace:size=10";
-//static       char col_gray0[]       = "#101010";
-static       char col_gray1[]       = "#222222";
-//static       char col_gray2[]       = "#444444";
-static       char col_gray3[]       = "#bbbbbb";
-//static       char col_gray4[]       = "#eeeeee";
+//static       char col_grey0[]       = "#101010";
+static       char col_grey1[]       = "#222222";
+//static       char col_grey2[]       = "#444444";
+static       char col_grey3[]       = "#bbbbbb";
+//static       char col_grey4[]       = "#eeeeee";
 //static       char col_cyan[]        = "#005577";
 static       char col_violet[]      = "#7a0aa3";
 static       char col_violet2[]     = "#b32be5";
@@ -174,20 +174,22 @@ static       char col_black[]		= "#000000ff";
 static       char col_gold[]		= "#e6af38";
 //static       char col_bright_gold[] = "#ffd30f";
 static       char col_yellow[]		= "#ffff00";
+static       char col_normbg[]		= "#222222d0";
+static       char col_normbdr[]		= "#000000a0";
 
 // colours can be of the form #rgb, #rrggbb, #rrggbbaa, or X colours by name;
 static char *colours[][3] = {
 	/*              	fg			bg				border   */
-	[SchemeNorm]    = {	col_gray3,	"#222222d0",	"#000000a0"	},
+	[SchemeNorm]    = {	col_grey3,	col_normbg,		col_normbdr	},
 	[SchemeSel]     = {	col_white,	col_violet,		col_violet2	},
 	#if PATCH_TWO_TONE_TITLE
-	[SchemeSel2]    = {	col_white,	"#222222d0",	col_violet2	},
+	[SchemeSel2]    = {	col_white,	col_normbg,		col_violet2	},
 	#endif // PATCH_TWO_TONE_TITLE
-	[SchemeLayout]  = {	col_gray1,	"#aaaaaad0",	"#000000a0"	},
-	[SchemeTabNorm] = {	col_gray3,	col_gray1,		"#000000d0"	},
+	[SchemeLayout]  = {	col_grey1,	"#aaaaaad0",	col_normbdr	},
+	[SchemeTabNorm] = {	col_grey3,	col_grey1,		"#000000d0"	},
 	[SchemeTabSel]  = {	col_white,	col_violet,		col_violet	},
-	[SchemeTabUrg]  = {	col_gray1,	col_gold,		col_gold	},
-	[SchemeUrg]     = {	col_gray1,	"#e6af38d0",	col_gold	},
+	[SchemeTabUrg]  = {	col_grey1,	col_gold,		col_gold	},
+	[SchemeUrg]     = {	col_grey1,	"#e6af38d0",	col_gold	},
 	#if PATCH_FLAG_HIDDEN || PATCH_SHOW_DESKTOP
 	[SchemeHide]    = {	col_white,	"#777777d0",	"#a0ffa080"	},
 	#endif // PATCH_FLAG_HIDDEN || PATCH_SHOW_DESKTOP
@@ -209,6 +211,26 @@ static char *colours[][3] = {
 	[SchemeTag8]	= {	col_white,	"#800080",		col_black	},
 	[SchemeTag9]	= {	col_black,	"#c020c0",		col_black	},
 	#endif // PATCH_RAINBOW_TAGS
+	#if PATCH_STATUSCMD
+	#if PATCH_STATUSCMD_COLOURS
+	[SchemeStatC1]	= { "#ff0000",	col_normbg,		col_normbdr },
+	[SchemeStatC2]	= { "#a00000",	col_normbg,		col_normbdr },
+	[SchemeStatC3]	= { "#ff8000",	col_normbg,		col_normbdr },
+	[SchemeStatC4]	= { "#a06000",	col_normbg,		col_normbdr },
+	[SchemeStatC5]	= { "#ffff00",	col_normbg,		col_normbdr },
+	[SchemeStatC6]	= { "#808000",	col_normbg,		col_normbdr },
+	[SchemeStatC7]	= { "#00ff00",	col_normbg,		col_normbdr },
+	[SchemeStatC8]	= { "#00a000",	col_normbg,		col_normbdr },
+	[SchemeStatC9]	= { "#00ffff",	col_normbg,		col_normbdr },
+	[SchemeStatC10]	= { "#008080",	col_normbg,		col_normbdr },
+	[SchemeStatC11]	= { "#0080ff",	col_normbg,		col_normbdr },
+	[SchemeStatC12]	= { "#0060a0",	col_normbg,		col_normbdr },
+	[SchemeStatC13]	= { "#0000ff",	col_normbg,		col_normbdr },
+	[SchemeStatC14]	= { "#0000a0",	col_normbg,		col_normbdr },
+	[SchemeStatC15]	= { "#ffffff",	col_normbg,		col_normbdr },
+	[SchemeStatusCmd] = { col_grey3, col_normbg,	col_normbdr	},
+	#endif // PATCH_STATUSCMD_COLOURS
+	#endif // PATCH_STATUSCMD
 };
 
 /* tagging */
@@ -333,7 +355,7 @@ static IPCCommand ipccommands[] = {
 
 /* commands */
 static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() */
-static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont, "-nb", col_gray1, "-nf", col_gray3, "-sb", col_violet, "-sf", col_white, NULL };
+static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont, "-nb", col_grey1, "-nf", col_grey3, "-sb", col_violet, "-sf", col_white, NULL };
 //static const char *termcmd[]  = { "konsole", NULL };
 
 static const Key keys[] = {

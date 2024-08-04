@@ -737,6 +737,14 @@ enum {	SchemeNorm, SchemeSel,
 		, SchemeTag1, SchemeTag2, SchemeTag3, SchemeTag4, SchemeTag5, SchemeTag6
 		, SchemeTag7, SchemeTag8, SchemeTag9
 		#endif // PATCH_RAINBOW_TAGS
+		#if PATCH_STATUSCMD
+		#if PATCH_STATUSCMD_COLOURS
+		, SchemeStatC1, SchemeStatC2, SchemeStatC3, SchemeStatC4, SchemeStatC5
+		, SchemeStatC6, SchemeStatC7, SchemeStatC8, SchemeStatC9, SchemeStatC10
+		, SchemeStatC11, SchemeStatC12, SchemeStatC13, SchemeStatC14, SchemeStatC15
+		, SchemeStatusCmd
+		#endif // PATCH_STATUSCMD_COLOURS
+		#endif // PATCH_STATUSCMD
 }; // colour schemes;
 enum {	NetSupported, NetWMName,
 		#if PATCH_WINDOW_ICONS
@@ -3351,6 +3359,10 @@ buttonpress(XEvent *e)
 	XButtonPressedEvent *ev = &e->xbutton;
 	#if PATCH_STATUSCMD
 	char *text, *s, ch;
+	#if PATCH_STATUSCMD_COLOURS
+	char buffer[256];
+	size_t bufsize, bufptr;
+	#endif // PATCH_STATUSCMD_COLOURS
 	#endif // PATCH_STATUSCMD
 	click = ClkRootWin;
 	/* focus monitor if necessary */
@@ -3439,8 +3451,31 @@ buttonpress(XEvent *e)
 				#if PATCH_FONT_GROUPS
 				apply_barelement_fontgroup(StatusText);
 				#endif // PATCH_FONT_GROUPS
-				x += lrpad / 2;
-				for (text = s = stext; *s && x <= ev->x; s++) {
+
+				#if PATCH_STATUSCMD_COLOURS
+				strncpy(buffer, stext, sizeof buffer);
+				bufsize = strlen(buffer);
+				for (s = text = buffer; *s && --bufsize; s++)
+					if (*s == '^') {
+						text = s;
+						while (*(++s) != '^' && --bufsize);
+						if (!bufsize)
+							break;
+						s++;
+						for (bufptr = bufsize; bufptr > 0; --bufptr)
+							*(text + bufsize - bufptr) = (*s++);
+						s = text;
+					}
+				#endif // PATCH_STATUSCMD_COLOURS
+
+				x += lrpad / 2 - 2;
+				for (text = s =
+					#if PATCH_STATUSCMD_COLOURS
+					buffer
+					#else // NO PATCH_STATUSCMD_COLOURS
+					stext
+					#endif // PATCH_STATUSCMD_COLOURS
+					; *s && x <= ev->x; s++) {
 					if ((unsigned char)(*s) < ' ') {
 						ch = *s;
 						*s = '\0';
@@ -5308,15 +5343,31 @@ drawbar(Monitor *m, int skiptags)
 		}
 		else {
 			char *text, *s;
+			#if PATCH_STATUSCMD_COLOURS
+			char *s2;
+			size_t bufptr;
+			#endif // PATCH_STATUSCMD_COLOURS
 			char buffer[256];
 			strncpy(buffer, stext, sizeof buffer);
 			size_t bufsize = strlen(buffer);
-			unsigned int tw = 0;
+			unsigned int tw = 0, isCode = 0;
 			for (text = s = buffer; *s; s++) {
 				if ((unsigned char)(*s) < ' ') {
 					*s = '\0';
 					tw += drw_fontset_getwidth(drw, text) + lrpad / 2;
 					text = s + 1;
+				#if PATCH_STATUSCMD_COLOURS
+				} else if ((unsigned char)(*s) == '^') {
+					if (!isCode) {
+						isCode = 1;
+						*s = '\0';
+						tw += drw_fontset_getwidth(drw, text);
+						*s = '^';
+					} else {
+						isCode = 0;
+						text = s + 1;
+					}
+				#endif // PATCH_STATUSCMD_COLOURS
 				}
 			}
 			m->bar[StatusText].w = tw + drw_fontset_getwidth(drw, text) + lrpad / 2 + 2
@@ -5331,7 +5382,35 @@ drawbar(Monitor *m, int skiptags)
 				#endif // PATCH_FLAG_PANEL
 			);
 
-			for (text = s = buffer; --bufsize; s++) {
+			#if PATCH_STATUSCMD_COLOURS
+			drw_setscheme(drw, scheme[SchemeStatusCmd]);
+			drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
+			#endif // PATCH_STATUSCMD_COLOURS
+			for (text = s = buffer; --bufsize > 0; s++) {
+				#if PATCH_STATUSCMD_COLOURS
+				if (bufsize > 1 && (unsigned char)(*s) == '^') {
+					s2 = s;
+					while ((unsigned char)(*(++s2)) != '^' && --bufsize);
+					if (!bufsize)
+						break;
+					*s2 = '\0';
+					s2++;
+					if ((unsigned char)(*(s + 1)) == 'C') {
+
+						isCode = atoi(s + 2);
+						if (isCode && isCode <= (SchemeStatusCmd - SchemeStatC1 + 1))
+							drw_setscheme(drw, scheme[isCode + SchemeStatC1 - 1]);
+						else {
+							drw_setscheme(drw, scheme[SchemeStatusCmd]);
+							drw_clr_create(drw, &drw->scheme[ColFg], s + 2);
+						}
+					}
+
+					for (bufptr = bufsize; bufptr--; s2++)
+						*(s + (bufsize - bufptr - 1)) = (unsigned char)(*s2);
+					*(s + bufsize) = '\0';
+				}
+				#endif // PATCH_STATUSCMD_COLOURS
 				if ((unsigned char)(*s) < ' ') {
 					tw = drw_fontset_getwidth(drw, text) + lrpad / 2;
 					#if PATCH_BIDIRECTIONAL_TEXT
@@ -5357,6 +5436,10 @@ drawbar(Monitor *m, int skiptags)
 					);
 					x += tw;
 					text = s + 1;
+					#if PATCH_STATUSCMD_COLOURS
+					drw_setscheme(drw, scheme[SchemeStatusCmd]);
+					drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
+					#endif // PATCH_STATUSCMD_COLOURS
 				}
 			}
 			tw = drw_fontset_getwidth(drw, text) + lrpad / 2 + 2;
@@ -15906,6 +15989,7 @@ setup(void)
 	scheme = ecalloc(LENGTH(colours), sizeof(Clr *));
 	for (i = 0; i < LENGTH(colours); i++)
 		scheme[i] = drw_scm_create(drw, colours[i], 3);
+
 	#if PATCH_SYSTRAY
 	/* init system tray */
 	if (showsystray)

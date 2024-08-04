@@ -492,15 +492,15 @@ drw_clr_create(Drw *drw, Clr *dest, const char *clrname)
 
 	#if PATCH_ALPHA_CHANNEL
 	if (drw->useargb) {
-		if (!XftColorAllocName(drw->dpy, drw->visual, drw->cmap, buffer, dest))
-			die("error, cannot allocate color '%s'", clrname);
+		if (!XftColorAllocName(drw->dpy, drw->visual, drw->cmap, buffer, dest));
+			//die("error, cannot allocate color '%s'", clrname);
 	}
 	else
 	#endif // PATCH_ALPHA_CHANNEL
 	if (!XftColorAllocName(drw->dpy, DefaultVisual(drw->dpy, drw->screen),
 	                       DefaultColormap(drw->dpy, drw->screen),
-	                       buffer, dest))
-		die("error, cannot allocate color '%s'", clrname);
+	                       buffer, dest));
+		//die("error, cannot allocate color '%s'", clrname);
 
 	#if PATCH_ALPHA_CHANNEL
 	// set the alpha channel;
