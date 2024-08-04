@@ -5346,11 +5346,12 @@ drawbar(Monitor *m, int skiptags)
 			#if PATCH_STATUSCMD_COLOURS
 			char *s2;
 			size_t bufptr;
+			unsigned int isCode = 0;
 			#endif // PATCH_STATUSCMD_COLOURS
 			char buffer[256];
 			strncpy(buffer, stext, sizeof buffer);
 			size_t bufsize = strlen(buffer);
-			unsigned int tw = 0, isCode = 0;
+			unsigned int tw = 0;
 			for (text = s = buffer; *s; s++) {
 				if ((unsigned char)(*s) < ' ') {
 					*s = '\0';
