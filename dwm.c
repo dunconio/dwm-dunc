@@ -3432,18 +3432,19 @@ buttonpress(XEvent *e)
 				click = ClkStatusText;
 				#if PATCH_STATUSCMD
 				#if PATCH_SYSTRAY
-				if (systrayonleft)
+				if (showsystray && systrayonleft)
 					x += m->stw;
 				#endif // PATCH_SYSTRAY
 				statussig = 0;
 				#if PATCH_FONT_GROUPS
 				apply_barelement_fontgroup(StatusText);
 				#endif // PATCH_FONT_GROUPS
+				x += lrpad / 2;
 				for (text = s = stext; *s && x <= ev->x; s++) {
 					if ((unsigned char)(*s) < ' ') {
 						ch = *s;
 						*s = '\0';
-						x += TEXTW(text) - lrpad;
+						x += drw_fontset_getwidth(drw, text) + lrpad / 2;
 						*s = ch;
 						text = s + 1;
 						if (x >= ev->x)
@@ -5289,7 +5290,7 @@ drawbar(Monitor *m, int skiptags)
 			x = drw_text(drw,
 				m->bar[StatusText].x, 0, m->bar[StatusText].w, bh, lrpad / 2 - 2
 				#if PATCH_SYSTRAY
-				+ (systrayonleft ? m->stw : 0)
+				+ (showsystray && systrayonleft ? m->stw : 0)
 				#endif // PATCH_SYSTRAY
 				,
 				0,
@@ -5314,11 +5315,11 @@ drawbar(Monitor *m, int skiptags)
 			for (text = s = buffer; *s; s++) {
 				if ((unsigned char)(*s) < ' ') {
 					*s = '\0';
-					tw += TEXTW(text) - lrpad / 2;
+					tw += drw_fontset_getwidth(drw, text) + lrpad / 2;
 					text = s + 1;
 				}
 			}
-			m->bar[StatusText].w = tw + TEXTW(text) - lrpad / 2 + 2
+			m->bar[StatusText].w = tw + drw_fontset_getwidth(drw, text) + lrpad / 2 + 2
 				#if PATCH_SYSTRAY
 				+ m->stw
 				#endif // PATCH_SYSTRAY
@@ -5332,14 +5333,14 @@ drawbar(Monitor *m, int skiptags)
 
 			for (text = s = buffer; --bufsize; s++) {
 				if ((unsigned char)(*s) < ' ') {
-					tw = TEXTW(text) - lrpad / 2;
+					tw = drw_fontset_getwidth(drw, text) + lrpad / 2;
 					#if PATCH_BIDIRECTIONAL_TEXT
 					apply_fribidi(text);
 					#endif // PATCH_BIDIRECTIONAL_TEXT
 					drw_text(drw,
 						m->bar[StatusText].x + x, 0, tw, bh, lrpad / 2 - 2
 						#if PATCH_SYSTRAY
-						+ (systrayonleft ? m->stw : 0)
+						+ (showsystray && systrayonleft ? m->stw : 0)
 						#endif // PATCH_SYSTRAY
 						,
 						0,
@@ -5358,14 +5359,14 @@ drawbar(Monitor *m, int skiptags)
 					text = s + 1;
 				}
 			}
-			tw = TEXTW(text) - lrpad / 2 + 2;
+			tw = drw_fontset_getwidth(drw, text) + lrpad / 2 + 2;
 			#if PATCH_BIDIRECTIONAL_TEXT
 			apply_fribidi(text);
 			#endif // PATCH_BIDIRECTIONAL_TEXT
 			x = drw_text(drw,
 				m->bar[StatusText].x + x, 0, m->mw - (m->bar[StatusText].x + x), bh, lrpad / 2 - 2
 				#if PATCH_SYSTRAY
-				+ (systrayonleft ? m->stw : 0)
+				+ (showsystray && systrayonleft ? m->stw : 0)
 				#endif // PATCH_SYSTRAY
 				,
 				0,
@@ -5382,7 +5383,7 @@ drawbar(Monitor *m, int skiptags)
 			);
 		}
 		#else // NO PATCH_STATUSCMD
-		m->bar[StatusText].w = TEXTW(m->showstatus == -1 ? DWM_VERSION_STRING_SHORT : stext) - lrpad / 2 + 2 /* 2px extra right padding */
+		m->bar[StatusText].w = drw_fontset_getwidth(drw, (m->showstatus == -1 ? DWM_VERSION_STRING_SHORT : stext)) + lrpad / 2 + 2 /* 2px extra right padding */
 			#if PATCH_SYSTRAY
 			+ m->stw
 			#endif // PATCH_SYSTRAY
@@ -5400,7 +5401,7 @@ drawbar(Monitor *m, int skiptags)
 			m->bar[StatusText].x, 0, m->bar[StatusText].w, bh,
 			lrpad / 2 - 2
 			#if PATCH_SYSTRAY
-			+ (systrayonleft ? m->stw : 0)
+			+ (showsystray && systrayonleft ? m->stw : 0)
 			#endif // PATCH_SYSTRAY
 			,
 			0,
@@ -6278,7 +6279,7 @@ drawbar(Monitor *m, int skiptags)
 		m->bar[WinTitle].w = 0;
 	}
 	#if PATCH_SYSTRAY
-	if (m->stw && systrayonleft) {
+	if (showsystray && m->stw && systrayonleft) {
 		drw_setscheme(drw, scheme[SchemeNorm]);
 		drw_rect(drw, m->bar[StatusText].x, 0, m->stw, bh, 1, 1);
 	}
