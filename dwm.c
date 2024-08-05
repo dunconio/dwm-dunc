@@ -6224,7 +6224,7 @@ drawbar(Monitor *m, int skiptags)
 					+ (active->icon ? active->icw + iconspacing : 0)
 					#endif // PATCH_WINDOW_ICONS
 				);
-				int rpad = 0;
+				int rpad = lrpad / 2;
 				unsigned int tw = 0;
 				if (m->title_align) {
 					tw =
@@ -6246,11 +6246,7 @@ drawbar(Monitor *m, int skiptags)
 								#endif // PATCH_WINDOW_ICONS
 							;
 						else if (m->title_align == 2)
-							pad = (w - tw)
-								#if PATCH_WINDOW_ICONS
-								- (active->icon ? iconspacing : 0)
-								#endif // PATCH_WINDOW_ICONS
-							;
+							pad = (w - tw);
 					}
 					else if (m->title_align == 2) {
 						pad = lrpad / 2;
