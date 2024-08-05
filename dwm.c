@@ -3452,29 +3452,42 @@ buttonpress(XEvent *e)
 				apply_barelement_fontgroup(StatusText);
 				#endif // PATCH_FONT_GROUPS
 
-				#if PATCH_STATUSCMD_COLOURS
+				#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				strncpy(buffer, stext, sizeof buffer);
 				bufsize = strlen(buffer);
 				for (s = text = buffer; *s && --bufsize; s++)
 					if (*s == '^') {
 						text = s;
-						while (*(++s) != '^' && --bufsize);
-						if (!bufsize)
-							break;
-						s++;
+						#if PATCH_STATUSCMD_NONPRINTING
+						if (*(s + 1) == 'N') {
+							for (s++; *s != '^' && --bufsize; s++)
+								*(text++) = *s;
+							if (!bufsize)
+								break;
+							s++;
+						}
+						#endif // PATCH_STATUSCMD_NONPRINTING
+						#if PATCH_STATUSCMD_COLOURS
+						if (*(s + 1) == 'C') {
+							while (*(++s) != '^' && --bufsize);
+							if (!bufsize)
+								break;
+							s++;
+						}
+						#endif // PATCH_STATUSCMD_COLOURS
 						for (bufptr = bufsize; bufptr > 0; --bufptr)
 							*(text + bufsize - bufptr) = (*s++);
 						s = text;
 					}
-				#endif // PATCH_STATUSCMD_COLOURS
+				#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 
 				x += lrpad / 2 - 2;
 				for (text = s =
-					#if PATCH_STATUSCMD_COLOURS
+					#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 					buffer
-					#else // NO PATCH_STATUSCMD_COLOURS
+					#else // NO PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 					stext
-					#endif // PATCH_STATUSCMD_COLOURS
+					#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 					; *s && x <= ev->x; s++) {
 					if ((unsigned char)(*s) < ' ') {
 						ch = *s;
@@ -5343,11 +5356,11 @@ drawbar(Monitor *m, int skiptags)
 		}
 		else {
 			char *text, *s;
-			#if PATCH_STATUSCMD_COLOURS
+			#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 			char *s2;
 			size_t bufptr;
 			unsigned int isCode = 0;
-			#endif // PATCH_STATUSCMD_COLOURS
+			#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 			char buffer[256];
 			strncpy(buffer, stext, sizeof buffer);
 			size_t bufsize = strlen(buffer);
@@ -5357,18 +5370,36 @@ drawbar(Monitor *m, int skiptags)
 					*s = '\0';
 					tw += drw_fontset_getwidth(drw, text) + lrpad / 2;
 					text = s + 1;
-				#if PATCH_STATUSCMD_COLOURS
+				#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				} else if ((unsigned char)(*s) == '^') {
 					if (!isCode) {
-						isCode = 1;
 						*s = '\0';
 						tw += drw_fontset_getwidth(drw, text);
 						*s = '^';
+						#if PATCH_STATUSCMD_COLOURS
+						if (*(s + 1) == 'C')
+							isCode = 2;
+						#endif // PATCH_STATUSCMD_COLOURS
+						#if PATCH_STATUSCMD_NONPRINTING
+						if (*(s + 1) == 'N') {
+							isCode = 3;
+							text = s + 2;
+						}
+						#endif // PATCH_STATUSCMD_NONPRINTING
+						if (!isCode)
+							isCode = 1;
 					} else {
+						#if PATCH_STATUSCMD_NONPRINTING
+						if (isCode == 3) {
+							*s = '\0';
+							tw += drw_fontset_getwidth(drw, text);
+							*s = '^';
+						}
+						#endif // PATCH_STATUSCMD_NONPRINTING
 						isCode = 0;
 						text = s + 1;
 					}
-				#endif // PATCH_STATUSCMD_COLOURS
+				#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				}
 			}
 			m->bar[StatusText].w = tw + drw_fontset_getwidth(drw, text) + lrpad / 2 + 2
@@ -5387,8 +5418,11 @@ drawbar(Monitor *m, int skiptags)
 			drw_setscheme(drw, scheme[SchemeStatusCmd]);
 			drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
 			#endif // PATCH_STATUSCMD_COLOURS
+			#if PATCH_STATUSCMD_NONPRINTING
+			unsigned int npwidth = 0;
+			#endif // PATCH_STATUSCMD_NONPRINTING
 			for (text = s = buffer; --bufsize > 0; s++) {
-				#if PATCH_STATUSCMD_COLOURS
+				#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				if (bufsize > 1 && (unsigned char)(*s) == '^') {
 					s2 = s;
 					while ((unsigned char)(*(++s2)) != '^' && --bufsize);
@@ -5396,6 +5430,7 @@ drawbar(Monitor *m, int skiptags)
 						break;
 					*s2 = '\0';
 					s2++;
+					#if PATCH_STATUSCMD_COLOURS
 					if ((unsigned char)(*(s + 1)) == 'C') {
 
 						isCode = atoi(s + 2);
@@ -5406,14 +5441,26 @@ drawbar(Monitor *m, int skiptags)
 							drw_clr_create(drw, &drw->scheme[ColFg], s + 2);
 						}
 					}
+					#endif // PATCH_STATUSCMD_COLOURS
+					#if PATCH_STATUSCMD_NONPRINTING
+					if ((unsigned char)(*(s + 1)) == 'N')
+						npwidth += drw_fontset_getwidth(drw, s + 2);
+					#endif // PATCH_STATUSCMD_NONPRINTING
 
 					for (bufptr = bufsize; bufptr--; s2++)
 						*(s + (bufsize - bufptr - 1)) = (unsigned char)(*s2);
 					*(s + bufsize) = '\0';
 				}
-				#endif // PATCH_STATUSCMD_COLOURS
+				#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				if ((unsigned char)(*s) < ' ') {
-					tw = drw_fontset_getwidth(drw, text) + lrpad / 2;
+					tw = drw_fontset_getwidth(drw, text)
+						#if PATCH_STATUSCMD_NONPRINTING
+						+ npwidth
+						#endif // PATCH_STATUSCMD_NONPRINTING
+						+ lrpad / 2;
+					#if PATCH_STATUSCMD_NONPRINTING
+					npwidth = 0;
+					#endif // PATCH_STATUSCMD_NONPRINTING
 					#if PATCH_BIDIRECTIONAL_TEXT
 					apply_fribidi(text);
 					#endif // PATCH_BIDIRECTIONAL_TEXT

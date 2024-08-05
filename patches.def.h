@@ -42,6 +42,7 @@
 #define PATCH_SHOW_MASTER_CLIENT_ON_TAG		1
 #define PATCH_STATUSCMD						0
 #define PATCH_STATUSCMD_COLOURS				1
+#define PATCH_STATUSCMD_NONPRINTING			1
 #define PATCH_SWITCH_TAG_ON_EMPTY			1	// Enables tag switch if there are no visible clients;
 #define PATCH_SYSTRAY						1
 #define PATCH_TERMINAL_SWALLOWING			1
