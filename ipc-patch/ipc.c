@@ -525,6 +525,42 @@ ipc_parse_subscribe(const char *msg, IPCSubscriptionAction *subscribe, IPCEvent 
 	return 0;
 }
 
+
+static int
+ipc_parse_find_dwm_client(const char *msg, char **name)
+{
+	cJSON *parent = cJSON_Parse(msg);
+
+	const char *error_ptr = cJSON_GetErrorPtr();
+	if (error_ptr != NULL) {
+		logdatetime(stderr);
+		fprintf(stderr, "dwm: ipc_parse_find_dwm_client: Error while parsing msg data before: %s\n", error_ptr);
+		return -1;
+	}
+	else if (!parent) {
+		logdatetime(stderr);
+		fprintf(stderr, "dwm: ipc_parse_find_dwm_client: Error while parsing msg data.\n");
+		return -1;
+	}
+
+	// Format:
+	// {
+	//   "client_name": <name>
+	// }
+	cJSON *name_val = cJSON_GetObjectItemCaseSensitive(parent, "client_name");
+	if (name_val == NULL)
+		*name = NULL;
+	else {
+		size_t len = strlen(name_val->valuestring) + 1;
+		*name = (char *)malloc(len);
+		strncpy(*name, name_val->valuestring, len);
+	}
+
+	cJSON_Delete(parent);
+
+	return 0;
+}
+
 /**
  * Parse an IPC_TYPE_GET_DWM_CLIENT message from a client. This function
  * extracts the window id from the message.
@@ -744,6 +780,34 @@ ipc_get_layouts(IPCClient *c, const Layout layouts[], const int layouts_len)
 	ipc_reply_prepare_send_message(gen, c, IPC_TYPE_GET_LAYOUTS);
 
 	cJSON_Delete(gen);
+}
+
+static int
+ipc_find_dwm_client(IPCClient *ipc_client, const char *msg, const Monitor *mons)
+{
+	char *name;
+	if (ipc_parse_find_dwm_client(msg, &name) < 0 || !name)
+		return -1;
+
+	Client *c = getclientbyname(name);
+	if (c) {
+		cJSON *gen = cJSON_CreateObject();
+		cJSON_AddStringToObject(gen, "name", c->name);
+		cJSON_AddIntegerToObject(gen, "pid", c->pid);
+		cJSON_AddIntegerToObject(gen, "tags", c->tags);
+		cJSON_AddIntegerToObject(gen, "window_id", c->win);
+		cJSON_AddIntegerToObject(gen, "monitor_number", c->mon->num);
+
+		ipc_reply_prepare_send_message(gen, ipc_client, IPC_TYPE_FIND_DWM_CLIENT);
+
+		cJSON_Delete(gen);
+		free(name);
+		return 0;
+	}
+
+	ipc_prepare_reply_failure(ipc_client, IPC_TYPE_FIND_DWM_CLIENT, "Client with name/class/instance matching %s not found", name);
+	free(name);
+	return -1;
 }
 
 /**
@@ -1439,6 +1503,10 @@ ipc_handle_client_epoll_event(struct epoll_event *ev, Monitor *mons,
 			ipc_get_tags(c, tags, tags_len);
 		else if (msg_type == IPC_TYPE_GET_LAYOUTS)
 			ipc_get_layouts(c, layouts, layouts_len);
+		else if (msg_type == IPC_TYPE_FIND_DWM_CLIENT) {
+			if (ipc_find_dwm_client(c, msg, mons) < 0)
+				return -1;
+		}
 		else if (msg_type == IPC_TYPE_GET_DWM_CLIENT) {
 			if (ipc_get_dwm_client(c, msg, mons) < 0)
 				return -1;

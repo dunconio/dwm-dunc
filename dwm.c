@@ -1320,6 +1320,7 @@ static void focusstack(const Arg *arg);
 static void fullscreen(const Arg *arg);
 #endif
 #if PATCH_IPC
+static int find_dwm_client(const char *name);
 static int get_dwm_client(Window win);
 static int get_layouts();
 static int get_monitors();
@@ -1331,6 +1332,7 @@ static Client *getactivegameclient(Monitor *m);
 static Atom getatomprop(Client *c, Atom prop);
 static Atom getatompropex(Window w, Atom prop);
 static Client *getclientatcoords(int x, int y, int focusable);
+static Client *getclientbyname(const char *name);
 #if PATCH_SHOW_DESKTOP
 #if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 static Client *getdesktopclient(Monitor *m, int *nondesktop_exists);
@@ -1456,7 +1458,7 @@ static int parselayoutjson(cJSON *layout);
 static int parserulesjson(cJSON *json);
 static void placemouse(const Arg *arg);
 #if PATCH_MOUSE_POINTER_WARPING
-static int pointoverbar(int x, int y, int check_clients);
+static int pointoverbar(Monitor *m, int x, int y, int check_clients);
 #endif // PATCH_MOUSE_POINTER_WARPING
 static void pop(Client *c);
 #if PATCH_MOVE_TILED_WINDOWS || PATCH_FLAG_HIDDEN
@@ -1904,50 +1906,7 @@ void
 activate(const Arg *arg)
 {
 	Monitor *selm = selmon;
-	Client *c, *sel = NULL;
-	XClassHint ch = { NULL, NULL };
-
-	for (Monitor *m = mons; m; m = m->next) {
-		for (c = m->clients; c; c = c->next)
-			if (
-				#if PATCH_FLAG_IGNORED
-				!c->isignored &&
-				#endif // PATCH_FLAG_IGNORED
-				#if PATCH_FLAG_PANEL
-				!c->ispanel &&
-				#endif // PATCH_FLAG_PANEL
-				!c->dormant
-			) {
-				if (strstr(c->name, arg->v)) {
-					sel = c;
-					break;
-				}
-				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-				else if (c->dispclass && strcmp(c->dispclass, arg->v) == 0) {
-					sel = c;
-					break;
-				}
-				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-				else {
-					XGetClassHint(dpy, c->win, &ch);
-					if (ch.res_name) {
-						if (strstr(ch.res_name, arg->v))
-							sel = c;
-						XFree(ch.res_name);
-					}
-					if (ch.res_class) {
-						if (!sel && strstr(ch.res_class, arg->v))
-							sel = c;
-						XFree(ch.res_class);
-					}
-					if (sel)
-						break;
-				}
-			}
-		if (sel)
-			break;
-	}
-
+	Client *sel = getclientbyname(arg->v);
 	if (sel) {
 
 		if (selmon->sel)
@@ -1976,9 +1935,9 @@ activate(const Arg *arg)
 		#if PATCH_MOUSE_POINTER_WARPING
 		if (selmon->sel)
 			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(selmon->sel, 1, 0);
+			warptoclient(selmon->sel, 1, 1);
 			#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(selmon->sel, 0);
+			warptoclient(selmon->sel, 1);
 			#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		#endif // PATCH_MOUSE_POINTER_WARPING
 	}
@@ -7295,6 +7254,39 @@ fullscreen(const Arg *arg)
 
 #if PATCH_IPC
 int
+find_dwm_client(const char *name)
+{
+	connect_to_socket();
+	if (sock_fd == -1) {
+		logdatetime(stderr);
+		fprintf(stderr, "dwm: Failed to connect to socket \"%s\".\n", ipcsockpath);
+		return 0;
+	}
+
+	char *msg;
+	size_t msg_size;
+
+	cJSON *gen = cJSON_CreateObject();
+	cJSON_AddStringToObject(gen, "client_name", name);
+
+	// Message format:
+	// {
+	//   "client_name": "<win>"
+	// }
+
+	msg = cJSON_PrintUnformatted(gen);
+	msg_size = strlen(msg) + 1;
+
+	send_message(IPC_TYPE_FIND_DWM_CLIENT, msg_size, (uint8_t *)msg);
+
+	print_socket_reply();
+
+	cJSON_free(msg);
+	cJSON_Delete(gen);
+
+	return 0;
+}
+int
 get_dwm_client(Window win)
 {
 	connect_to_socket();
@@ -7478,6 +7470,55 @@ getclientatcoords(int x, int y, int focusable)
 			}
 		}
 
+	return sel;
+}
+
+Client *
+getclientbyname(const char *name)
+{
+	Client *c, *sel = NULL;
+	XClassHint ch = { NULL, NULL };
+
+	for (Monitor *m = mons; m; m = m->next) {
+		for (c = m->clients; c; c = c->next)
+			if (
+				#if PATCH_FLAG_IGNORED
+				!c->isignored &&
+				#endif // PATCH_FLAG_IGNORED
+				#if PATCH_FLAG_PANEL
+				!c->ispanel &&
+				#endif // PATCH_FLAG_PANEL
+				!c->dormant
+			) {
+				if (strstr(c->name, name)) {
+					sel = c;
+					break;
+				}
+				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				else if (c->dispclass && strcmp(c->dispclass, name) == 0) {
+					sel = c;
+					break;
+				}
+				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				else {
+					XGetClassHint(dpy, c->win, &ch);
+					if (ch.res_name) {
+						if (strstr(ch.res_name, name))
+							sel = c;
+						XFree(ch.res_name);
+					}
+					if (ch.res_class) {
+						if (!sel && strstr(ch.res_class, name))
+							sel = c;
+						XFree(ch.res_class);
+					}
+					if (sel)
+						break;
+				}
+			}
+		if (sel)
+			break;
+	}
 	return sel;
 }
 
@@ -12663,13 +12704,14 @@ placemouse(const Arg *arg)
 
 #if PATCH_MOUSE_POINTER_WARPING
 int
-pointoverbar(int x, int y, int check_clients)
+pointoverbar(Monitor *m, int x, int y, int check_clients)
 {
 	unsigned int num;
 	Window d1, d2, *wins = NULL;
 	int a, w = 1, h = 1;
 	int i;
 	Client *c;
+	/*
 	Monitor *m;
 
 	// is the point over a bar;
@@ -12679,10 +12721,16 @@ pointoverbar(int x, int y, int check_clients)
 			y >= (m->topbar ? m->my : m->my+m->mh-bh) &&
 			y <= (m->topbar ? m->my+bh : m->my+m->mh)
 		)
-			break;
-
+		break;
 	// not over a bar;
 	if (!m)
+		return 0;
+	*/
+	if (!m->barvisible ||
+		x < m->mx || x > m->mx+m->mw ||
+		y < (m->topbar ? m->my : m->my+m->mh-bh) ||
+		y > (m->topbar ? m->my+bh : m->my+m->mh)
+		)
 		return 0;
 
 	// XQueryTree returns windows in stacking order top to bottom;
@@ -16347,16 +16395,6 @@ showhide(Client *c, int client_only)
 		));
 		#endif // PATCH_CLIENT_OPACITY
 
-		#if PATCH_FLAG_GAME
-		if (c->isgame && c->isfullscreen) {
-			XWindowAttributes wa;
-			if (!XGetWindowAttributes(dpy, c->win, &wa) || wa.x + wa.width < 0)
-				XMoveResizeWindow(dpy, c->win, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh);
-		}
-		else
-		#endif // PATCH_FLAG_GAME
-		XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
-
 		if (
 			(!c->mon->lt[c->mon->sellt]->arrange ||	(
 				c->isfloating
@@ -16370,6 +16408,16 @@ showhide(Client *c, int client_only)
 				#endif // PATCH_FLAG_FAKEFULLSCREEN
 			))
 			resizeclient(c, c->x, c->y, c->w, c->h, 0);
+
+		#if PATCH_FLAG_GAME
+		else if (c->isgame && c->isfullscreen) {
+			XWindowAttributes wa;
+			if (!XGetWindowAttributes(dpy, c->win, &wa) || wa.x + wa.width < 0)
+				XMoveResizeWindow(dpy, c->win, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh);
+		}
+		else
+		#endif // PATCH_FLAG_GAME
+		XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
 
 		if (c->snext != c && !client_only)
 			showhide(c->snext, 0);
@@ -20086,8 +20134,8 @@ warptoclient(Client *c, int force)
 	}
 
 	// no warping if current view is monocle;
-	if ((c && !c->isfloating && c->mon->lt[c->mon->sellt]->arrange == monocle && c->mon->showbar)
-		|| pointoverbar(px, py, force == -1 ? 0 : 1)
+	if ((c && !c->isfloating && c->mon->lt[c->mon->sellt]->arrange == monocle)
+		|| (c && c->mon->showbar && pointoverbar(c->mon, px, py, force == -1 ? 0 : 1))
 	) {
 		if (selmon->sel != c)
 			focus(c, 0);
@@ -20709,6 +20757,9 @@ main(int argc, char *argv[], char *envp[])
 
 					const char *indent = "    ";
 					print_wrap(f, wrap_length, NULL, -1, "IPC verbs:", NULL, NULL, NULL);
+					print_wrap(f, wrap_length, indent, 27 , "find_dwm_client [name]", indent, NULL,
+						"Find a DWM client Window whose name or class/instance match the specified name"
+					);
 					print_wrap(f, wrap_length, indent, 27 , "get_dwm_client [Window ID]", indent, NULL,
 						"Return DWM client properties for the specified window (defaults to the active window)"
 					);
@@ -20774,6 +20825,16 @@ main(int argc, char *argv[], char *envp[])
 					}
 					else
 						return(usage("error: Window ID specified (after -s get_dwm_client) must be an unsigned integer."));
+				}
+
+				else if (!strcmp("find_dwm_client", argv[i])) {
+					if (++i >= argc) {
+						return(usage("error: No search string specified after -s find_dwm_client."));
+					}
+					else {
+						find_dwm_client(argv[i]);
+						return EXIT_SUCCESS;
+					}
 				}
 
 				else if (!strcmp("run_command", argv[i])) {
