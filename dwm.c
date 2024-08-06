@@ -5439,6 +5439,35 @@ drawbar(Monitor *m, int skiptags)
 						break;
 					*s = *s2 = '\0';
 					s2++;
+
+					if (text < s) {
+						tw = drw_fontset_getwidth(drw, text) + padw;
+						#if PATCH_BIDIRECTIONAL_TEXT
+						apply_fribidi(text);
+						#endif // PATCH_BIDIRECTIONAL_TEXT
+						drw_text(drw,
+							m->bar[StatusText].x + x, 0, tw, bh, padw
+							#if PATCH_SYSTRAY
+							+ (showsystray && systrayonleft ? m->stw : 0)
+							#endif // PATCH_SYSTRAY
+							,
+							0,
+							#if PATCH_CLIENT_INDICATORS
+							0,
+							#endif // PATCH_CLIENT_INDICATORS
+							1,
+							#if PATCH_BIDIRECTIONAL_TEXT
+							fribidi_text,
+							#else // NO PATCH_BIDIRECTIONAL_TEXT
+							text,
+							#endif // PATCH_BIDIRECTIONAL_TEXT
+							0
+						);
+						x += tw;
+						padw = 0;
+						text = s;
+					}
+
 					#if PATCH_STATUSCMD_COLOURS
 					if ((unsigned char)(*(s + 1)) == 'C') {
 
@@ -5453,33 +5482,6 @@ drawbar(Monitor *m, int skiptags)
 					#endif // PATCH_STATUSCMD_COLOURS
 					#if PATCH_STATUSCMD_NONPRINTING
 					if ((unsigned char)(*(s + 1)) == 'N') {
-						if (text < s) {
-							tw = drw_fontset_getwidth(drw, text) + padw;
-							#if PATCH_BIDIRECTIONAL_TEXT
-							apply_fribidi(text);
-							#endif // PATCH_BIDIRECTIONAL_TEXT
-							drw_text(drw,
-								m->bar[StatusText].x + x, 0, tw, bh, padw
-								#if PATCH_SYSTRAY
-								+ (showsystray && systrayonleft ? m->stw : 0)
-								#endif // PATCH_SYSTRAY
-								,
-								0,
-								#if PATCH_CLIENT_INDICATORS
-								0,
-								#endif // PATCH_CLIENT_INDICATORS
-								1,
-								#if PATCH_BIDIRECTIONAL_TEXT
-								fribidi_text,
-								#else // NO PATCH_BIDIRECTIONAL_TEXT
-								text,
-								#endif // PATCH_BIDIRECTIONAL_TEXT
-								0
-							);
-							x += tw;
-							padw = 0;
-						}
-
 						oldscheme = drw->scheme;
 						drw_setscheme(drw, scheme[SchemeStatCNP]);
 						drw->scheme[ColBg] = drw->scheme[ColFg] = scheme[SchemeNorm][ColBg];
