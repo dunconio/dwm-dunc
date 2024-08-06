@@ -744,6 +744,9 @@ enum {	SchemeNorm, SchemeSel,
 		, SchemeStatC11, SchemeStatC12, SchemeStatC13, SchemeStatC14, SchemeStatC15
 		, SchemeStatusCmd
 		#endif // PATCH_STATUSCMD_COLOURS
+		#if PATCH_STATUSCMD_NONPRINTING
+		, SchemeStatCNP
+		#endif // PATCH_STATUSCMD_NONPRINTING
 		#endif // PATCH_STATUSCMD
 }; // colour schemes;
 enum {	NetSupported, NetWMName,
@@ -3358,6 +3361,7 @@ buttonpress(XEvent *e)
 	Monitor *m = selmon, *lastmon = selmon;
 	XButtonPressedEvent *ev = &e->xbutton;
 	#if PATCH_STATUSCMD
+	unsigned int tw = 0;
 	char *text, *s, ch;
 	#if PATCH_STATUSCMD_COLOURS
 	char buffer[256];
@@ -3460,7 +3464,7 @@ buttonpress(XEvent *e)
 						text = s;
 						#if PATCH_STATUSCMD_NONPRINTING
 						if (*(s + 1) == 'N') {
-							for (s++; *s != '^' && --bufsize; s++)
+							for (s += 2; *s != '^' && --bufsize; s++)
 								*(text++) = *s;
 							if (!bufsize)
 								break;
@@ -3481,7 +3485,7 @@ buttonpress(XEvent *e)
 					}
 				#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 
-				x += lrpad / 2 - 2;
+				x += lrpad / 2;
 				for (text = s =
 					#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 					buffer
@@ -3492,7 +3496,9 @@ buttonpress(XEvent *e)
 					if ((unsigned char)(*s) < ' ') {
 						ch = *s;
 						*s = '\0';
-						x += drw_fontset_getwidth(drw, text) + lrpad / 2;
+						tw = drw_fontset_getwidth(drw, text);
+						if (tw)
+							x += tw + lrpad / 2;
 						*s = ch;
 						text = s + 1;
 						if (x >= ev->x)
@@ -5365,11 +5371,12 @@ drawbar(Monitor *m, int skiptags)
 			strncpy(buffer, stext, sizeof buffer);
 			size_t bufsize = strlen(buffer);
 			unsigned int tw = 0;
-			for (text = s = buffer; *s; s++) {
+			for (i = 0, text = s = buffer; *s; s++) {
 				if ((unsigned char)(*s) < ' ') {
 					*s = '\0';
 					tw += drw_fontset_getwidth(drw, text) + lrpad / 2;
 					text = s + 1;
+					++i;
 				#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				} else if ((unsigned char)(*s) == '^') {
 					if (!isCode) {
@@ -5419,8 +5426,10 @@ drawbar(Monitor *m, int skiptags)
 			drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
 			#endif // PATCH_STATUSCMD_COLOURS
 			#if PATCH_STATUSCMD_NONPRINTING
-			unsigned int npwidth = 0;
+			Clr* oldscheme;
 			#endif // PATCH_STATUSCMD_NONPRINTING
+			unsigned int padw = lrpad / 2;
+
 			for (text = s = buffer; --bufsize > 0; s++) {
 				#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				if (bufsize > 1 && (unsigned char)(*s) == '^') {
@@ -5428,7 +5437,7 @@ drawbar(Monitor *m, int skiptags)
 					while ((unsigned char)(*(++s2)) != '^' && --bufsize);
 					if (!bufsize)
 						break;
-					*s2 = '\0';
+					*s = *s2 = '\0';
 					s2++;
 					#if PATCH_STATUSCMD_COLOURS
 					if ((unsigned char)(*(s + 1)) == 'C') {
@@ -5443,8 +5452,55 @@ drawbar(Monitor *m, int skiptags)
 					}
 					#endif // PATCH_STATUSCMD_COLOURS
 					#if PATCH_STATUSCMD_NONPRINTING
-					if ((unsigned char)(*(s + 1)) == 'N')
-						npwidth += drw_fontset_getwidth(drw, s + 2);
+					if ((unsigned char)(*(s + 1)) == 'N') {
+						if (text < s) {
+							tw = drw_fontset_getwidth(drw, text) + padw;
+							#if PATCH_BIDIRECTIONAL_TEXT
+							apply_fribidi(text);
+							#endif // PATCH_BIDIRECTIONAL_TEXT
+							drw_text(drw,
+								m->bar[StatusText].x + x, 0, tw, bh, padw
+								#if PATCH_SYSTRAY
+								+ (showsystray && systrayonleft ? m->stw : 0)
+								#endif // PATCH_SYSTRAY
+								,
+								0,
+								#if PATCH_CLIENT_INDICATORS
+								0,
+								#endif // PATCH_CLIENT_INDICATORS
+								1,
+								#if PATCH_BIDIRECTIONAL_TEXT
+								fribidi_text,
+								#else // NO PATCH_BIDIRECTIONAL_TEXT
+								text,
+								#endif // PATCH_BIDIRECTIONAL_TEXT
+								0
+							);
+							x += tw;
+							padw = 0;
+						}
+
+						oldscheme = drw->scheme;
+						drw_setscheme(drw, scheme[SchemeStatCNP]);
+						drw->scheme[ColBg] = drw->scheme[ColFg] = scheme[SchemeNorm][ColBg];
+
+						text = s;
+						tw = drw_fontset_getwidth(drw, s + 2) + padw;
+						drw_text(drw,
+							m->bar[StatusText].x + x, 0, tw, bh, padw
+							#if PATCH_SYSTRAY
+							+ (showsystray && systrayonleft ? m->stw : 0)
+							#endif // PATCH_SYSTRAY
+							, 0,
+							#if PATCH_CLIENT_INDICATORS
+							0,
+							#endif // PATCH_CLIENT_INDICATORS
+							1, text, 0
+						);
+						x += tw;
+						padw = 0;
+						drw->scheme = oldscheme;
+					}
 					#endif // PATCH_STATUSCMD_NONPRINTING
 
 					for (bufptr = bufsize; bufptr--; s2++)
@@ -5453,19 +5509,12 @@ drawbar(Monitor *m, int skiptags)
 				}
 				#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				if ((unsigned char)(*s) < ' ') {
-					tw = drw_fontset_getwidth(drw, text)
-						#if PATCH_STATUSCMD_NONPRINTING
-						+ npwidth
-						#endif // PATCH_STATUSCMD_NONPRINTING
-						+ lrpad / 2;
-					#if PATCH_STATUSCMD_NONPRINTING
-					npwidth = 0;
-					#endif // PATCH_STATUSCMD_NONPRINTING
+					tw = drw_fontset_getwidth(drw, text) + padw;
 					#if PATCH_BIDIRECTIONAL_TEXT
 					apply_fribidi(text);
 					#endif // PATCH_BIDIRECTIONAL_TEXT
 					drw_text(drw,
-						m->bar[StatusText].x + x, 0, tw, bh, lrpad / 2 - 2
+						m->bar[StatusText].x + x, 0, tw, bh, padw
 						#if PATCH_SYSTRAY
 						+ (showsystray && systrayonleft ? m->stw : 0)
 						#endif // PATCH_SYSTRAY
@@ -5484,18 +5533,19 @@ drawbar(Monitor *m, int skiptags)
 					);
 					x += tw;
 					text = s + 1;
+					padw = lrpad / 2;
 					#if PATCH_STATUSCMD_COLOURS
 					drw_setscheme(drw, scheme[SchemeStatusCmd]);
 					drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
 					#endif // PATCH_STATUSCMD_COLOURS
 				}
 			}
-			tw = drw_fontset_getwidth(drw, text) + lrpad / 2 + 2;
+			tw = drw_fontset_getwidth(drw, text) + padw;
 			#if PATCH_BIDIRECTIONAL_TEXT
 			apply_fribidi(text);
 			#endif // PATCH_BIDIRECTIONAL_TEXT
 			x = drw_text(drw,
-				m->bar[StatusText].x + x, 0, m->mw - (m->bar[StatusText].x + x), bh, lrpad / 2 - 2
+				m->bar[StatusText].x + x, 0, m->mw - (m->bar[StatusText].x + x), bh, padw
 				#if PATCH_SYSTRAY
 				+ (showsystray && systrayonleft ? m->stw : 0)
 				#endif // PATCH_SYSTRAY

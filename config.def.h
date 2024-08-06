@@ -230,6 +230,9 @@ static char *colours[][3] = {
 	[SchemeStatC15]	= { "#f7f7f1",	col_normbg,		col_normbdr },
 	[SchemeStatusCmd] = { col_grey3, col_normbg,	col_normbdr	},
 	#endif // PATCH_STATUSCMD_COLOURS
+	#if PATCH_STATUSCMD_NONPRINTING
+	[SchemeStatCNP] = { col_normbg, col_normbg,		col_normbdr	},
+	#endif // PATCH_STATUSCMD_NONPRINTING
 	#endif // PATCH_STATUSCMD
 };
 
