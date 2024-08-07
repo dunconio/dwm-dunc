@@ -131,11 +131,11 @@ static const supported_json supported_layout_global[] = {
 	{ "bar-element-font-groups",	"single object or array of objects containing \"bar-element\" string and \"font-group\" string" },
 	#endif // PATCH_FONT_GROUPS
 	{ "bar-layout",					"array of bar elements in order of appearance\n(TagBar, LtSymbol, WinTitle, StatusText"
-	#if PATCH_SHOW_DESKTOP
-	#if PATCH_SHOW_DESKTOP_BUTTON
-	", ShowDesktop"
-	#endif // PATCH_SHOW_DESKTOP_BUTTON
-	#endif // PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP
+		#if PATCH_SHOW_DESKTOP_BUTTON
+		", ShowDesktop"
+		#endif // PATCH_SHOW_DESKTOP_BUTTON
+		#endif // PATCH_SHOW_DESKTOP
 	")" },
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	{ "bar-tag-format-empty",	 	"printf style format of tag displayed when no client is assigned, using %s as placeholder" },
@@ -3322,10 +3322,11 @@ buttonpress(XEvent *e)
 	#if PATCH_STATUSCMD
 	unsigned int tw = 0;
 	char *text, *s, ch;
-	#if PATCH_STATUSCMD_COLOURS
+	#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
+	char *s2;
 	char buffer[256];
 	size_t bufsize, bufptr;
-	#endif // PATCH_STATUSCMD_COLOURS
+	#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 	#endif // PATCH_STATUSCMD
 	click = ClkRootWin;
 	/* focus monitor if necessary */
@@ -3419,28 +3420,26 @@ buttonpress(XEvent *e)
 				strncpy(buffer, stext, sizeof buffer);
 				bufsize = strlen(buffer);
 				for (s = text = buffer; *s && --bufsize; s++)
-					if (*s == '^') {
+
+					while (bufsize > 1 && (unsigned char)(*s) == '^') {
+						s2 = s;
+						while ((unsigned char)(*(++s2)) != '^' && --bufsize);
+						if (!bufsize)
+							break;
+						s2++;
 						text = s;
 						#if PATCH_STATUSCMD_NONPRINTING
-						if (*(s + 1) == 'N') {
-							for (s += 2; *s != '^' && --bufsize; s++)
-								*(text++) = *s;
+						if ((unsigned char)(*(s + 1)) == 'N') {
+							for (s += 2, bufptr = bufsize; (unsigned char)(*s) != '^' && --bufsize; s++)
+								*(text + (bufptr - bufsize - 1)) = (unsigned char)(*s);
 							if (!bufsize)
 								break;
-							s++;
+							s = text + (bufptr - bufsize);
 						}
 						#endif // PATCH_STATUSCMD_NONPRINTING
-						#if PATCH_STATUSCMD_COLOURS
-						if (*(s + 1) == 'C') {
-							while (*(++s) != '^' && --bufsize);
-							if (!bufsize)
-								break;
-							s++;
-						}
-						#endif // PATCH_STATUSCMD_COLOURS
-						for (bufptr = bufsize; bufptr > 0; --bufptr)
-							*(text + bufsize - bufptr) = (*s++);
-						s = text;
+						for (bufptr = bufsize; bufptr--; s2++)
+							*(s + (bufsize - bufptr - 1)) = (unsigned char)(*s2);
+						*(s + bufsize) = '\0';
 					}
 				#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 
@@ -5329,19 +5328,24 @@ drawbar(Monitor *m, int skiptags)
 			char buffer[256];
 			strncpy(buffer, stext, sizeof buffer);
 			size_t bufsize = strlen(buffer);
-			unsigned int tw = 0;
-			for (i = 0, text = s = buffer; *s; s++) {
+			unsigned int padw = lrpad / 2;
+			unsigned int tw = padw;
+			for (text = s = buffer; *s; s++) {
 				if ((unsigned char)(*s) < ' ') {
 					*s = '\0';
-					tw += drw_fontset_getwidth(drw, text) + lrpad / 2;
+
+					w = drw_fontset_getwidth(drw, text);
+					if (w)
+						tw += w + padw;
 					text = s + 1;
-					++i;
 				#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				} else if ((unsigned char)(*s) == '^') {
 					if (!isCode) {
-						*s = '\0';
-						tw += drw_fontset_getwidth(drw, text);
-						*s = '^';
+						if (text < s) {
+							*s = '\0';
+							tw += drw_fontset_getwidth(drw, text);
+							*s = '^';
+						}
 						#if PATCH_STATUSCMD_COLOURS
 						if (*(s + 1) == 'C')
 							isCode = 2;
@@ -5357,9 +5361,11 @@ drawbar(Monitor *m, int skiptags)
 					} else {
 						#if PATCH_STATUSCMD_NONPRINTING
 						if (isCode == 3) {
-							*s = '\0';
-							tw += drw_fontset_getwidth(drw, text);
-							*s = '^';
+							if (text < s) {
+								*s = '\0';
+								tw += drw_fontset_getwidth(drw, text);
+								*s = '^';
+							}
 						}
 						#endif // PATCH_STATUSCMD_NONPRINTING
 						isCode = 0;
@@ -5387,11 +5393,11 @@ drawbar(Monitor *m, int skiptags)
 			#if PATCH_STATUSCMD_NONPRINTING
 			Clr* oldscheme;
 			#endif // PATCH_STATUSCMD_NONPRINTING
-			unsigned int padw = lrpad / 2;
+			padw = lrpad / 2;
 
 			for (text = s = buffer; --bufsize > 0; s++) {
 				#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
-				if (bufsize > 1 && (unsigned char)(*s) == '^') {
+				while (bufsize > 1 && (unsigned char)(*s) == '^') {
 					s2 = s;
 					while ((unsigned char)(*(++s2)) != '^' && --bufsize);
 					if (!bufsize)
@@ -5400,32 +5406,35 @@ drawbar(Monitor *m, int skiptags)
 					s2++;
 
 					if (text < s) {
-						tw = drw_fontset_getwidth(drw, text) + padw;
-						#if PATCH_BIDIRECTIONAL_TEXT
-						apply_fribidi(text);
-						#endif // PATCH_BIDIRECTIONAL_TEXT
-						drw_text(drw,
-							m->bar[StatusText].x + x, 0, tw, bh, padw
-							#if PATCH_SYSTRAY
-							+ (showsystray && systrayonleft ? m->stw : 0)
-							#endif // PATCH_SYSTRAY
-							,
-							0,
-							#if PATCH_CLIENT_INDICATORS
-							0,
-							#endif // PATCH_CLIENT_INDICATORS
-							1,
+						w = drw_fontset_getwidth(drw, text);
+						if (w) {
+							tw = w + padw;
 							#if PATCH_BIDIRECTIONAL_TEXT
-							fribidi_text,
-							#else // NO PATCH_BIDIRECTIONAL_TEXT
-							text,
+							apply_fribidi(text);
 							#endif // PATCH_BIDIRECTIONAL_TEXT
-							0
-						);
-						x += tw;
-						padw = 0;
-						text = s;
+							drw_text(drw,
+								m->bar[StatusText].x + x, 0, tw, bh, padw
+								#if PATCH_SYSTRAY
+								+ (showsystray && systrayonleft ? m->stw : 0)
+								#endif // PATCH_SYSTRAY
+								,
+								0,
+								#if PATCH_CLIENT_INDICATORS
+								0,
+								#endif // PATCH_CLIENT_INDICATORS
+								1,
+								#if PATCH_BIDIRECTIONAL_TEXT
+								fribidi_text,
+								#else // NO PATCH_BIDIRECTIONAL_TEXT
+								text,
+								#endif // PATCH_BIDIRECTIONAL_TEXT
+								0
+							);
+							x += tw;
+							padw = 0;
+						}
 					}
+					text = s;
 
 					#if PATCH_STATUSCMD_COLOURS
 					if ((unsigned char)(*(s + 1)) == 'C') {
@@ -5441,26 +5450,27 @@ drawbar(Monitor *m, int skiptags)
 					#endif // PATCH_STATUSCMD_COLOURS
 					#if PATCH_STATUSCMD_NONPRINTING
 					if ((unsigned char)(*(s + 1)) == 'N') {
-						oldscheme = drw->scheme;
-						drw_setscheme(drw, scheme[SchemeStatCNP]);
-						drw->scheme[ColBg] = drw->scheme[ColFg] = scheme[SchemeNorm][ColBg];
-
-						text = s;
-						tw = drw_fontset_getwidth(drw, s + 2) + padw;
-						drw_text(drw,
-							m->bar[StatusText].x + x, 0, tw, bh, padw
-							#if PATCH_SYSTRAY
-							+ (showsystray && systrayonleft ? m->stw : 0)
-							#endif // PATCH_SYSTRAY
-							, 0,
-							#if PATCH_CLIENT_INDICATORS
-							0,
-							#endif // PATCH_CLIENT_INDICATORS
-							1, text, 0
-						);
-						x += tw;
-						padw = 0;
-						drw->scheme = oldscheme;
+						w = drw_fontset_getwidth(drw, s + 2);
+						if (w) {
+							tw = w + padw;
+							oldscheme = drw->scheme;
+							drw_setscheme(drw, scheme[SchemeStatCNP]);
+							drw->scheme[ColBg] = drw->scheme[ColFg] = scheme[SchemeNorm][ColBg];
+							drw_text(drw,
+								m->bar[StatusText].x + x, 0, tw, bh, padw
+								#if PATCH_SYSTRAY
+								+ (showsystray && systrayonleft ? m->stw : 0)
+								#endif // PATCH_SYSTRAY
+								, 0,
+								#if PATCH_CLIENT_INDICATORS
+								0,
+								#endif // PATCH_CLIENT_INDICATORS
+								1, "", 0
+							);
+							drw->scheme = oldscheme;
+							x += tw;
+							padw = 0;
+						}
 					}
 					#endif // PATCH_STATUSCMD_NONPRINTING
 
@@ -5470,59 +5480,67 @@ drawbar(Monitor *m, int skiptags)
 				}
 				#endif // PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
 				if ((unsigned char)(*s) < ' ') {
-					tw = drw_fontset_getwidth(drw, text) + padw;
-					#if PATCH_BIDIRECTIONAL_TEXT
-					apply_fribidi(text);
-					#endif // PATCH_BIDIRECTIONAL_TEXT
-					drw_text(drw,
-						m->bar[StatusText].x + x, 0, tw, bh, padw
-						#if PATCH_SYSTRAY
-						+ (showsystray && systrayonleft ? m->stw : 0)
-						#endif // PATCH_SYSTRAY
-						,
-						0,
-						#if PATCH_CLIENT_INDICATORS
-						0,
-						#endif // PATCH_CLIENT_INDICATORS
-						1,
-						#if PATCH_BIDIRECTIONAL_TEXT
-						fribidi_text,
-						#else // NO PATCH_BIDIRECTIONAL_TEXT
-						text,
-						#endif // PATCH_BIDIRECTIONAL_TEXT
-						0
-					);
-					x += tw;
+					if (text < s) {
+						w = drw_fontset_getwidth(drw, text);
+						if (w) {
+							tw = w + padw;
+							#if PATCH_BIDIRECTIONAL_TEXT
+							apply_fribidi(text);
+							#endif // PATCH_BIDIRECTIONAL_TEXT
+							drw_text(drw,
+								m->bar[StatusText].x + x, 0, m->mw - m->bar[StatusText].x + x, bh, padw
+								#if PATCH_SYSTRAY
+								+ (showsystray && systrayonleft ? m->stw : 0)
+								#endif // PATCH_SYSTRAY
+								,
+								0,
+								#if PATCH_CLIENT_INDICATORS
+								0,
+								#endif // PATCH_CLIENT_INDICATORS
+								1,
+								#if PATCH_BIDIRECTIONAL_TEXT
+								fribidi_text,
+								#else // NO PATCH_BIDIRECTIONAL_TEXT
+								text,
+								#endif // PATCH_BIDIRECTIONAL_TEXT
+								0
+							);
+							x += tw;
+						}
+					}
 					text = s + 1;
 					padw = lrpad / 2;
+					if (!*text)
+						break;
 					#if PATCH_STATUSCMD_COLOURS
 					drw_setscheme(drw, scheme[SchemeStatusCmd]);
 					drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
 					#endif // PATCH_STATUSCMD_COLOURS
 				}
 			}
-			tw = drw_fontset_getwidth(drw, text) + padw;
-			#if PATCH_BIDIRECTIONAL_TEXT
-			apply_fribidi(text);
-			#endif // PATCH_BIDIRECTIONAL_TEXT
-			x = drw_text(drw,
-				m->bar[StatusText].x + x, 0, m->mw - (m->bar[StatusText].x + x), bh, padw
-				#if PATCH_SYSTRAY
-				+ (showsystray && systrayonleft ? m->stw : 0)
-				#endif // PATCH_SYSTRAY
-				,
-				0,
-				#if PATCH_CLIENT_INDICATORS
-				0,
-				#endif // PATCH_CLIENT_INDICATORS
-				1,
+			if (*text) {
 				#if PATCH_BIDIRECTIONAL_TEXT
-				fribidi_text,
-				#else // NO PATCH_BIDIRECTIONAL_TEXT
-				text,
+				apply_fribidi(text);
 				#endif // PATCH_BIDIRECTIONAL_TEXT
-				0
-			);
+				x = drw_text(drw,
+					m->bar[StatusText].x + x, 0, m->mw - (m->bar[StatusText].x + x), bh, padw
+					#if PATCH_SYSTRAY
+					+ (showsystray && systrayonleft ? m->stw : 0)
+					#endif // PATCH_SYSTRAY
+					,
+					0,
+					#if PATCH_CLIENT_INDICATORS
+					0,
+					#endif // PATCH_CLIENT_INDICATORS
+					1,
+					#if PATCH_BIDIRECTIONAL_TEXT
+					fribidi_text,
+					#else // NO PATCH_BIDIRECTIONAL_TEXT
+					text,
+					#endif // PATCH_BIDIRECTIONAL_TEXT
+					0
+				);
+			}
 		}
 		#else // NO PATCH_STATUSCMD
 		m->bar[StatusText].w = drw_fontset_getwidth(drw, (m->showstatus == -1 ? DWM_VERSION_STRING_SHORT : stext)) + lrpad / 2 + 2 /* 2px extra right padding */
@@ -16004,7 +16022,9 @@ setup(void)
 
 			// check if named bar-element is current;
 			for (j = LENGTH(BarElementTypes); j > 0; j--)
-				if (strcmp(BarElementTypes[j - 1].name, nom->valuestring) == 0)
+				if (BarElementTypes[j - 1].name &&
+					strcmp(BarElementTypes[j - 1].name, nom->valuestring) == 0
+					)
 					break;
 			if (!j)
 				continue;
