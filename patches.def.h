@@ -10,6 +10,7 @@
 #define PATCH_CFACTS						1
 #define PATCH_CLIENT_INDICATORS				1
 #define PATCH_CLIENT_OPACITY				1
+#define PATCH_COLOUR_BAR					1
 #define PATCH_CONSTRAIN_MOUSE				1	// Toggle constraining mouse pointer within monitor bounds
 #define PATCH_CROP_WINDOWS					1
 #define PATCH_DRAG_FACTS					1

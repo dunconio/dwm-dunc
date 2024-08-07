@@ -165,6 +165,11 @@ static const supported_json supported_layout_global[] = {
 	#if PATCH_TWO_TONE_TITLE
 	{ "colour-selected-bg2",		"active client title background colour 2 (for the gradient fill)" },
 	#endif // PATCH_TWO_TONE_TITLE
+	#if PATCH_COLOUR_BAR
+	{ "colours-status",				"status zone colours, in the form\n[<foreground>, <background>, <border>]" },
+	{ "colours-tag-bar",			"tag bar zone colours, in the form\n[<foreground>, <background>, <border>]" },
+	{ "colours-title",				"window title zone colours, in the form\n[<foreground>, <background>, <border>]" },
+	#endif // PATCH_COLOUR_BAR
 	#if PATCH_TORCH
 	{ "colours-torch",				"torch colours, in the form\n[<foreground>, <background>, <border>]" },
 	#endif // PATCH_TORCH
@@ -239,6 +244,25 @@ static const supported_json supported_layout_global[] = {
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	{ "showmaster", 				"set to true if the master client class should be shown on each tag on the bar" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+	#if PATCH_STATUSCMD
+	#if PATCH_STATUSCMD_COLOURS
+	{ "status-colour-1",			"status zone section colour 1" },
+	{ "status-colour-2",			"status zone section colour 2" },
+	{ "status-colour-3",			"status zone section colour 3" },
+	{ "status-colour-4",			"status zone section colour 4" },
+	{ "status-colour-5",			"status zone section colour 5" },
+	{ "status-colour-6",			"status zone section colour 6" },
+	{ "status-colour-7",			"status zone section colour 7" },
+	{ "status-colour-8",			"status zone section colour 8" },
+	{ "status-colour-9",			"status zone section colour 9" },
+	{ "status-colour-10",			"status zone section colour 10" },
+	{ "status-colour-11",			"status zone section colour 11" },
+	{ "status-colour-12",			"status zone section colour 12" },
+	{ "status-colour-13",			"status zone section colour 13" },
+	{ "status-colour-14",			"status zone section colour 14" },
+	{ "status-colour-15",			"status zone section colour 15" },
+	#endif // PATCH_STATUSCMD_COLOURS
+	#endif // PATCH_STATUSCMD
 	#if PATCH_SYSTRAY
 	{ "system-tray",				"true to enable system tray handling" },
 	{ "system-tray-align",			"align the system tray to side of the status area:\n0:left, 1:right" },
@@ -733,6 +757,9 @@ enum {	SchemeNorm, SchemeSel,
 		#if PATCH_TORCH
 		, SchemeTorch
 		#endif // PATCH_TORCH
+		#if PATCH_COLOUR_BAR
+		, SchemeTagBar, SchemeTitle, SchemeStatus
+		#endif // PATCH_COLOUR_BAR
 		#if PATCH_RAINBOW_TAGS
 		, SchemeTag1, SchemeTag2, SchemeTag3, SchemeTag4, SchemeTag5, SchemeTag6
 		, SchemeTag7, SchemeTag8, SchemeTag9
@@ -5277,7 +5304,11 @@ drawbar(Monitor *m, int skiptags)
 
 	/* draw status first so it can be overdrawn by tags later */
 	if (m == selmon && m->showstatus) { /* status is only drawn on selected monitor */
+		#if PATCH_COLOUR_BAR
+		drw_setscheme(drw, scheme[SchemeStatus]);
+		#else // NO PATCH_COLOUR_BAR
 		drw_setscheme(drw, scheme[SchemeNorm]);
+		#endif // PATCH_COLOUR_BAR
 
 		#if PATCH_FONT_GROUPS
 		apply_barelement_fontgroup(StatusText);
@@ -5388,7 +5419,12 @@ drawbar(Monitor *m, int skiptags)
 
 			#if PATCH_STATUSCMD_COLOURS
 			drw_setscheme(drw, scheme[SchemeStatusCmd]);
+			#if PATCH_COLOUR_BAR
+			drw->scheme[ColFg] = scheme[SchemeStatus][ColFg];
+			drw->scheme[ColBg] = scheme[SchemeStatus][ColBg];
+			#else // NO PATCH_COLOUR_BAR
 			drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
+			#endif // PATCH_COLOUR_BAR
 			#endif // PATCH_STATUSCMD_COLOURS
 			#if PATCH_STATUSCMD_NONPRINTING
 			Clr* oldscheme;
@@ -5446,6 +5482,9 @@ drawbar(Monitor *m, int skiptags)
 							drw_setscheme(drw, scheme[SchemeStatusCmd]);
 							drw_clr_create(drw, &drw->scheme[ColFg], s + 2);
 						}
+						#if PATCH_COLOUR_BAR
+						drw->scheme[ColBg] = scheme[SchemeStatus][ColBg];
+						#endif // PATCH_COLOUR_BAR
 					}
 					#endif // PATCH_STATUSCMD_COLOURS
 					#if PATCH_STATUSCMD_NONPRINTING
@@ -5455,7 +5494,13 @@ drawbar(Monitor *m, int skiptags)
 							tw = w + padw;
 							oldscheme = drw->scheme;
 							drw_setscheme(drw, scheme[SchemeStatCNP]);
-							drw->scheme[ColBg] = drw->scheme[ColFg] = scheme[SchemeNorm][ColBg];
+							drw->scheme[ColBg] = drw->scheme[ColFg] = scheme[
+								#if PATCH_COLOUR_BAR
+								SchemeStatus
+								#else // NO PATCH_COLOUR_BAR
+								SchemeNorm
+								#endif // PATCH_COLOUR_BAR
+							][ColBg];
 							drw_text(drw,
 								m->bar[StatusText].x + x, 0, tw, bh, padw
 								#if PATCH_SYSTRAY
@@ -5512,9 +5557,15 @@ drawbar(Monitor *m, int skiptags)
 					padw = lrpad / 2;
 					if (!*text)
 						break;
+
 					#if PATCH_STATUSCMD_COLOURS
 					drw_setscheme(drw, scheme[SchemeStatusCmd]);
+					#if PATCH_COLOUR_BAR
+					drw->scheme[ColFg] = scheme[SchemeStatus][ColFg];
+					drw->scheme[ColBg] = scheme[SchemeStatus][ColBg];
+					#else // NO PATCH_COLOUR_BAR
 					drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
+					#endif // PATCH_COLOUR_BAR
 					#endif // PATCH_STATUSCMD_COLOURS
 				}
 			}
@@ -5898,7 +5949,11 @@ drawbar(Monitor *m, int skiptags)
 					w = ((m->bar[StatusText].x - customwidth) - x);
 				m->tagw[i] = w;
 				if (w && tagw > 0) {
+					#if PATCH_COLOUR_BAR
+					drw_setscheme(drw, scheme[SchemeTagBar]);
+					#else // NO PATCH_COLOUR_BAR
 					drw_setscheme(drw, scheme[SchemeNorm]);
+					#endif // PATCH_COLOUR_BAR
 					drw_rect(drw, x, 0, w, bh, 1, 1);
 				}
 				#else // NO PATCH_ALT_TAGS
@@ -5979,7 +6034,11 @@ drawbar(Monitor *m, int skiptags)
 						#endif // PATCH_SHOW_DESKTOP
 						? SchemeHide :
 						#endif // PATCH_FLAG_HIDDEN
+						#if PATCH_COLOUR_BAR
+						SchemeTagBar
+						#else // NO PATCH_COLOUR_BAR
 						SchemeNorm
+						#endif // PATCH_COLOUR_BAR
 				]);
 
 				#if PATCH_WINDOW_ICONS
@@ -6265,7 +6324,13 @@ drawbar(Monitor *m, int skiptags)
 			drw_gradient(drw, x, 0, w, bh, drw->scheme[ColBg].pixel, scheme[SchemeSel2][ColBg].pixel, !elementafter(m, WinTitle, TagBar));
 		}
 		else {
-			drw_setscheme(drw, scheme[SchemeNorm]);
+			drw_setscheme(drw, scheme[
+				#if PATCH_COLOUR_BAR
+				SchemeTitle
+				#else // NO PATCH_COLOUR_BAR
+				SchemeNorm
+				#endif // PATCH_COLOUR_BAR
+			]);
 			drw->bg2 = 0;
 		}
 		#else // NO PATCH_TWO_TONE_TITLE
@@ -6273,7 +6338,12 @@ drawbar(Monitor *m, int skiptags)
 			#if PATCH_ALTTAB
 			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
 			#endif // PATCH_ALTTAB
-			m == selmon) ? SchemeSel : SchemeNorm
+			m == selmon) ? SchemeSel :
+			#if PATCH_COLOUR_BAR
+			SchemeTitle
+			#else // NO PATCH_COLOUR_BAR
+			SchemeNorm
+			#endif // PATCH_COLOUR_BAR
 		]);
 		if (!active)
 			drw_rect(drw, x, 0, w, bh, 1, 1);
@@ -6404,7 +6474,13 @@ drawbar(Monitor *m, int skiptags)
 				#if PATCH_TWO_TONE_TITLE
 				drw->bg2 = 0;
 				#endif // PATCH_TWO_TONE_TITLE
-				drw_setscheme(drw, scheme[SchemeNorm]);
+				drw_setscheme(drw, scheme[
+					#if PATCH_COLOUR_BAR
+					SchemeTitle
+					#else // NO PATCH_COLOUR_BAR
+					SchemeNorm
+					#endif // PATCH_COLOUR_BAR
+				]);
 				if (m == selmon) {
 					if (titleborderpx < bh)
 						drw_rect(drw, x, (m->topbar ? 0 : titleborderpx), w, bh - titleborderpx, 1, 1);
@@ -11595,6 +11671,28 @@ parselayoutjson(cJSON *layout)
 				cJSON_AddNumberToObject(unsupported, "\"colours-torch\" must contain an array of strings", 0);
 			}
 			#endif // PATCH_TORCH
+
+			#if PATCH_COLOUR_BAR
+			else if (strcmp(L->string, "colours-tag-bar")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeTagBar]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-tag-bar\" must contain an array of strings", 0);
+			}
+			else if (strcmp(L->string, "colours-title")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeTitle]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-title\" must contain an array of strings", 0);
+			}
+			else if (strcmp(L->string, "colours-status")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeStatus]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-status\" must contain an array of strings", 0);
+			}
+			#endif // PATCH_COLOUR_BAR
+
 			else if (strcmp(L->string, "colours-urgent")==0) {
 				if (cJSON_IsArray(L))
 					if (validate_colours(L, colours[SchemeUrg]))
@@ -11848,6 +11946,117 @@ parselayoutjson(cJSON *layout)
 				}
 				cJSON_AddNumberToObject(unsupported, "\"bar-layout\" must contain an array of strings", 0);
 			}
+
+			#if PATCH_STATUSCMD
+			#if PATCH_STATUSCMD_COLOURS
+			else if (strcmp(L->string, "status-colour-1")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC1][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-1\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-2")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC2][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-2\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-3")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC3][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-3\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-4")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC4][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-4\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-5")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC5][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-5\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-6")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC6][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-6\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-7")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC7][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-7\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-8")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC8][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-8\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-9")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC9][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-9\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-10")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC10][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-10\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-11")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC11][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-11\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-12")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC12][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-12\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-13")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC13][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-13\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-14")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC14][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-14\" must contain a string value", 0);
+			}
+			else if (strcmp(L->string, "status-colour-15")==0) {
+				if (cJSON_IsString(L)) {
+					colours[SchemeStatC15][ColFg] = L->valuestring;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-colour-15\" must contain a string value", 0);
+			}
+			#endif // PATCH_STATUSCMD_COLOURS
+			#endif // PATCH_STATUSCMD
+
 			else if (strcmp(L->string, "title-align")==0) {
 				if (cJSON_IsInteger(L)) {
 					title_align = L->valueint;

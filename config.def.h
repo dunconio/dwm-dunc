@@ -199,6 +199,11 @@ static char *colours[][3] = {
 	#if PATCH_TORCH
 	[SchemeTorch]   = {	col_black,	col_yellow,		col_yellow	},
 	#endif // PATCH_TORCH
+	#if PATCH_COLOUR_BAR
+	[SchemeTagBar]	= { col_grey3,	col_normbg,		col_normbdr },
+	[SchemeTitle]	= { col_grey3,	col_normbg,		col_normbdr },
+	[SchemeStatus]	= { col_grey3,	col_normbg,		col_normbdr },
+	#endif // PATCH_COLOUR_BAR
 	#if PATCH_RAINBOW_TAGS
 	// Border not used for rainbow tags;
 	[SchemeTag1]	= {	col_white,	"#ff0000",		col_black	},
