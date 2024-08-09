@@ -746,22 +746,28 @@ enum {	CurResizeBR, CurResizeBL, CurResizeTR, CurResizeTL,
 		CurInvisible,
 		#endif // PATCH_TORCH
 		CurLast }; /* cursor */
-enum {	SchemeNorm, SchemeSel,
+enum {	SchemeNorm, SchemeSel
 		#if PATCH_TWO_TONE_TITLE
-		SchemeSel2,
+		, SchemeSel2
 		#endif // PATCH_TWO_TONE_TITLE
-		SchemeLayout, SchemeTabNorm, SchemeTabSel, SchemeTabUrg, SchemeUrg
+		#if PATCH_ALTTAB
+		, SchemeTabNorm, SchemeTabSel, SchemeTabUrg
+		#endif // PATCH_ALTTAB
+		, SchemeUrg
 		#if PATCH_FLAG_HIDDEN || PATCH_SHOW_DESKTOP
 		, SchemeHide
 		#endif // PATCH_FLAG_HIDDEN || PATCH_SHOW_DESKTOP
+		#if PATCH_ALTTAB
 		#if PATCH_FLAG_HIDDEN
 		, SchemeTabHide
 		#endif // PATCH_FLAG_HIDDEN
+		#endif // PATCH_ALTTAB
 		#if PATCH_TORCH
 		, SchemeTorch
 		#endif // PATCH_TORCH
 		#if PATCH_COLOUR_BAR
 		, SchemeTagBar, SchemeTagBarSel
+		, SchemeLayout
 		, SchemeTitle, SchemeTitleSel
 		, SchemeStatus
 		#endif // PATCH_COLOUR_BAR
@@ -6287,7 +6293,13 @@ drawbar(Monitor *m, int skiptags)
 					w = m->bar[StatusText].x - customwidth - x;
 				m->bar[LtSymbol].x = x;
 				m->bar[LtSymbol].w = w;
-				drw_setscheme(drw, scheme[SchemeLayout]);
+				drw_setscheme(drw, scheme[
+					#if PATCH_COLOUR_BAR
+					SchemeLayout
+					#else // NO PATCH_COLOUR_BAR
+					SchemeNorm
+					#endif // PATCH_COLOUR_BAR
+				]);
 				x = drw_text(
 						drw, x, 0, w, bh, lrpad / 2, 0,
 						#if PATCH_CLIENT_INDICATORS
@@ -11686,12 +11698,6 @@ parselayoutjson(cJSON *layout)
 			}
 			#endif // PATCH_CLIENT_OPACITY
 
-			else if (strcmp(L->string, "colours-layout")==0) {
-				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeLayout], colours[SchemeNorm]))
-						continue;
-				cJSON_AddNumberToObject(unsupported, "\"colours-layout\" must contain an array of strings", 0);
-			}
 			#if PATCH_TORCH
 			else if (strcmp(L->string, "colours-torch")==0) {
 				if (cJSON_IsArray(L))
@@ -11858,6 +11864,12 @@ parselayoutjson(cJSON *layout)
 					if (validate_colours(L, colours[SchemeTagBarSel], colours[SchemeSel]))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-tag-bar-selected\" must contain an array of strings", 0);
+			}
+			else if (strcmp(L->string, "colours-layout")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeLayout], colours[SchemeNorm]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-layout\" must contain an array of strings", 0);
 			}
 			else if (strcmp(L->string, "colours-title")==0) {
 				if (cJSON_IsArray(L))
@@ -16411,10 +16423,10 @@ setup(void)
 	cursor[CurInvisible] = drw_cur_create(drw, -1);
 	#endif // PATCH_TORCH
 
-	setdefaultcolours(colours[SchemeLayout], colours[SchemeNorm]);
 	#if PATCH_COLOUR_BAR
 	setdefaultcolours(colours[SchemeTagBar], colours[SchemeNorm]);
 	setdefaultcolours(colours[SchemeTagBarSel], colours[SchemeSel]);
+	setdefaultcolours(colours[SchemeLayout], colours[SchemeNorm]);
 	setdefaultcolours(colours[SchemeTitle], colours[SchemeNorm]);
 	setdefaultcolours(colours[SchemeTitleSel], colours[SchemeSel]);
 	setdefaultcolours(colours[SchemeStatus], colours[SchemeNorm]);

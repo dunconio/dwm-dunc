@@ -185,7 +185,6 @@ static char *colours[][3] = {
 	#if PATCH_TWO_TONE_TITLE
 	[SchemeSel2]    = {	col_white,	col_normbg,		col_violet2	},
 	#endif // PATCH_TWO_TONE_TITLE
-	[SchemeLayout]  = {	col_grey1,	"#aaaaaad0",	col_normbdr	},
 	[SchemeTabNorm] = {	col_grey3,	col_grey1,		"#000000d0"	},
 	[SchemeTabSel]  = {	col_white,	col_violet,		col_violet	},
 	[SchemeTabUrg]  = {	col_grey1,	col_gold,		col_gold	},
@@ -202,6 +201,7 @@ static char *colours[][3] = {
 	#if PATCH_COLOUR_BAR
 	[SchemeTagBar]	= { col_grey3,	col_normbg,		col_normbdr },
 	[SchemeTagBarSel]={ NULL, NULL, NULL },
+	[SchemeLayout]  = {	col_grey1,	"#aaaaaad0",	col_normbdr	},
 	[SchemeTitle]	= { col_grey3,	col_normbg,		col_normbdr },
 	[SchemeTitleSel]= { NULL, NULL, NULL },
 	[SchemeStatus]	= { col_grey3,	col_normbg,		col_normbdr },
