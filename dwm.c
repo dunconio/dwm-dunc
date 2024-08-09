@@ -168,7 +168,9 @@ static const supported_json supported_layout_global[] = {
 	#if PATCH_COLOUR_BAR
 	{ "colours-status",				"status zone colours, in the form\n[<foreground>, <background>, <border>]" },
 	{ "colours-tag-bar",			"tag bar zone colours, in the form\n[<foreground>, <background>, <border>]" },
+	{ "colours-tag-bar-selected",	"tag bar zone colours for selected elements, in the form\n[<foreground>, <background>, <border>]" },
 	{ "colours-title",				"window title zone colours, in the form\n[<foreground>, <background>, <border>]" },
+	{ "colours-title-selected",		"window title zone colours for selected elements, in the form\n[<foreground>, <background>, <border>]" },
 	#endif // PATCH_COLOUR_BAR
 	#if PATCH_TORCH
 	{ "colours-torch",				"torch colours, in the form\n[<foreground>, <background>, <border>]" },
@@ -759,7 +761,9 @@ enum {	SchemeNorm, SchemeSel,
 		, SchemeTorch
 		#endif // PATCH_TORCH
 		#if PATCH_COLOUR_BAR
-		, SchemeTagBar, SchemeTitle, SchemeStatus
+		, SchemeTagBar, SchemeTagBarSel
+		, SchemeTitle, SchemeTitleSel
+		, SchemeStatus
 		#endif // PATCH_COLOUR_BAR
 		#if PATCH_RAINBOW_TAGS
 		, SchemeTag1, SchemeTag2, SchemeTag3, SchemeTag4, SchemeTag5, SchemeTag6
@@ -1561,6 +1565,7 @@ static void setclienttagpropex(Client *c, int index);
 #if PATCH_EWMH_TAGS
 static void setcurrentdesktop(void);
 #endif // PATCH_EWMH_TAGS
+static void setdefaultcolours(char *colours[3], char *defaults[3]);
 static void setdefaultvalues(Client *c);
 #if PATCH_EWMH_TAGS
 static void setdesktopnames(void);
@@ -1732,7 +1737,7 @@ static int usage(const char * err_text);
 #if PATCH_TWO_TONE_TITLE
 static int validate_colour(cJSON *string, char **colour);
 #endif // PATCH_TWO_TONE_TITLE
-static int validate_colours(cJSON *array, char *colours[3]);
+static int validate_colours(cJSON *array, char *colours[3], char *defaults[3]);
 static pid_t validate_pid(Client *c);
 static void view(const Arg *arg);
 static void viewactive(const Arg *arg);	// argument is direction (on selected monitor);
@@ -6032,7 +6037,11 @@ drawbar(Monitor *m, int skiptags)
 							#if PATCH_RAINBOW_TAGS
 							SchemeTag1 + i
 							#else // NO PATCH_RAINBOW_TAGS
+							#if PATCH_COLOUR_BAR
+							SchemeTagBarSel
+							#else // PATCH_COLOUR_BAR
 							SchemeSel
+							#endif // PATCH_COLOUR_BAR
 							#endif // PATCH_RAINBOW_TAGS
 						:
 						#if PATCH_FLAG_HIDDEN
@@ -6327,7 +6336,13 @@ drawbar(Monitor *m, int skiptags)
 			#endif // PATCH_ALTTAB
 			m == selmon
 		)) {
-			drw_setscheme(drw, scheme[SchemeSel]);
+			drw_setscheme(drw, scheme[
+				#if PATCH_COLOUR_BAR
+				SchemeTitleSel
+				#else // NO PATCH_COLOUR_BAR
+				SchemeSel
+				#endif // PATCH_COLOUR_BAR
+			]);
 			drw->bg2 = 1;
 			drw_gradient(drw, x, 0, w, bh, drw->scheme[ColBg].pixel, scheme[SchemeSel2][ColBg].pixel, !elementafter(m, WinTitle, TagBar));
 		}
@@ -6346,7 +6361,13 @@ drawbar(Monitor *m, int skiptags)
 			#if PATCH_ALTTAB
 			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
 			#endif // PATCH_ALTTAB
-			m == selmon) ? SchemeSel :
+			m == selmon) ?
+				#if PATCH_COLOUR_BAR
+				SchemeTitleSel
+				#else // NO PATCH_COLOUR_BAR
+				SchemeSel
+				#endif // PATCH_COLOUR_BAR
+			:
 			#if PATCH_COLOUR_BAR
 			SchemeTitle
 			#else // NO PATCH_COLOUR_BAR
@@ -11615,20 +11636,20 @@ parselayoutjson(cJSON *layout)
 			#if PATCH_FLAG_HIDDEN || PATCH_SHOW_DESKTOP
 			else if (strcmp(L->string, "colours-hidden")==0) {
 				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeHide]))
+					if (validate_colours(L, colours[SchemeHide], NULL))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-hidden\" must contain an array of strings", 0);
 			}
 			#endif // PATCH_FLAG_HIDDEN || PATCH_SHOW_DESKTOP
 			else if (strcmp(L->string, "colours-normal")==0) {
 				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeNorm]))
+					if (validate_colours(L, colours[SchemeNorm], NULL))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-normal\" must contain an array of strings", 0);
 			}
 			else if (strcmp(L->string, "colours-selected")==0) {
 				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeSel]))
+					if (validate_colours(L, colours[SchemeSel], NULL))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-selected\" must contain an array of strings", 0);
 			}
@@ -11667,43 +11688,22 @@ parselayoutjson(cJSON *layout)
 
 			else if (strcmp(L->string, "colours-layout")==0) {
 				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeLayout]))
+					if (validate_colours(L, colours[SchemeLayout], colours[SchemeNorm]))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-layout\" must contain an array of strings", 0);
 			}
 			#if PATCH_TORCH
 			else if (strcmp(L->string, "colours-torch")==0) {
 				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeTorch]))
+					if (validate_colours(L, colours[SchemeTorch], NULL))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-torch\" must contain an array of strings", 0);
 			}
 			#endif // PATCH_TORCH
 
-			#if PATCH_COLOUR_BAR
-			else if (strcmp(L->string, "colours-tag-bar")==0) {
-				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeTagBar]))
-						continue;
-				cJSON_AddNumberToObject(unsupported, "\"colours-tag-bar\" must contain an array of strings", 0);
-			}
-			else if (strcmp(L->string, "colours-title")==0) {
-				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeTitle]))
-						continue;
-				cJSON_AddNumberToObject(unsupported, "\"colours-title\" must contain an array of strings", 0);
-			}
-			else if (strcmp(L->string, "colours-status")==0) {
-				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeStatus]))
-						continue;
-				cJSON_AddNumberToObject(unsupported, "\"colours-status\" must contain an array of strings", 0);
-			}
-			#endif // PATCH_COLOUR_BAR
-
 			else if (strcmp(L->string, "colours-urgent")==0) {
 				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeUrg]))
+					if (validate_colours(L, colours[SchemeUrg], NULL))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-urgent\" must contain an array of strings", 0);
 			}
@@ -11818,33 +11818,67 @@ parselayoutjson(cJSON *layout)
 				}
 				cJSON_AddNumberToObject(unsupported, "\"alt-tab-y\" must contain 0, 1 or 2", 0);
 			}
-			#if PATCH_FLAG_HIDDEN
-			else if (strcmp(L->string, "colours-alt-tab-hidden")==0) {
-				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeTabHide]))
-						continue;
-				cJSON_AddNumberToObject(unsupported, "\"colours-alt-tab-hidden\" must contain an array of strings", 0);
-			}
-			#endif // PATCH_FLAG_HIDDEN
 			else if (strcmp(L->string, "colours-alt-tab-normal")==0) {
 				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeTabNorm]))
+					if (validate_colours(L, colours[SchemeTabNorm], colours[SchemeNorm]))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-alt-tab-normal\" must contain an array of strings", 0);
 			}
 			else if (strcmp(L->string, "colours-alt-tab-selected")==0) {
 				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeTabSel]))
+					if (validate_colours(L, colours[SchemeTabSel], colours[SchemeSel]))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-alt-tab-selected\" must contain an array of strings", 0);
 			}
 			else if (strcmp(L->string, "colours-alt-tab-urgent")==0) {
 				if (cJSON_IsArray(L))
-					if (validate_colours(L, colours[SchemeTabUrg]))
+					if (validate_colours(L, colours[SchemeTabUrg], colours[SchemeUrg]))
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-alt-tab-urgent\" must contain an array of strings", 0);
 			}
+			#if PATCH_FLAG_HIDDEN
+			else if (strcmp(L->string, "colours-alt-tab-hidden")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeTabHide], colours[SchemeTabNorm]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-alt-tab-hidden\" must contain an array of strings", 0);
+			}
+			#endif // PATCH_FLAG_HIDDEN
 			#endif // PATCH_ALTTAB
+
+			#if PATCH_COLOUR_BAR
+			else if (strcmp(L->string, "colours-tag-bar")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeTagBar], colours[SchemeNorm]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-tag-bar\" must contain an array of strings", 0);
+			}
+			else if (strcmp(L->string, "colours-tag-bar-selected")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeTagBarSel], colours[SchemeSel]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-tag-bar-selected\" must contain an array of strings", 0);
+			}
+			else if (strcmp(L->string, "colours-title")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeTitle], colours[SchemeNorm]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-title\" must contain an array of strings", 0);
+			}
+			else if (strcmp(L->string, "colours-title-selected")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeTitleSel], colours[SchemeSel]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-title-selected\" must contain an array of strings", 0);
+			}
+			else if (strcmp(L->string, "colours-status")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeStatus], colours[SchemeNorm]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-status\" must contain an array of strings", 0);
+			}
+			#endif // PATCH_COLOUR_BAR
+
 			#if PATCH_MOUSE_POINTER_HIDING
 			else if (strcmp(L->string, "cursor-autohide")==0) {
 				if (json_isboolean(L)) {
@@ -15553,6 +15587,16 @@ setcurrentdesktop(void){
 #endif // PATCH_EWMH_TAGS
 
 void
+setdefaultcolours(char *colours[3], char *defaults[3])
+{
+	if (!defaults || !colours)
+		return;
+	for (int i = 0; i < 3; i++)
+		if (!colours[i] && defaults[i])
+			colours[i] = defaults[i];
+}
+
+void
 setdefaultvalues(Client *c)
 {
 	#if PATCH_FLAG_TITLE
@@ -16366,6 +16410,88 @@ setup(void)
 	#if PATCH_TORCH
 	cursor[CurInvisible] = drw_cur_create(drw, -1);
 	#endif // PATCH_TORCH
+
+	setdefaultcolours(colours[SchemeLayout], colours[SchemeNorm]);
+	#if PATCH_COLOUR_BAR
+	setdefaultcolours(colours[SchemeTagBar], colours[SchemeNorm]);
+	setdefaultcolours(colours[SchemeTagBarSel], colours[SchemeSel]);
+	setdefaultcolours(colours[SchemeTitle], colours[SchemeNorm]);
+	setdefaultcolours(colours[SchemeTitleSel], colours[SchemeSel]);
+	setdefaultcolours(colours[SchemeStatus], colours[SchemeNorm]);
+	#endif // PATCH_COLOUR_BAR
+	#if PATCH_RAINBOW_TAGS
+	setdefaultcolours(colours[SchemeTag1], colours[
+		#if PATCH_COLOUR_BAR
+		SchemeTagBarSel
+		#else // NO PATCH_COLOUR_BAR
+		SchemeSel
+		#endif // PATCH_COLOUR_BAR
+	]);
+	setdefaultcolours(colours[SchemeTag2], colours[
+		#if PATCH_COLOUR_BAR
+		SchemeTagBarSel
+		#else // NO PATCH_COLOUR_BAR
+		SchemeSel
+		#endif // PATCH_COLOUR_BAR
+	]);
+	setdefaultcolours(colours[SchemeTag3], colours[
+		#if PATCH_COLOUR_BAR
+		SchemeTagBarSel
+		#else // NO PATCH_COLOUR_BAR
+		SchemeSel
+		#endif // PATCH_COLOUR_BAR
+	]);
+	setdefaultcolours(colours[SchemeTag4], colours[
+		#if PATCH_COLOUR_BAR
+		SchemeTagBarSel
+		#else // NO PATCH_COLOUR_BAR
+		SchemeSel
+		#endif // PATCH_COLOUR_BAR
+	]);
+	setdefaultcolours(colours[SchemeTag5], colours[
+		#if PATCH_COLOUR_BAR
+		SchemeTagBarSel
+		#else // NO PATCH_COLOUR_BAR
+		SchemeSel
+		#endif // PATCH_COLOUR_BAR
+	]);
+	setdefaultcolours(colours[SchemeTag6], colours[
+		#if PATCH_COLOUR_BAR
+		SchemeTagBarSel
+		#else // NO PATCH_COLOUR_BAR
+		SchemeSel
+		#endif // PATCH_COLOUR_BAR
+	]);
+	setdefaultcolours(colours[SchemeTag7], colours[
+		#if PATCH_COLOUR_BAR
+		SchemeTagBarSel
+		#else // NO PATCH_COLOUR_BAR
+		SchemeSel
+		#endif // PATCH_COLOUR_BAR
+	]);
+	setdefaultcolours(colours[SchemeTag8], colours[
+		#if PATCH_COLOUR_BAR
+		SchemeTagBarSel
+		#else // NO PATCH_COLOUR_BAR
+		SchemeSel
+		#endif // PATCH_COLOUR_BAR
+	]);
+	setdefaultcolours(colours[SchemeTag9], colours[
+		#if PATCH_COLOUR_BAR
+		SchemeTagBarSel
+		#else // NO PATCH_COLOUR_BAR
+		SchemeSel
+		#endif // PATCH_COLOUR_BAR
+	]);
+	#endif // PATCH_RAINBOW_TAGS
+	#if PATCH_ALTTAB
+	setdefaultcolours(colours[SchemeTabNorm], colours[SchemeNorm]);
+	setdefaultcolours(colours[SchemeTabSel], colours[SchemeSel]);
+	setdefaultcolours(colours[SchemeTabUrg], colours[SchemeUrg]);
+	#if PATCH_FLAG_HIDDEN
+	setdefaultcolours(colours[SchemeTabHide], colours[SchemeTabNorm]);
+	#endif // PATCH_FLAG_HIDDEN
+	#endif // PATCH_ALTTAB
 
 	/* init appearance */
 	scheme = ecalloc(LENGTH(colours), sizeof(Clr *));
@@ -19872,7 +19998,7 @@ validate_colour(cJSON *string, char **colour)
 }
 #endif // PATCH_TWO_TONE_TITLE
 int
-validate_colours(cJSON *array, char *colours[3])
+validate_colours(cJSON *array, char *colours[3], char *defaults[3])
 {
 	if (!cJSON_IsArray(array))
 		return 0;
@@ -19881,28 +20007,34 @@ validate_colours(cJSON *array, char *colours[3])
 	size_t len = 0;
 	char col[8];
 	cJSON *n = NULL;
-	for (cJSON *c = array->child; c; c = c->next) {
-		if (!cJSON_IsString(c))
-			return 0;
-		if (c->valuestring[0] == '#') {
-			// validate colours #rrggbb, #rrggbbaa, or #rgb;
-			len = strlen(c->valuestring);
-			if (len == 4) {
-				col[0] = '#';
-				for (j = 1; j < 4; j++)
-					col[2 * j - 1] = col[2 * j] = c->valuestring[j];
-				n = cJSON_CreateString(col);
-				cJSON_ReplaceItemViaPointer(array, c, n);
-				c = n;
-			}
-			else if (len != 7 && len != 9)
-				return 0;
-			for (j = 1; j < len; j++) {
-				if (!isxdigit(c->valuestring[j]))
+	for (cJSON *c = array->child; c && i < 4; c = c->next, ++i) {
+		if (cJSON_IsString(c)) {
+			if (c->valuestring[0] == '#') {
+				// validate colours #rrggbb, #rrggbbaa, or #rgb;
+				len = strlen(c->valuestring);
+				if (len == 4) {
+					col[0] = '#';
+					for (j = 1; j < 4; j++)
+						col[2 * j - 1] = col[2 * j] = c->valuestring[j];
+					n = cJSON_CreateString(col);
+					cJSON_ReplaceItemViaPointer(array, c, n);
+					c = n;
+				}
+				else if (len != 7 && len != 9)
 					return 0;
+				for (j = 1; j < len; j++) {
+					if (!isxdigit(c->valuestring[j]))
+						return 0;
+				}
 			}
+			colours[i] = c->valuestring;
 		}
-		colours[i++] = c->valuestring;
+		else if (cJSON_IsNull(c)) {
+			if (!colours[i] && !(defaults && defaults[i]))
+				return 0;
+		}
+		else
+			return 0;
 	}
 	return 1;
 }
