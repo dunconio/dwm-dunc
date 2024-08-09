@@ -377,8 +377,6 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 }, DESCRIPTION_FOCUSSTACK_BACKWARD },
 	{ Mod1Mask,                     XK_Escape, focusstack,     {.i = +1 }, DESCRIPTION_FOCUSSTACK_FORWARD },
 	{ Mod1Mask|ShiftMask,           XK_Escape, focusstack,     {.i = -1 }, DESCRIPTION_FOCUSSTACK_BACKWARD },
-	{ MODKEY,                       XK_Return, zoom,           {0}, DESCRIPTION_ZOOM },
-	{ MODKEY,                       XK_KP_Enter,zoom,          {0}, DESCRIPTION_ZOOM },
 #if PATCH_FLAG_HIDDEN
 	{ MODKEY,                      XK_Scroll_Lock,hidewin,     {.ui = 0 }, DESCRIPTION_HIDE_CLIENT },
 	{ MODKEY|ShiftMask,            XK_Scroll_Lock,hidewin,     {.ui = 1 }, DESCRIPTION_HIDE_CLIENT_OTHERS },
@@ -388,8 +386,6 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_Right,  focusmon,       {.i = +1 }, DESCRIPTION_FOCUSMON_FORWARD },
 	{ MODKEY|ShiftMask,             XK_Escape, focusmon,       {.i = -1 }, DESCRIPTION_FOCUSMON_BACKWARD },
 	{ MODKEY,                       XK_Escape, focusmon,       {.i = +1 }, DESCRIPTION_FOCUSMON_FORWARD },
-	{ MODKEY|ShiftMask,             XK_Left,   tagmon,         {.i = -1 }, DESCRIPTION_TAGMON_BACKWARD },
-	{ MODKEY|ShiftMask,             XK_Right,  tagmon,         {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
 	{ MODKEY|ShiftMask,             XK_KP_Enter,swapmon,       {.ui = 1 }, DESCRIPTION_SWAP_VIEW_1 },
 	{ MODKEY|ShiftMask,             XK_KP_Subtract,viewactiveprev, {.ui = 1 }, DESCRIPTION_VIEWACTIVE_PREV_1 },
 	{ MODKEY|ShiftMask,             XK_KP_Add, viewactivenext, {.ui = 1 }, DESCRIPTION_VIEWACTIVE_NEXT_1 },
@@ -397,6 +393,7 @@ static const Key keys[] = {
 	{ Mod1Mask,                     XK_space,  window_switcher,SHCMD("rofi -show window >/dev/null 2>&1"), DESCRIPTION_WINDOW_SWITCHER },
 #endif // PATCH_EXTERNAL_WINDOW_ACTIVATION
 	{ MODKEY|ControlMask|ShiftMask, XK_s,      rescan,         {0}, DESCRIPTION_RESCAN },
+	{ MODKEY,                       XK_u,      clearurgency,   {0}, DESCRIPTION_CLEAR_URGENCY },
 
 // layout functions;
 	{ MODKEY|ShiftMask,				XK_t,      setlayout,      {.v = "[]="}, DESCRIPTION_SETLAYOUT_TILED },
@@ -423,61 +420,10 @@ static const Key keys[] = {
 #endif // PATCH_CFACTS
 	{ MODKEY,                       XK_Return, zoom,           {0}, DESCRIPTION_ZOOM },
 	{ MODKEY,                       XK_KP_Enter,zoom,          {0}, DESCRIPTION_ZOOM },
-	{ MODKEY|ShiftMask,             XK_KP_Enter,swapmon,       {.ui = 1 }, DESCRIPTION_SWAP_VIEW_1 },
-	{ MODKEY|ShiftMask,             XK_KP_Subtract,viewactiveprev, {.ui = 1 }, DESCRIPTION_VIEWACTIVE_PREV_1 },
-	{ MODKEY|ShiftMask,             XK_KP_Add, viewactivenext, {.ui = 1 }, DESCRIPTION_VIEWACTIVE_NEXT_1 },
-	{ MODKEY,						XK_Tab,	   view,           {0}, DESCRIPTION_SWAP_VIEW },
-	{ MODKEY,                       XK_q,      killclient,     {0}, DESCRIPTION_KILL_CLIENT },
-	{ Mod1Mask,						XK_F4,     killclient,     {0}, DESCRIPTION_KILL_CLIENT },
-	{ MODKEY|ShiftMask,				XK_t,      setlayout,      {.v = "[]="}, DESCRIPTION_SETLAYOUT_TILED },
-#if PATCH_LAYOUT_BSTACKHORIZ
-	{ MODKEY|ShiftMask,				XK_h,      setlayout,      {.v = "==="}, DESCRIPTION_SETLAYOUT_BSTACKHORIZ },
-#endif // PATCH_LAYOUT_BSTACKHORIZ
-	{ MODKEY|ShiftMask,				XK_m,      setlayout,      {.v = "[M]"}, DESCRIPTION_SETLAYOUT_MONOCLE },
-	{ MODKEY,                       XK_space,  setlayout,      {0}, DESCRIPTION_SWAP_LAYOUT },
-	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0}, DESCRIPTION_TOGGLE_FLOATING },
-	{ MODKEY,                       XK_Left,   focusmon,       {.i = -1 }, DESCRIPTION_FOCUSMON_BACKWARD },
-	{ MODKEY,                       XK_Right,  focusmon,       {.i = +1 }, DESCRIPTION_FOCUSMON_FORWARD },
-	{ MODKEY|ShiftMask,             XK_Escape, focusmon,       {.i = -1 }, DESCRIPTION_FOCUSMON_BACKWARD },
-	{ MODKEY,                       XK_Escape, focusmon,       {.i = +1 }, DESCRIPTION_FOCUSMON_FORWARD },
 	{ MODKEY|ShiftMask,             XK_Left,   tagmon,         {.i = -1 }, DESCRIPTION_TAGMON_BACKWARD },
 	{ MODKEY|ShiftMask,             XK_Right,  tagmon,         {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
-	TAGKEYS(                        XK_1,                      0, "1")
-	TAGKEYS(                        XK_2,                      1, "2")
-	TAGKEYS(                        XK_3,                      2, "3")
-	TAGKEYS(                        XK_4,                      3, "4")
-	TAGKEYS(                        XK_5,                      4, "5")
-	TAGKEYS(                        XK_6,                      5, "6")
-	TAGKEYS(                        XK_7,                      6, "7")
-	TAGKEYS(                        XK_8,                      7, "8")
-	TAGKEYS(                        XK_9,                      8, "9")
-	#if DEBUGGING
-	{ MODKEY|ShiftMask|ControlMask, XK_a,      toggledebug,    {0}, DESCRIPTION_TOGGLE_DEBUGGING },
-	#endif // DEBUGGING
-	{ MODKEY|ShiftMask|ControlMask, XK_q,      quit,           {0}, DESCRIPTION_QUIT },
-	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_m,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-audio.sh -r"), DESCRIPTION_MUTE_GUI },
-	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_l,    spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.quit; kill $(pidof dwm.running)"), DESCRIPTION_LOGOUT },
-	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Home, spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.restart; kill $(pidof dwm.running);"), DESCRIPTION_RESTART },
-	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_End,  spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.shutdown; kill $(pidof dwm.running);"), DESCRIPTION_SHUTDOWN },
-	{ MODKEY|ShiftMask|ControlMask, XK_Escape, spawn,          SHCMD("xkill >/dev/null 2>&1"), DESCRIPTION_XKILL },
 /* extra functionality from patches */
-#if PATCH_ALT_TAGS
-	{ 0,                            XK_Super_L,togglealttags,  {0}, DESCRIPTION_TOGGLE_ALT_TAGS },
-#endif // PATCH_ALT_TAGS
-#if PATCH_MOUSE_POINTER_WARPING
-	{ Mod4Mask,                     XK_Alt_L,  refocuspointer, {0}, DESCRIPTION_REFOCUS_POINTER },
-#endif // PATCH_MOUSE_POINTER_WARPING
-#if PATCH_EXTERNAL_WINDOW_ACTIVATION
-	{ Mod1Mask,                     XK_space,  window_switcher,SHCMD("rofi -show window >/dev/null 2>&1"), DESCRIPTION_WINDOW_SWITCHER },
-#endif // PATCH_EXTERNAL_WINDOW_ACTIVATION
-	{ MODKEY|ControlMask|ShiftMask, XK_p,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/toggle-pink-noise.sh"), DESCRIPTION_TOGGLE_NOISE },
-	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_t, spawn,      SHCMD("bash $XDG_RUNTIME_DIR/dwm/toggle-30s-tone.sh"), DESCRIPTION_TOGGLE_30S_TONE },
-	{ MODKEY|ControlMask|ShiftMask, XK_s,      rescan,         {0}, DESCRIPTION_RESCAN },
-#if DEBUGGING
-	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_s, toggleskiprules, {0}, DESCRIPTION_TOGGLE_SKIPRULES },
-#endif // DEBUGGING
-	{ MODKEY|ControlMask|ShiftMask, XK_k,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh restart"), DESCRIPTION_LOG_RESTART },
-	{ MODKEY|ControlMask|ShiftMask, XK_d,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh"), DESCRIPTION_LOG_SHOW },
+
 #if PATCH_LOG_DIAGNOSTICS
 	{ MODKEY|ControlMask|ShiftMask, XK_d,      logdiagnostics, {0}, DESCRIPTION_LOG_DIAGNOSTICS },
 	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_d, spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh"), DESCRIPTION_LOG_SHOW },
@@ -485,16 +431,6 @@ static const Key keys[] = {
 #endif // PATCH_LOG_DIAGNOSTICS
 	{ MODKEY|ControlMask|ShiftMask, XK_r,      logrules,       {0}, DESCRIPTION_LOG_RULES_FLAT },	// for debugging
 	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_r, logrules,   {.ui = 1}, DESCRIPTION_LOG_RULES },	// for debugging
-	{ MODKEY|ShiftMask,             XK_q,      killgroup,      {.ui = (KILLGROUP_BY_CLASS | KILLGROUP_BY_INSTANCE) }, DESCRIPTION_KILL_GROUP },
-	{ MODKEY|ControlMask,           XK_Tab,    viewactive,     {.i = +1 }, DESCRIPTION_VIEWACTIVE_NEXT },
-	{ MODKEY|ControlMask|ShiftMask, XK_Tab,    viewactive,     {.i = -1 }, DESCRIPTION_VIEWACTIVE_PREV },
-#if PATCH_CONSTRAIN_MOUSE
-	{ MODKEY|ControlMask|ShiftMask, XK_m,      toggleconstrain, {0}, DESCRIPTION_TOGGLE_CONSTRAIN },
-#endif // PATCH_CONSTRAIN_MOUSE
-#if PATCH_FLAG_GAME
-	{ MODKEY|ControlMask|ShiftMask, XK_g,      toggleisgame,   {0}, DESCRIPTION_TOGGLE_GAME },
-#endif // PATCH_FLAG_GAME
-	{ MODKEY,                       XK_u,      clearurgency,   {0}, DESCRIPTION_CLEAR_URGENCY },
 #if PATCH_CLIENT_OPACITY
 	{ MODKEY,                       XK_equal,  changefocusopacity,   {.f = +0.025}, DESCRIPTION_OPACITY_ACTIVE_INCREASE },
 	{ MODKEY,                       XK_minus,  changefocusopacity,   {.f = -0.025}, DESCRIPTION_OPACITY_ACTIVE_DECREASE },
@@ -526,21 +462,6 @@ static const Key keys[] = {
 	{ MODKEY,                      XK_KP_Down, movetiled,      {.i = +1 }, DESCRIPTION_MOVE_TILED_DOWN },
 #endif // PATCH_MOVE_TILED_WINDOWS
 
-#if PATCH_LOG_DIAGNOSTICS
-	{ MODKEY|ControlMask|ShiftMask, XK_d,      logdiagnostics, {0}, DESCRIPTION_LOG_DIAGNOSTICS },
-	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_d, spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh"), DESCRIPTION_LOG_SHOW },
-	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_d, logdiagnostics, {.ui = 1}, DESCRIPTION_LOG_DIAGNOSTICS_ALL },
-#endif // PATCH_LOG_DIAGNOSTICS
-	{ MODKEY|ControlMask|ShiftMask, XK_r,      logrules,       {0}, DESCRIPTION_LOG_RULES_FLAT },	// for debugging
-	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_r, logrules,   {.ui = 1}, DESCRIPTION_LOG_RULES },	// for debugging
-
-	{ MODKEY,                       XK_u,      clearurgency,   {0}, DESCRIPTION_CLEAR_URGENCY },
-#if PATCH_CLIENT_OPACITY
-	{ MODKEY,                       XK_equal,  changefocusopacity,   {.f = +0.025}, DESCRIPTION_OPACITY_ACTIVE_INCREASE },
-	{ MODKEY,                       XK_minus,  changefocusopacity,   {.f = -0.025}, DESCRIPTION_OPACITY_ACTIVE_DECREASE },
-	{ MODKEY|ShiftMask,             XK_equal,  changeunfocusopacity, {.f = +0.025}, DESCRIPTION_OPACITY_INACTIVE_INCREASE },
-	{ MODKEY|ShiftMask,             XK_minus,  changeunfocusopacity, {.f = -0.025}, DESCRIPTION_OPACITY_INACTIVE_DECREASE },
-#endif // PATCH_CLIENT_OPACITY
 #if PATCH_MOVE_FLOATING_WINDOWS
 	{ MODKEY,		           XK_KP_Left,     movefloat,      {.ui = MOVE_FLOATING_LEFT }, DESCRIPTION_MOVE_FLOAT_LEFT },
 	{ MODKEY|ShiftMask,	       XK_KP_Left,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_LEFT_BIG },
@@ -573,6 +494,7 @@ static const Key keys[] = {
 #endif // PATCH_CONSTRAIN_MOUSE
 #if DEBUGGING
 	{ MODKEY|ShiftMask|ControlMask, XK_a,      toggledebug,    {0}, DESCRIPTION_TOGGLE_DEBUGGING },
+	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_s, toggleskiprules, {0}, DESCRIPTION_TOGGLE_SKIPRULES },
 #endif // DEBUGGING
 #if PATCH_SHOW_DESKTOP
 	{ MODKEY|ShiftMask,             XK_d,      toggledesktop,  {.i = -1 }, DESCRIPTION_SHOW_DESKTOP },
