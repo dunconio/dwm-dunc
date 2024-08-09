@@ -463,6 +463,9 @@ static const Key keys[] = {
 	{ MODKEY|ControlMask|ShiftMask, XK_p,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/toggle-pink-noise.sh")},
 	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_t, spawn,      SHCMD("bash $XDG_RUNTIME_DIR/dwm/toggle-30s-tone.sh")},
 	{ MODKEY|ControlMask|ShiftMask, XK_s,      rescan,         {0} },
+#if DEBUGGING
+	{ MODKEY|ControlMask|ShiftMask|Mod1Mask, XK_s, toggleskiprules, {0} },
+#endif // DEBUGGING
 	{ MODKEY|ControlMask|ShiftMask, XK_k,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh restart")},
 	{ MODKEY|ControlMask|ShiftMask, XK_d,      spawn,          SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-log.sh")},
 #if PATCH_LOG_DIAGNOSTICS

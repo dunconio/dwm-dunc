@@ -638,6 +638,7 @@ static int key_release_type = -1;
 #endif // PATCH_MOUSE_POINTER_HIDING
 
 #if DEBUGGING
+static int skip_rules = 0;
 static int debug_sensitivity_on = 0;
 #define DEBUGIF if (debug_sensitivity_on) {
 #define DEBUGENDIF }
@@ -1677,6 +1678,9 @@ static void togglemirror(const Arg *arg);
 #if PATCH_PAUSE_PROCESS
 static void togglepause(const Arg *arg);
 #endif // PATCH_PAUSE_PROCESS
+#if DEBUGGING
+static void toggleskiprules(const Arg *arg);
+#endif // DEBUGGING
 #if PATCH_FLAG_STICKY
 static void togglesticky(const Arg *arg);
 #endif // PATCH_FLAG_STICKY
@@ -2279,6 +2283,10 @@ appendhidden(Monitor *m, const char *text, char *buffer, size_t len_buffer)
 int
 applyrules(Client *c, int deferred)
 {
+	#if DEBUGGING
+	if (skip_rules)
+		return 0;
+	#endif // DEBUGGING
 	int matched = 0;
 	Monitor *m;
 	const char *class, *instance;
@@ -18607,6 +18615,14 @@ togglepause(const Arg *arg)
 		kill (c->pid, SIGCONT);
 }
 #endif // PATCH_PAUSE_PROCESS
+
+#if DEBUGGING
+void
+toggleskiprules(const Arg *arg)
+{
+	skip_rules = !skip_rules;
+}
+#endif // DEBUGGING
 
 #if PATCH_FLAG_STICKY
 void
