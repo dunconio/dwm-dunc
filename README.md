@@ -52,6 +52,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_CFACTS` | Client sizing factor support in various layouts, which can be specified via rules and also changed at run-time; |
 | `PATCH_CLIENT_INDICATORS` | Add blobs to the bar tag to indicate clients visible on that tag; |
 | `PATCH_CLIENT_OPACITY` | Define opacity levels (between 0 and 1) for focused and unfocused clients; |
+| `PATCH_COLOUR_BAR` | Define colours for each bar element; |
 | `PATCH_CONSTRAIN_MOUSE` | Add a toggle to constrain the mouse pointer to the current monitor; |
 | `PATCH_CROP_WINDOWS` | |
 | `PATCH_DRAG_FACTS` | Resize master area size and tiled clients with the mouse; |
