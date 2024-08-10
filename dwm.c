@@ -5875,10 +5875,18 @@ drawbar(Monitor *m, int skiptags)
 							mc[i],
 							#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 							mc[i]->win, &mc[i]->tagicw, &mc[i]->tagich,
+							/*
 							#if PATCH_CLIENT_INDICATORS
 							client_ind ? (MIN((bh - (client_ind_size / 2) - 7), (minbh - 2))) :
 							#endif // PATCH_CLIENT_INDICATORS
 							(MIN((bh - 8), (minbh - 2)))
+							*/
+							(
+								#if PATCH_FONT_GROUPS
+								drw->selfonts ? drw->selfonts->h :
+								#endif // PATCH_FONT_GROUPS
+								drw->fonts->h
+							)
 						);
 				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
 				#endif // PATCH_WINDOW_ICONS
