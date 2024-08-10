@@ -6491,7 +6491,7 @@ drawbar(Monitor *m, int skiptags)
 					#if PATCH_MODAL_SUPPORT
 					if (active->ismodal) {
 						drw_setscheme(drw, scheme[SchemeUrg]);
-						drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), boxs + (bh - boxw - 4), boxw, boxw, 1,
+						drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), (bh - boxw - boxs), boxw, boxw, 1,
 							#if PATCH_FLAG_ALWAYSONTOP
 							!active->alwaysontop
 							#else // NO PATCH_FLAG_ALWAYSONTOP
@@ -6505,10 +6505,10 @@ drawbar(Monitor *m, int skiptags)
 					else
 					#endif // PATCH_MODAL_SUPPORT
 					if (active->alwaysontop)
-						drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), boxs + (bh - boxw - 4), boxw, boxw, 0, 0);
+						drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), (bh - boxw - boxs), boxw, boxw, 0, 0);
 				}
 				else if (active->alwaysontop) {
-					drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), boxs + (bh - boxw - 4), boxw, boxw, 0, 0);
+					drw_rect(drw, x + (m->title_align == 2 ? w - boxw - boxs : boxs), (bh - boxw - boxs), boxw, boxw, 0, 0);
 				#endif // PATCH_FLAG_ALWAYSONTOP
 				}
 			} else {
