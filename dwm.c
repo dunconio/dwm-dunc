@@ -5875,12 +5875,12 @@ drawbar(Monitor *m, int skiptags)
 							mc[i],
 							#endif // PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
 							mc[i]->win, &mc[i]->tagicw, &mc[i]->tagich,
-							/*
+							#if 0 // icon size relative to total bar height;
 							#if PATCH_CLIENT_INDICATORS
 							client_ind ? (MIN((bh - (client_ind_size / 2) - 7), (minbh - 2))) :
 							#endif // PATCH_CLIENT_INDICATORS
 							(MIN((bh - 8), (minbh - 2)))
-							*/
+							#endif // icon size relative to total bar height;
 							(
 								#if PATCH_FONT_GROUPS
 								drw->selfonts ? drw->selfonts->h :
@@ -6115,11 +6115,15 @@ drawbar(Monitor *m, int skiptags)
 							x, 0, w, bh,
 							(lrpad / 2),
 							#if PATCH_CLIENT_INDICATORS
-							client_ind && (total[i]
+							client_ind
+							#if 0 // only offset when there are indicators to be drawn;
+							&& (total[i]
 								#if PATCH_FLAG_STICKY
 								+ sticky[i]
 								#endif // PATCH_FLAG_STICKY
-							) ? offsety : 0,
+							)
+							#endif // only offset when there are indicators to be drawn;
+							? offsety : 0,
 							#endif // PATCH_CLIENT_INDICATORS
 							0
 						);
@@ -6142,11 +6146,15 @@ drawbar(Monitor *m, int skiptags)
 						,
 						0,
 						#if PATCH_CLIENT_INDICATORS
-						client_ind && (total[i]
+						client_ind
+						#if 0 // only offset when there are indicators to be drawn;
+						&& (total[i]
 							#if PATCH_FLAG_STICKY
 							+ sticky[i]
 							#endif // PATCH_FLAG_STICKY
-						) ? offsety : 0,
+						)
+						#endif // only offset when there are indicators to be drawn;
+						? offsety : 0,
 						#endif // PATCH_CLIENT_INDICATORS
 						1,
 						#if PATCH_BIDIRECTIONAL_TEXT
@@ -16280,7 +16288,7 @@ setup(void)
 		#endif // PATCH_CLIENT_INDICATORS
 	;
 	#if PATCH_CLIENT_INDICATORS
-	client_ind_offset = client_ind ? ((client_ind_size / 2) + 1) : 0;
+	client_ind_offset = client_ind ? ((client_ind_size + 1) / 2) : 0;
 	#endif // PATCH_CLIENT_INDICATORS
 	#if PATCH_FONT_GROUPS
 	if (fontgroups_json && drw_populate_fontgroups(drw, fontgroups_json) && barelement_fontgroups_json) {
@@ -16329,7 +16337,7 @@ setup(void)
 		#if PATCH_CLIENT_INDICATORS
 		if (tagbar_bh + client_ind_size > bh)
 			bh = tagbar_bh + client_ind_size;
-		else if (tagbar_bh + client_ind_size < bh)
+		else if (tagbar_bh + (2 * client_ind_size) <= bh)
 			client_ind_offset = 0;
 		#endif // PATCH_CLIENT_INDICATORS
 	}
