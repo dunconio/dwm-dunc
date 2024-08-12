@@ -14795,8 +14795,19 @@ restack(Monitor *m)
 		else
 		*/
 		{
-			wc.sibling = w;
-			XConfigureWindow(dpy, raised->win, CWSibling|CWStackMode, &wc);
+			// keep floating children close to their parents;
+			if (m->lt[m->sellt]->arrange == monocle && raised->isfloating) {
+				wc.sibling = w;
+				XConfigureWindow(dpy, raised->win, CWSibling|CWStackMode, &wc);
+				wc.sibling = raised->win;
+				c = raised;
+				while ((c = c->parent)) {
+					if (c->mon == raised->mon && ISVISIBLE(c)) {
+						XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc);
+						wc.sibling = c->win;
+					}
+				}
+			}
 		}
 		#if PATCH_SCAN_OVERRIDE_REDIRECTS
 		wc.sibling = raised->win;
