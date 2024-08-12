@@ -20558,6 +20558,12 @@ warptoclient(Client *c, int force)
 		return;
 	}
 
+	// don't warp if client at coords is not the target client;
+	if (getclientatcoords(tpx, tpy, True) != c) {
+		focus(c, 0);
+		return;
+	}
+
 	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	#if PATCH_FLAG_GAME
 	Client *g;
