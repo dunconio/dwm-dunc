@@ -41,8 +41,11 @@
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
 #include <X11/Xproto.h>
 #include <X11/Xutil.h>
+
+#include <xkbcommon/xkbcommon.h>
 
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
@@ -1089,6 +1092,7 @@ typedef struct {
 	KeySym keysym;
 	void (*func)(const Arg *);
 	const Arg arg;
+	const char *description;
 } Key;
 
 typedef struct {
@@ -1441,6 +1445,7 @@ static int is_hex(const char *s);
 static int is_signed_int(const char *s);
 static int is_unsigned_int(const char *s);
 #endif // PATCH_IPC
+static int keycode_to_modifier(XModifierKeymap *modmap, KeyCode keycode);
 static void keypress(XEvent *e);
 #if PATCH_ALT_TAGS
 static void keyrelease(XEvent *e);
@@ -1499,6 +1504,7 @@ static void placemouse(const Arg *arg);
 static int pointoverbar(Monitor *m, int x, int y, int check_clients);
 #endif // PATCH_MOUSE_POINTER_WARPING
 static void pop(Client *c);
+static void populate_charcode_map(void);
 #if PATCH_MOVE_TILED_WINDOWS || PATCH_FLAG_HIDDEN
 static Client *prevtiled(Client *c);
 #endif // PATCH_MOVE_TILED_WINDOWS || PATCH_FLAG_HIDDEN
@@ -1625,7 +1631,8 @@ static int snoop_xinput(Window win);
 //#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
 static int solitary(Client *c);
 static void spawn(const Arg *arg);
-static pid_t spawnex(const void *v);
+static pid_t spawnex(const void *v, int keyhelp);
+static void spawnhelp(const Arg *arg);
 #if PATCH_IPC
 static int subscribe(const char *event);
 #endif // PATCH_IPC
@@ -1902,6 +1909,25 @@ static int dpy_fd;
 static unsigned int ipc_ignore_reply = 0;	// IPC client-side flag;
 static Monitor *lastselmon;
 #endif // PATCH_IPC
+
+typedef struct charcodemap {
+	wchar_t key;		// the letter for this key, like 'a';
+	KeyCode code;		// the keycode that this key is on;
+	KeySym symbol;		// the symbol representing this key;
+	int group;			// the keyboard group that has this key in it;
+	int modmask;		// the modifiers to apply when sending this key;
+	int needs_binding;	// key needs to be bound at because it doesn't exist in the current keymap;
+} charcodemap_t;
+static charcodemap_t *charcodes;
+int charcodes_len;
+
+#define XF86AudioLowerVolume	0x1008ff11
+#define XF86AudioMute			0x1008ff12
+#define XF86AudioRaiseVolume	0x1008ff13
+#define XF86AudioPlay			0x1008ff14
+#define XF86AudioNext			0x1008ff15
+#define XF86AudioPrev			0x1008ff16
+#define XF86AudioStop			0x1008ff17
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -3673,6 +3699,8 @@ cleanup(void)
 
 logdatetime(stderr);
 fprintf(stderr, "dwm: starting cleanup...\n");
+
+	free(charcodes);
 
 	#if PATCH_ALTTAB
 	altTabEnd();
@@ -8957,6 +8985,29 @@ isuniquegeom(XineramaScreenInfo *unique, size_t n, XineramaScreenInfo *info)
 }
 #endif /* XINERAMA */
 
+int
+keycode_to_modifier(XModifierKeymap *modmap, KeyCode keycode)
+{
+	int i = 0, j = 0, max = modmap->max_keypermod;
+
+	for (i = 0; i < 8; i++) // 8 modifier types, per XGetModifierMapping(3X);
+		for (j = 0; j < max && modmap->modifiermap[(i * max) + j]; j++)
+			if (keycode == modmap->modifiermap[(i * max) + j])
+				switch (i) {
+					case ShiftMapIndex: return ShiftMask; break;
+					case LockMapIndex: return LockMask; break;
+					case ControlMapIndex: return ControlMask; break;
+					case Mod1MapIndex: return Mod1Mask; break;
+					case Mod2MapIndex: return Mod2Mask; break;
+					case Mod3MapIndex: return Mod3Mask; break;
+					case Mod4MapIndex: return Mod4Mask; break;
+					case Mod5MapIndex: return Mod5Mask; break;
+				}
+
+	// No modifier found for this keycode, return no mask;
+	return 0;
+}
+
 void
 keypress(XEvent *e)
 {
@@ -13064,6 +13115,62 @@ pop(Client *c)
 	arrange(c->mon);
 }
 
+void
+populate_charcode_map(void)
+{
+	int keycodes_length = 0, idx = 0;
+	int keycode, group, groups, level, modmask, num_map;
+	int keycode_high, keycode_low;
+	int keysyms_per_keycode;
+
+	XDisplayKeycodes(dpy, &keycode_low, &keycode_high);
+	XModifierKeymap *modmap = XGetModifierMapping(dpy);
+	KeySym *keysyms = XGetKeyboardMapping(
+		dpy, keycode_low,
+		keycode_high - keycode_low + 1,
+		&keysyms_per_keycode
+
+	);
+	XFree(keysyms);
+
+	// Add 2 to the size because the range [low, high] is inclusive;
+	// Add 2 more for tab (\t) and newline (\n);
+	keycodes_length = ((keycode_high - keycode_low) + 1) * keysyms_per_keycode;
+
+	charcodes = calloc(keycodes_length, sizeof(charcodemap_t));
+	XkbDescPtr desc = XkbGetMap(dpy, XkbAllClientInfoMask, XkbUseCoreKbd);
+
+	for (keycode = keycode_low; keycode <= keycode_high; keycode++) {
+		groups = XkbKeyNumGroups(desc, keycode);
+		for (group = 0; group < groups; group++) {
+			XkbKeyTypePtr key_type = XkbKeyKeyType(desc, keycode, group);
+			for (level = 0; level < key_type->num_levels; level++) {
+				KeySym keysym = XkbKeycodeToKeysym(dpy, keycode, group, level);
+				modmask = 0;
+
+				for (num_map = 0; num_map < key_type->map_count; num_map++) {
+					XkbKTMapEntryRec map = key_type->map[num_map];
+					if (map.active && map.level == level) {
+						modmask = map.mods.mask;
+						break;
+					}
+				}
+
+				charcodes[idx].key = (wchar_t)xkb_keysym_to_utf32(keysym);
+				charcodes[idx].code = keycode;
+				charcodes[idx].group = group;
+				charcodes[idx].modmask = modmask | keycode_to_modifier(modmap, keycode);
+				charcodes[idx].symbol = keysym;
+
+				idx++;
+			}
+		}
+	}
+	charcodes_len = idx;
+	XkbFreeKeyboard(desc, 0, 1);
+	XFreeModifiermap(modmap);
+}
+
 #if PATCH_IPC
 void
 print_socket_reply(void)
@@ -16626,6 +16733,9 @@ setup(void)
 	XSelectInput(dpy, root, wa.event_mask);
 	grabkeys();
 	focus(NULL, 0);
+
+	populate_charcode_map();
+
 	#if PATCH_IPC
 	return (setupepoll());
 	#endif // PATCH_IPC
@@ -17040,20 +17150,177 @@ solitary(Client *c)
 void
 spawn(const Arg *arg)
 {
-	spawnex(arg->v);
+	spawnex(arg->v, False);
 }
 
 pid_t
-spawnex(const void *v)
+spawnex(const void *v, int keyhelp)
 {
 	struct sigaction sa;
 	pid_t pid;
 	char buffer[256];
+	char bigbuff[32768];
+	size_t b = 0, i, j;
+	int k;
+	KeySym keysym;
+	unsigned int mod;
+	const char *description;
 	XClassHint ch = { NULL, NULL };
 	int x, y;
 	Monitor *m = selmon;
 	Client *c = NULL;
 
+	if (keyhelp) {
+
+#define TEST_KEY_MASK(MASK,TEXT) \
+	if (mod & MASK) { \
+		strncpy(buffer + j, TEXT"-", sizeof buffer - j); \
+		j += strlen(TEXT"-"); \
+	}
+#define APPEND_BUFFER(KEYSYM,TEXT) \
+	case KEYSYM: \
+		strncpy(buffer + j, TEXT, sizeof buffer - j); \
+		j += strlen(TEXT); \
+		break;
+
+		for (i = 0; i < LENGTH(keys); i++) {
+
+			mod = keys[i].mod;
+			keysym = keys[i].keysym;
+			description = keys[i].description;
+			j = 0;
+
+			TEST_KEY_MASK(Mod4Mask, "Super")
+			TEST_KEY_MASK(ShiftMask, "Shift")
+			TEST_KEY_MASK(ControlMask, "Control")
+			TEST_KEY_MASK(Mod1Mask, "Alt")
+
+			if (j) {
+				buffer[j - 1] = ' ';
+				buffer[j++] = '+';
+				buffer[j++] = ' ';
+			}
+
+			for (k = 0; k < charcodes_len; k++)
+				if (charcodes[k].symbol == keysym) {
+					switch (keysym) {
+						APPEND_BUFFER(XF86AudioLowerVolume, "Volume_Down")
+						APPEND_BUFFER(XF86AudioMute, "Volume_Mute")
+						APPEND_BUFFER(XF86AudioRaiseVolume, "Volume_Up")
+						APPEND_BUFFER(XF86AudioPlay, "Audio_Play")
+						APPEND_BUFFER(XF86AudioStop, "Audio_Stop")
+						APPEND_BUFFER(XF86AudioPrev, "Audio_Previous")
+						APPEND_BUFFER(XF86AudioNext, "Audio_Next")
+						APPEND_BUFFER(XK_space, "Space")
+						APPEND_BUFFER(XK_ISO_Level3_Shift, "ISO_L3_Shift")
+						APPEND_BUFFER(XK_BackSpace, "BackSpace")
+						APPEND_BUFFER(XK_Tab, "Tab")
+						APPEND_BUFFER(XK_Pause, "Pause")
+						APPEND_BUFFER(XK_Scroll_Lock, "Scroll_Lock")
+						APPEND_BUFFER(XK_Escape, "Escape")
+						APPEND_BUFFER(XK_Home, "Home")
+						APPEND_BUFFER(XK_Page_Up, "Page_Up")
+						APPEND_BUFFER(XK_Page_Down, "Page_Down")
+						APPEND_BUFFER(XK_End, "End")
+						APPEND_BUFFER(XK_KP_Left, "KP_Left")
+						APPEND_BUFFER(XK_KP_Up, "KP_Up")
+						APPEND_BUFFER(XK_KP_Right, "KP_Right")
+						APPEND_BUFFER(XK_KP_Down, "KP_Down")
+						APPEND_BUFFER(XK_KP_Page_Down, "KP_Page_Down")
+						APPEND_BUFFER(XK_KP_Page_Up, "KP_Page_Up")
+						APPEND_BUFFER(XK_KP_Home, "KP_Home")
+						APPEND_BUFFER(XK_KP_End, "KP_End")
+						APPEND_BUFFER(XK_KP_Enter, "KP_Enter")
+						APPEND_BUFFER(XK_Left, "Cursor_Left")
+						APPEND_BUFFER(XK_Up, "Cursor_Up")
+						APPEND_BUFFER(XK_Right, "Cursor_Right")
+						APPEND_BUFFER(XK_Down, "Cursor_Down")
+						APPEND_BUFFER(XK_Insert, "Insert")
+						APPEND_BUFFER(XK_Menu, "Menu")
+						APPEND_BUFFER(XK_Num_Lock, "Num_Lock")
+						APPEND_BUFFER(XK_KP_Multiply, "KP_Multiply")
+						APPEND_BUFFER(XK_KP_Add, "KP_Add")
+						APPEND_BUFFER(XK_KP_Subtract, "KP_Subtract")
+						APPEND_BUFFER(XK_KP_Decimal, "KP_Decimal")
+						APPEND_BUFFER(XK_KP_Divide, "KP_Divide")
+						APPEND_BUFFER(XK_KP_0, "KP_0")
+						APPEND_BUFFER(XK_KP_1, "KP_1")
+						APPEND_BUFFER(XK_KP_2, "KP_2")
+						APPEND_BUFFER(XK_KP_3, "KP_3")
+						APPEND_BUFFER(XK_KP_4, "KP_4")
+						APPEND_BUFFER(XK_KP_5, "KP_5")
+						APPEND_BUFFER(XK_KP_6, "KP_6")
+						APPEND_BUFFER(XK_KP_7, "KP_7")
+						APPEND_BUFFER(XK_KP_8, "KP_8")
+						APPEND_BUFFER(XK_KP_9, "KP_9")
+						APPEND_BUFFER(XK_F1, "F1")
+						APPEND_BUFFER(XK_F2, "F2")
+						APPEND_BUFFER(XK_F3, "F3")
+						APPEND_BUFFER(XK_F4, "F4")
+						APPEND_BUFFER(XK_F5, "F5")
+						APPEND_BUFFER(XK_F6, "F6")
+						APPEND_BUFFER(XK_F7, "F7")
+						APPEND_BUFFER(XK_F8, "F8")
+						APPEND_BUFFER(XK_F9, "F9")
+						APPEND_BUFFER(XK_F10, "F10")
+						APPEND_BUFFER(XK_F11, "F11")
+						APPEND_BUFFER(XK_F12, "F12")
+						APPEND_BUFFER(XK_F13, "F13")
+						APPEND_BUFFER(XK_F14, "F14")
+						APPEND_BUFFER(XK_F15, "F15")
+						APPEND_BUFFER(XK_F16, "F16")
+						APPEND_BUFFER(XK_F17, "F17")
+						APPEND_BUFFER(XK_F18, "F18")
+						APPEND_BUFFER(XK_F19, "F19")
+						APPEND_BUFFER(XK_F20, "F20")
+						APPEND_BUFFER(XK_F21, "F21")
+						APPEND_BUFFER(XK_F22, "F22")
+						APPEND_BUFFER(XK_F23, "F23")
+						APPEND_BUFFER(XK_F24, "F24")
+						APPEND_BUFFER(XK_F25, "F25")
+						APPEND_BUFFER(XK_F26, "F26")
+						APPEND_BUFFER(XK_F27, "F27")
+						APPEND_BUFFER(XK_F28, "F28")
+						APPEND_BUFFER(XK_F29, "F29")
+						APPEND_BUFFER(XK_F30, "F30")
+						APPEND_BUFFER(XK_F31, "F31")
+						APPEND_BUFFER(XK_F32, "F32")
+						APPEND_BUFFER(XK_F33, "F33")
+						APPEND_BUFFER(XK_F34, "F34")
+						APPEND_BUFFER(XK_F35, "F35")
+						APPEND_BUFFER(XK_Control_L, "L_Control")
+						APPEND_BUFFER(XK_Control_R, "R_Control")
+						APPEND_BUFFER(XK_Alt_L, "L_Alt")
+						APPEND_BUFFER(XK_Alt_R, "R_Alt")
+						APPEND_BUFFER(XK_Super_L, "L_Super")
+						APPEND_BUFFER(XK_Super_R, "R_Super")
+						APPEND_BUFFER(XK_Hyper_L, "L_Hyper")
+						APPEND_BUFFER(XK_Hyper_R, "R_Hyper")
+						APPEND_BUFFER(XK_Delete, "Delete")
+						APPEND_BUFFER(XK_Return, "Return")
+						APPEND_BUFFER(XK_Sys_Req, "Sys_Req")
+						APPEND_BUFFER(XK_Print, "Print_Screen")
+						default:
+							buffer[j] = toupper(charcodes[k].key);
+					}
+					break;
+				}
+
+			buffer[++j] = '\0';
+
+			strncpy(bigbuff + b, buffer, sizeof bigbuff - b);
+			b += strlen(buffer) + 1;
+			bigbuff[b - 1] = '\t';
+
+			strncpy(bigbuff + b, description, sizeof bigbuff - b);
+			b += strlen(description) + 1;
+			bigbuff[b - 1] = '\n';
+			bigbuff[b] = '\0';
+		}
+
+		setenv("KEYS", bigbuff, 1);
+
+	}
 	if (m) {
 		snprintf(buffer, sizeof buffer, "%u", bh); setenv("BAR_HEIGHT", buffer, 1);
 		snprintf(buffer, sizeof buffer, "%i", m->topbar ? 0 : m->mh - bh); setenv("BAR_Y", buffer, 1);
@@ -17183,6 +17450,12 @@ spawnex(const void *v)
 		exit(EXIT_SUCCESS);
 	}
 	return pid;
+}
+
+void
+spawnhelp(const Arg *arg)
+{
+	spawnex(arg->v, True);
 }
 
 #if PATCH_IPC
@@ -20637,7 +20910,7 @@ void
 window_switcher(const Arg *arg)
 {
 	pthread_t th;
-	pid_t pid = spawnex(arg->v);
+	pid_t pid = spawnex(arg->v, False);
 	enable_switching = 1;
 	war_data *th_data = ecalloc(1, sizeof(war_data));
 	th_data->pid = pid;
