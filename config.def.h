@@ -336,6 +336,7 @@ static IPCCommand ipccommands[] = {
 	#if PATCH_LOG_DIAGNOSTICS
 	IPCCOMMAND(  logdiagnostics,      1,      {ARG_TYPE_UINT}   ),
 	#endif // PATCH_LOG_DIAGNOSTICS
+	IPCCOMMAND(  reload,              1,      {ARG_TYPE_NONE}   ),
 //	IPCCOMMAND(  setlayoutsafe,       1,      {ARG_TYPE_PTR}    ),
 	IPCCOMMAND(  setmfact,            1,      {ARG_TYPE_FLOAT}  ),
 	IPCCOMMAND(  tag,                 1,      {ARG_TYPE_UINT}   ),
@@ -521,6 +522,7 @@ static const Key keys[] = {
 	{ Mod1Mask,						XK_F4,     killclient,     {0}, DESCRIPTION_KILL_CLIENT },
 	{ MODKEY|ShiftMask,             XK_q,      killgroup,      {.ui = (KILLGROUP_BY_CLASS | KILLGROUP_BY_INSTANCE) }, DESCRIPTION_KILL_GROUP },
 	{ MODKEY|ShiftMask|ControlMask, XK_Escape, spawn,          SHCMD("xkill >/dev/null 2>&1"), DESCRIPTION_XKILL },
+	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Escape, reload,{0}, DESCRIPTION_RELOAD },
 	{ MODKEY|ShiftMask|ControlMask, XK_q,      quit,           {0}, DESCRIPTION_QUIT },
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_m,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-audio.sh -r"), DESCRIPTION_MUTE_GUI },
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_l,    spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.quit; kill $(pidof dwm.running)"), DESCRIPTION_LOGOUT },

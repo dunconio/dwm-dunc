@@ -79,6 +79,7 @@
 #define DESCRIPTION_NMASTER_DECREASE				"Increase number of master clients"
 #define DESCRIPTION_NMASTER_INCREASE				"Decrease number of master clients"
 
+#define DESCRIPTION_RELOAD							"Reload configuration and rescan windows"
 #define DESCRIPTION_RESCAN							"Rescan windows"
 #define DESCRIPTION_LOGOUT							"Quit dwm and log out of the session"
 #define DESCRIPTION_RESTART							"Quit dwm and restart the computer"
