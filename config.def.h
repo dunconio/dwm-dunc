@@ -334,6 +334,7 @@ static IPCCommand ipccommands[] = {
 	#if PATCH_LOG_DIAGNOSTICS
 	IPCCOMMAND(  logdiagnostics,      1,      {ARG_TYPE_UINT}   ),
 	#endif // PATCH_LOG_DIAGNOSTICS
+	IPCCOMMAND(  reload,              1,      {ARG_TYPE_NONE}   ),
 //	IPCCOMMAND(  setlayoutsafe,       1,      {ARG_TYPE_PTR}    ),
 	IPCCOMMAND(  setmfact,            1,      {ARG_TYPE_FLOAT}  ),
 	IPCCOMMAND(  tag,                 1,      {ARG_TYPE_UINT}   ),
@@ -452,6 +453,7 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Home, spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.restart; kill $(pidof dwm.running);")},
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_End,  spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.shutdown; kill $(pidof dwm.running);")},
 	{ MODKEY|ShiftMask|ControlMask, XK_Escape, spawn,          SHCMD("xkill >/dev/null 2>&1")},
+	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Escape, reload,{0} },
 /* extra functionality from patches */
 #if PATCH_ALT_TAGS
 	{ 0,                            XK_Super_L,togglealttags,  {0} },
