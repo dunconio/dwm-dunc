@@ -1531,6 +1531,7 @@ static int recv_message(uint8_t *msg_type, uint32_t *reply_size, uint8_t **reply
 #if PATCH_MOUSE_POINTER_WARPING
 static void refocuspointer(const Arg *arg);
 #endif // PATCH_MOUSE_POINTER_WARPING
+static void reload(const Arg *arg);
 static void removelinks(Client *c);
 #if PATCH_SYSTRAY
 static void removesystrayicon(Client *i);
@@ -13695,6 +13696,14 @@ refocuspointer(const Arg *arg)
 #endif // PATCH_MOUSE_POINTER_WARPING
 
 void
+reload(const Arg *arg)
+{
+	logdatetime(stderr);
+	fputs("dwm: received reload() signal.\n", stderr);
+	running = -1;
+}
+
+void
 removelinks(Client *c)
 {
 	long index = INT_MAX;
@@ -14971,7 +14980,7 @@ run(void)
 	XSync(dpy, False);
 
 	/* main event loop */
-	while (running) {
+	while (running == 1) {
 		event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
 
 		for (int i = 0; i < event_count; i++) {
@@ -15017,7 +15026,7 @@ run(void)
 
 	// main event loop;
 	XSync(dpy, False);
-	while (running) {
+	while (running == 1) {
 
 		//#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
 		#if PATCH_MOUSE_POINTER_HIDING
@@ -21394,6 +21403,17 @@ main(int argc, char *argv[], char *envp[])
 		wrap_length = window_size.ws_col;
 	}
 	#endif // PATCH_IPC
+reload:
+	for (int i = 0; i < LENGTH(colourflags); i++) {
+		if (colourflags[i]) {
+			if (colourflags[i] & 1)
+				colours[i][ColFg] = NULL;
+			if (colourflags[i] & 2)
+				colours[i][ColBg] = NULL;
+			if (colourflags[i] & 4)
+				colours[i][ColBorder] = NULL;
+		}
+	}
 
 	if (argc > 1) {
 
@@ -21569,7 +21589,7 @@ main(int argc, char *argv[], char *envp[])
 	// check if environment works;
 	const char *env = "XDG_RUNTIME_DIR";
 	if (!getenv(env)) {
-		fprintf(stderr, "dwm: environment failed.");
+		fputs("dwm: environment failed.", stderr);
 		goto finish;
 	}
 	// ***********************************************************************;
@@ -21577,11 +21597,11 @@ main(int argc, char *argv[], char *envp[])
 
 	#if PATCH_LOG_DIAGNOSTICS
 	logdatetime(stderr);
-	fprintf(stderr, DWM_VERSION_STRING_LONG" starting...");
+	fputs(DWM_VERSION_STRING_LONG" starting...", stderr);
 	#if DEBUGGING
-	fprintf(stderr, " (DEBUGGING is on)");
+	fputs(" (DEBUGGING is on)", stderr);
 	#endif // DEBUGGING
-	fprintf(stderr, "\n");
+	fputs("\n", stderr);
 	#endif // PATCH_LOG_DIAGNOSTICS
 
 	if (l) {
@@ -21614,6 +21634,16 @@ main(int argc, char *argv[], char *envp[])
 		die("pledge");
 #endif /* __OpenBSD__ */
 
+	for (int i = 0; i < LENGTH(colours); i++) {
+		colourflags[i] = 0;
+		if (!colours[i][ColFg])
+			colourflags[i] |= 1;
+		if (!colours[i][ColBg])
+			colourflags[i] |= 2;
+		if (!colours[i][ColBorder])
+			colourflags[i] |= 4;
+	}
+
 	if (!setup())
 		goto finish;
 
@@ -21635,14 +21665,14 @@ main(int argc, char *argv[], char *envp[])
 	#endif // PATCH_MOUSE_POINTER_HIDING
 	#if PATCH_LOG_DIAGNOSTICS
 	logdatetime(stderr);
-	fprintf(stderr, DWM_VERSION_STRING_LONG" ready.");
+	fputs(DWM_VERSION_STRING_LONG" ready.", stderr);
 	#if DEBUGGING
-	fprintf(stderr, " (DEBUGGING is on)");
+	fputs(" (DEBUGGING is on)", stderr);
 	#endif // DEBUGGING
 	#if PATCH_IPC
 	fprintf(stderr, " (IPC socket FD: %d)", sock_fd);
 	#endif // PATCH_IPC
-	fprintf(stderr, "\n");
+	fputs("\n", stderr);
 	#endif // PATCH_LOG_DIAGNOSTICS
 	run();
 
@@ -21663,12 +21693,21 @@ finish:
 	XCloseDisplay(dpy);
 
 logdatetime(stderr);
-fprintf(stderr, "dwm: waiting for any child processes...\n");
+fputs("dwm: waiting for any child processes...\n", stderr);
 
 	while (waitpid(-1, NULL, WNOHANG) > 0);
 
 logdatetime(stderr);
-fprintf(stderr, "dwm: finished.\n");
+fputs("dwm: finished.\n", stderr);
+
+	// reload;
+	if (running == -1) {
+		running = 1;
+		logdatetime(stderr);
+		fputs("dwm: reloading...\n", stderr);
+		goto reload;
+	}
+
 	return EXIT_SUCCESS;
 }
 
