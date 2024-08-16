@@ -3562,8 +3562,33 @@ buttonpress(XEvent *e)
 	}
 	for (i = 0; i < LENGTH(buttons); i++)
 		if (click == buttons[i].click && buttons[i].func && buttons[i].button == ev->button
-		&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state))
-			buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg);
+		#if PATCH_STATUSCMD && PATCH_STATUSCMD_MODIFIERS
+		&& (click == ClkStatusText || CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state))) {
+			if (click == ClkStatusText) {
+				arg.i = buttons[i].arg.i;
+				x = CLEANMASK(ev->state);
+				if (x & ShiftMask)
+					arg.i |= 0x100;
+				if (x & ControlMask)
+					arg.i |= 0x200;
+				if (x & Mod1Mask)
+					arg.i |= 0x400;
+				if (x & Mod2Mask)
+					arg.i |= 0x800;
+				if (x & Mod3Mask)
+					arg.i |= 0x1000;
+				if (x & Mod4Mask)
+					arg.i |= 0x2000;
+				if (x & Mod5Mask)
+					arg.i |= 0x4000;
+				buttons[i].func(&arg);
+			}
+			else
+		#else // NO PATCH_STATUSCMD && PATCH_STATUSCMD_MODIFIERS
+		&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state)) {
+		#endif // PATCH_STATUSCMD && PATCH_STATUSCMD_MODIFIERS
+				buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg);
+		}
 }
 
 #if PATCH_CLIENT_OPACITY
@@ -21685,12 +21710,15 @@ finish:
 
 	cleanup();
 
+fprintf(stderr, "debug: after cleanup\n");
 	fonts_json = NULL;
 	monitors_json = NULL;
 	if (layout_json)
 		cJSON_Delete(layout_json);
+fprintf(stderr, "debug: after layout delete\n");
 	if (rules_json)
 		cJSON_Delete(rules_json);
+fprintf(stderr, "debug: after rules delete\n");
 
 	XCloseDisplay(dpy);
 

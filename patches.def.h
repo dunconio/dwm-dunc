@@ -43,6 +43,7 @@
 #define PATCH_SHOW_MASTER_CLIENT_ON_TAG		1
 #define PATCH_STATUSCMD						0
 #define PATCH_STATUSCMD_COLOURS				1
+#define PATCH_STATUSCMD_MODIFIERS			1	// Add modifier values to button signal;
 #define PATCH_STATUSCMD_NONPRINTING			1
 #define PATCH_SWITCH_TAG_ON_EMPTY			1	// Enables tag switch if there are no visible clients;
 #define PATCH_SYSTRAY						1

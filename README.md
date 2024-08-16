@@ -85,6 +85,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_SHOW_MASTER_CLIENT_ON_TAG` | Shows the first `master` client on each tag on the bar; |
 | `PATCH_STATUSCMD` | Supports using `dwmblocks` or similar to manage the status bar content; |
 | <ul>`PATCH_STATUSCMD_COLOURS`</ul> | Supports using status bar content with colour changes denoted by `^Cindex^`, where `index` is one of the following:<ul><li>a colour number between 1 and 15, corresponding to colour scheme `SchemeStatC1` - `SchemeStatC15`;</li><li>a X11 colour definition mnemonic, e.g. `red`, `pink`, `cyan`, etc.</li><li>a colour code in the form `#rgb`, `#rrggbb`, or `#rrggbbaa`;</li></ul> |
+| <ul>`PATCH_STATUSCMD_MODIFIERS`</ul> | Add modifier values to button value when signalling `dwmblocks`;<br />An appropriately patched `dwmblocks` can set additional environment variables based on the bits 8-15; |
 | <ul>`PATCH_STATUSCMD_NONPRINTING`</ul> | Supports using status bar content with non-printing characters denoted by `^Nchars^`, where empty space will replace each of the characters; |
 | `PATCH_SWITCH_TAG_ON_EMPTY` | Enables tag switch if there are no visible clients; |
 | `PATCH_SYSTRAY` | System tray support; |
