@@ -13596,7 +13596,11 @@ recttoclient(int x, int y, int w, int h, int onlyfocusable)
 		if (!MINIMIZED(c) && (a = INTERSECTC(x, y, w, h, c)) && (onlyfocusable ? !c->neverfocus : True))
 			return c;
 
-	if (selmon->lt[selmon->sellt]->arrange == monocle) {
+	if (selmon->lt[selmon->sellt]->arrange == monocle
+		#if PATCH_LAYOUT_DECK
+		|| selmon->lt[selmon->sellt]->arrange == deck
+		#endif // PATCH_LAYOUT_DECK
+	) {
 		for (c = nextstack(selmon->stack, False); c; c = nextstack(c->snext, False))
 			if ((a = INTERSECTC(x, y, w, h, c)) && (onlyfocusable ? !c->neverfocus : True))
 				return c;
@@ -14775,7 +14779,12 @@ restack(Monitor *m)
 		// next layer up are floating alwaysontop;
 		for (c = m->stack; c; c = c->snext)
 			if (c->isfloating && ISVISIBLE(c)
-				&& (m->lt[m->sellt]->arrange != monocle || !c->parent || m->sel == c->parent)
+				&& ((
+					m->lt[m->sellt]->arrange != monocle
+					#if PATCH_LAYOUT_DECK
+					&& m->lt[m->sellt]->arrange != deck
+					#endif // PATCH_LAYOUT_DECK
+				) || !c->parent || m->sel == c->parent)
 				&& c->alwaysontop
 				&& (!c->isfullscreen
 					#if PATCH_FLAG_FAKEFULLSCREEN
@@ -14823,7 +14832,12 @@ restack(Monitor *m)
 		// next layer up are floating not alwaysontop;
 		for (c = m->stack; c; c = c->snext)
 			if (c->isfloating && ISVISIBLE(c)
-				&& (m->lt[m->sellt]->arrange != monocle || !c->parent || m->sel == c->parent)
+				&& ((
+					m->lt[m->sellt]->arrange != monocle
+					#if PATCH_LAYOUT_DECK
+					&& m->lt[m->sellt]->arrange != deck
+					#endif // PATCH_LAYOUT_DECK
+				) || !c->parent || m->sel == c->parent)
 				&& (!c->isfullscreen
 					#if PATCH_FLAG_FAKEFULLSCREEN
 					|| c->fakefullscreen
@@ -14897,7 +14911,11 @@ restack(Monitor *m)
 
 		// put any floating clients above their parents;
 		// for monocle layout mode;
-		if (m->lt[m->sellt]->arrange == monocle) {
+		if (m->lt[m->sellt]->arrange == monocle
+			#if PATCH_LAYOUT_DECK
+			|| m->lt[m->sellt]->arrange == deck
+			#endif // PATCH_LAYOUT_DECK
+		) {
 			wc.stack_mode = Above;
 			for (c = m->stack; c; c = c->snext)
 				if (c->isfloating && ISVISIBLE(c) && c->parent
@@ -14939,7 +14957,12 @@ restack(Monitor *m)
 		*/
 		{
 			// keep floating children close to their parents;
-			if (m->lt[m->sellt]->arrange == monocle && raised->isfloating) {
+			if (raised->isfloating && (
+				m->lt[m->sellt]->arrange == monocle
+				#if PATCH_LAYOUT_DECK
+				|| m->lt[m->sellt]->arrange == deck
+				#endif // PATCH_LAYOUT_DECK
+			)) {
 				wc.sibling = w;
 				XConfigureWindow(dpy, raised->win, CWSibling|CWStackMode, &wc);
 				wc.sibling = raised->win;
