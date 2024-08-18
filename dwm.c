@@ -4204,7 +4204,7 @@ configurerequest(XEvent *e)
 			(c->isfloating || !selmon->lt[selmon->sellt]->arrange) && (
 				!c->isfullscreen
 				#if PATCH_FLAG_FAKEFULLSCREEN
-				|| c->fakefullscreen
+				|| c->fakefullscreen == 1
 				#endif // PATCH_FLAG_FAKEFULLSCREEN
 			)
 			#if PATCH_SHOW_DESKTOP
@@ -6983,7 +6983,7 @@ expose(XEvent *e)
 			for (c = m->clients; c; c = c->next)
 				if (ISVISIBLE(c) && c->isfullscreen
 					#if PATCH_FLAG_FAKEFULLSCREEN
-					&& !c->fakefullscreen
+					&& c->fakefullscreen != 1
 					#endif // PATCH_FLAG_FAKEFULLSCREEN
 					)
 					return;
@@ -7580,7 +7580,7 @@ getactivegameclient(Monitor *m)
 	for (c = m->stack; c && (
 		!ISVISIBLE(c) || MINIMIZED(c) || !c->isgame || !c->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
-		|| c->fakefullscreen
+		|| c->fakefullscreen == 1
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
 	); c = c->snext);
 
@@ -7828,7 +7828,7 @@ getfocusable(Monitor *m, Client *c, int force)
 			#endif // PATCH_FLAG_HIDDEN
 			|| !c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			|| c->fakefullscreen
+			|| c->fakefullscreen == 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		); c = c->snext);
 		if (!c)
@@ -8821,7 +8821,7 @@ highlight(Client *c)
 		XSetWindowBorder(dpy, h->win, scheme[SchemeNorm][ColBorder].pixel);
 		if (h->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			&& !h->fakefullscreen
+			&& h->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		) {
 			#if PATCH_FLAG_GAME
@@ -8888,7 +8888,7 @@ highlight(Client *c)
 			}
 			#endif // PATCH_FLAG_GAME
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			if (!c->fakefullscreen)
+			if (c->fakefullscreen != 1)
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 			resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
 		}
@@ -10040,7 +10040,7 @@ losefullscreen(Client *active, Client *next)
 		return;
 	if (sel->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
-		&& !sel->fakefullscreen
+		&& sel->fakefullscreen != 1
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
 		&& (!next || (ISVISIBLE(sel) && sel->mon == next->mon && !next->isfloating))) {
 		#if PATCH_FLAG_GAME
@@ -10331,7 +10331,7 @@ manage(Window w, XWindowAttributes *wa)
 	if (c->isfloating && c->iscentred && (
 		!c->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
-		|| c->fakefullscreen
+		|| c->fakefullscreen == 1
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
 		)
 	) {
@@ -10642,13 +10642,13 @@ manage(Window w, XWindowAttributes *wa)
 		)) &&
 		((!c->mon->sel || !c->mon->sel->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			|| c->mon->sel->fakefullscreen
+			|| c->mon->sel->fakefullscreen == 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 			#if PATCH_FLAG_GAME
 			|| (c->mon->sel->isgame && c->isgame)
 			|| (c->isgame && c->isfullscreen
 				#if PATCH_FLAG_FAKEFULLSCREEN
-				&& !c->fakefullscreen
+				&& c->fakefullscreen != 1
 				#endif // PATCH_FLAG_FAKEFULLSCREEN
 			)
 			#endif // PATCH_FLAG_GAME
@@ -10874,7 +10874,7 @@ DEBUGENDIF
 		&& ISVISIBLEONTAG(c, c->parent->tags) && (
 			!c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			|| c->fakefullscreen
+			|| c->fakefullscreen == 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		)
 		#if PATCH_FLAG_IGNORED
@@ -11281,7 +11281,7 @@ movefloat(const Arg *arg)
 
 	if (c->isfloating && c->parent && c->parent->mon == c->mon && (!c->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
-		|| c->fakefullscreen
+		|| c->fakefullscreen == 1
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
 	)) {
 		c->sfxo = (float)(c->x - c->parent->x + c->w / 2) / (c->parent->w / 2);
@@ -11473,7 +11473,7 @@ movemouse(const Arg *arg)
 
 	if (c->isfloating && c->parent && c->parent->mon == c->mon && (!c->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
-		|| c->fakefullscreen
+		|| c->fakefullscreen == 1
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
 	)) {
 		c->sfxo = (float)(c->x - c->parent->x + c->w / 2) / (c->parent->w / 2);
@@ -13836,7 +13836,7 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 			(
 				!c->isfullscreen
 				#if PATCH_FLAG_FAKEFULLSCREEN
-				|| c->fakefullscreen
+				|| c->fakefullscreen == 1
 				#endif // PATCH_FLAG_FAKEFULLSCREEN
 			)
 		) {
@@ -14040,7 +14040,7 @@ resizeclient(Client *c, int x, int y, int w, int h, int save_old)
 		) {
 		if (c->isfloating && c->parent && c->parent->mon == c->mon && (!c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			|| c->fakefullscreen
+			|| c->fakefullscreen == 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		)) {
 			c->sfxo = (float)(c->x - c->parent->x + c->w / 2) / (c->parent->w / 2);
@@ -14081,7 +14081,7 @@ snapchildclients(Client *p, int quiet)
 
 	if (p->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
-		&& !p->fakefullscreen
+		&& p->fakefullscreen != 1
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
 		) return;
 
@@ -14091,7 +14091,7 @@ snapchildclients(Client *p, int quiet)
 		{
 			if (c->isfloating && (!c->isfullscreen
 					#if PATCH_FLAG_FAKEFULLSCREEN
-					|| c->fakefullscreen
+					|| c->fakefullscreen == 1
 					#endif // PATCH_FLAG_FAKEFULLSCREEN
 				)
 				#if PATCH_FLAG_IGNORED
@@ -14541,7 +14541,7 @@ resizemouse(const Arg *arg)
 		) {
 		if (c->isfloating && c->parent && c->parent->mon == c->mon && (!c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			|| c->fakefullscreen
+			|| c->fakefullscreen == 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		)) {
 			c->sfxo = (float)(c->x - c->parent->x + c->w / 2) / (c->parent->w / 2);
@@ -14680,7 +14680,7 @@ restack(Monitor *m)
 		)) || (
 			m->sel->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			&& !m->sel->fakefullscreen
+			&& m->sel->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		)
 		#if PATCH_FLAG_GAME
@@ -14788,7 +14788,7 @@ restack(Monitor *m)
 				&& c->alwaysontop
 				&& (!c->isfullscreen
 					#if PATCH_FLAG_FAKEFULLSCREEN
-					|| c->fakefullscreen
+					|| c->fakefullscreen == 1
 					#endif // PATCH_FLAG_FAKEFULLSCREEN
 				)
 				#if PATCH_FLAG_PANEL
@@ -14840,7 +14840,7 @@ restack(Monitor *m)
 				) || !c->parent || m->sel == c->parent)
 				&& (!c->isfullscreen
 					#if PATCH_FLAG_FAKEFULLSCREEN
-					|| c->fakefullscreen
+					|| c->fakefullscreen == 1
 					#endif // PATCH_FLAG_FAKEFULLSCREEN
 				)
 				#if PATCH_FLAG_ALWAYSONTOP
@@ -14888,7 +14888,7 @@ restack(Monitor *m)
 				if (!c->isfloating && ISVISIBLE(c)
 					&& (!c->isfullscreen
 						#if PATCH_FLAG_FAKEFULLSCREEN
-						|| c->fakefullscreen
+						|| c->fakefullscreen == 1
 						#endif // PATCH_FLAG_FAKEFULLSCREEN
 					)
 					#if PATCH_FLAG_PANEL
@@ -14921,7 +14921,7 @@ restack(Monitor *m)
 				if (c->isfloating && ISVISIBLE(c) && c->parent
 					&& (!c->isfullscreen
 						#if PATCH_FLAG_FAKEFULLSCREEN
-						|| c->fakefullscreen
+						|| c->fakefullscreen == 1
 						#endif // PATCH_FLAG_FAKEFULLSCREEN
 					)
 					#if PATCH_FLAG_PANEL
@@ -16112,7 +16112,7 @@ setfullscreen(Client *c, int fullscreen)
 	} else if (ISVISIBLE(c)) {
 		if (c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			&& !c->fakefullscreen
+			&& c->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		) {
 			resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
@@ -16210,7 +16210,7 @@ setfullscreen(Client *c, int fullscreen)
 	} else {
 		if (c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			&& !c->fakefullscreen
+			&& c->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		) {
 			resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
@@ -16975,7 +16975,7 @@ showhide(Client *c, int client_only)
 			)) && (
 				!c->isfullscreen
 				#if PATCH_FLAG_FAKEFULLSCREEN
-				|| c->fakefullscreen
+				|| c->fakefullscreen == 1
 				#endif // PATCH_FLAG_FAKEFULLSCREEN
 			))
 			resizeclient(c, c->x, c->y, c->w, c->h, 0);
@@ -19671,7 +19671,7 @@ updatebarpos(Monitor *m)
 		#if PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
 		!(!tabHighlight || !altTabMon || !altTabMon->isAlt || !altTabMon->highlight || !altTabMon->highlight->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			|| altTabMon->highlight->fakefullscreen
+			|| altTabMon->highlight->fakefullscreen == 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		) ? 0 :
 		#endif // PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
