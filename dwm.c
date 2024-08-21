@@ -1594,7 +1594,7 @@ static void setdesktopnames(void);
 static void setfocus(Client *c);
 static void setfullscreen(Client *c, int fullscreen);
 #if PATCH_FLAG_HIDDEN
-static void sethidden(Client *c, int hidden);
+static void sethidden(Client *c, int hidden, int rearrange);
 #endif // PATCH_FLAG_HIDDEN
 static void setlayout(const Arg *arg);
 static void setlayoutex(const Arg *arg);
@@ -4000,7 +4000,7 @@ clientmessage(XEvent *e)
 			DEBUG("clientmessage(NetWMHidden) %s client:\"%s\"\n",
 				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
 			);
-			sethidden(c, (cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !c->ishidden)));
+			sethidden(c, (cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !c->ishidden)), True);
 			return;
 		}
 		#endif // PATCH_FLAG_HIDDEN
@@ -5847,6 +5847,9 @@ drawbar(Monitor *m, int skiptags)
 							#if PATCH_SHOW_DESKTOP
 							&& !(c->isdesktop || c->ondesktop)
 							#endif // PATCH_SHOW_DESKTOP
+							#if PATCH_FLAG_HIDDEN
+							&& !c->ishidden
+							#endif // PATCH_FLAG_HIDDEN
 						) {
 							if (c->dispclass)
 								masterclientontag[i] = c->dispclass;
@@ -8762,7 +8765,7 @@ hidewin(const Arg *arg) {
 				&& !(h->isdesktop || h->ondesktop)
 				#endif // PATCH_SHOW_DESKTOP
 			) {
-				sethidden(h, True);
+				sethidden(h, True, False);
 				#if PATCH_PERSISTENT_METADATA
 				setclienttagprop(h);
 				#endif // PATCH_PERSISTENT_METADATA
@@ -8781,7 +8784,7 @@ hidewin(const Arg *arg) {
 			|| (c->isdesktop || c->ondesktop)
 			#endif // PATCH_SHOW_DESKTOP
 			) return;
-		sethidden(c, True);
+		sethidden(c, True, False);
 		#if PATCH_PERSISTENT_METADATA
 		setclienttagprop(c);
 		#endif // PATCH_PERSISTENT_METADATA
@@ -10520,7 +10523,7 @@ manage(Window w, XWindowAttributes *wa)
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
 	#if PATCH_FLAG_HIDDEN
-	sethidden(c, c->ishidden);
+	sethidden(c, c->ishidden, False);
 	#endif // PATCH_FLAG_HIDDEN
 	publishwindowstate(c);
 
@@ -14687,6 +14690,8 @@ restack(Monitor *m)
 			#if PATCH_WINDOW_ICONS
 			freeicon(c);
 			#endif // PATCH_WINDOW_ICONS
+			logdatetime(stderr);
+			fprintf(stderr, "debug: freeing BadWindow client: \"%s\"\n", c->name);
 			free(c);
 		}
 		c = raised;
@@ -16264,7 +16269,7 @@ setfullscreen(Client *c, int fullscreen)
 
 #if PATCH_FLAG_HIDDEN
 void
-sethidden(Client *c, int hidden)
+sethidden(Client *c, int hidden, int rearrange)
 {
 	if (hidden)
 		minimize(c);
@@ -16273,7 +16278,7 @@ sethidden(Client *c, int hidden)
 
 	c->ishidden = hidden;
 	publishwindowstate(c);
-	if (!c->isfloating || !hidden)
+	if (rearrange && (!c->isfloating || !hidden))
 		arrange(c->mon);
 }
 #endif // PATCH_FLAG_HIDDEN
@@ -18750,7 +18755,7 @@ altTabStart(const Arg *arg)
 				if (c) {
 					#if PATCH_FLAG_HIDDEN
 					if (c->ishidden) {
-						sethidden(c, False);
+						sethidden(c, False, False);
 						#if PATCH_PERSISTENT_METADATA
 						setclienttagprop(c);
 						#endif // PATCH_PERSISTENT_METADATA
@@ -19392,7 +19397,7 @@ unhidewin(const Arg *arg) {
 			#if PATCH_SHOW_DESKTOP
 			n++;
 			#endif // PATCH_SHOW_DESKTOP
-			sethidden(c, False);
+			sethidden(c, False, False);
 			#if PATCH_PERSISTENT_METADATA
 			setclienttagprop(c);
 			#endif // PATCH_PERSISTENT_METADATA
@@ -19497,9 +19502,8 @@ unmanage(Client *c, int destroyed, int cleanup)
 	#endif // PATCH_FLAG_GAME
 	#if PATCH_FLAG_HIDDEN
 	if (c->ishidden)
-		sethidden(c, False);
+		sethidden(c, False, False);
 	#endif // PATCH_FLAG_HIDDEN
-
 	#if PATCH_FLAG_GAME
 	if (c->isgame && c->isfullscreen
 		#if PATCH_CONSTRAIN_MOUSE
@@ -20273,7 +20277,7 @@ updatewindowstate(Client *c)
 	#endif // PATCH_FLAG_ALWAYSONTOP
 	#if PATCH_FLAG_HIDDEN
 	if (c->ishidden != hidden) {
-		sethidden(c, 1);
+		sethidden(c, 1, True);
 		di = 1;
 	}
 	#endif // PATCH_FLAG_HIDDEN
@@ -20457,7 +20461,7 @@ validate_pid(Client *c)
 	if (!c)
 		return 0;
 	int ret;
-	if (c->pid && (ret = kill(c->pid, 0))) {
+	if (c->pid && (ret = kill(c->pid, 0)) && ret == -1 && errno == ESRCH) {
 
 		// only ignore clients without class/instance
 		int ignore = 0;
