@@ -14676,11 +14676,11 @@ restack(Monitor *m)
 		#else // NO PATCH_FLAG_IGNORED
 		validate_pid(c);
 		#endif // PATCH_FLAG_IGNORED
-	/*
-	// remove dormant clients;
+
+	// remove dormant (BadWindow) clients;
 	for (c = m->clients; c; ) {
-		s = c->next;
-		if (c->dormant) {
+		raised = c->next;
+		if (c->dormant == -1) {
 			detach(c);
 			detachstack(c);
 			removelinks(c);
@@ -14689,9 +14689,8 @@ restack(Monitor *m)
 			#endif // PATCH_WINDOW_ICONS
 			free(c);
 		}
-		c = s;
+		c = raised;
 	}
-	*/
 
 	raised = m->sel && ((m == selmon && (
 		focusedontoptiled
@@ -21277,7 +21276,7 @@ xerror(Display *dpy, XErrorEvent *ee)
 		if (ee->error_code == BadWindow) {
 			Client *c;
 			if ((c = wintoclient(ee->resourceid)))
-				c->dormant = 1;
+				c->dormant = -1;
 		}
 		return 0;
 	}
