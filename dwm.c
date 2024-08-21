@@ -18142,7 +18142,7 @@ drawTab(Monitor *m, int active, int first)
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
-					align,
+					m->title_align,
 					#if PATCH_BIDIRECTIONAL_TEXT
 					fribidi_text,
 					#else // NO PATCH_BIDIRECTIONAL_TEXT
@@ -18175,7 +18175,7 @@ drawTab(Monitor *m, int active, int first)
 				#if PATCH_CLIENT_INDICATORS
 				0,
 				#endif // PATCH_CLIENT_INDICATORS
-				align,
+				m->title_align,
 				#if PATCH_BIDIRECTIONAL_TEXT
 				fribidi_text,
 				#else // NO PATCH_BIDIRECTIONAL_TEXT
