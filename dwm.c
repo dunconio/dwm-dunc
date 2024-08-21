@@ -18315,7 +18315,7 @@ altTabStart(const Arg *arg)
 		for (m = mons; m; m = m->next)
 			if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) || m == altTabMon) {
 				for(c = m->clients; c; c = c->next) {
-					if (c->neverfocus
+					if (c->neverfocus || c->dormant
 						#if PATCH_FLAG_HIDDEN
 						|| (c->ishidden && !(altTabMon->isAlt & ALTTAB_HIDDEN))
 						#endif // PATCH_FLAG_HIDDEN
@@ -18406,7 +18406,7 @@ altTabStart(const Arg *arg)
 						break;
 					first = 0;
 
-					if (c->neverfocus
+					if (c->neverfocus || c->dormant
 						#if PATCH_FLAG_HIDDEN
 						|| (c->ishidden && !(altTabMon->isAlt & ALTTAB_HIDDEN))
 						#endif // PATCH_FLAG_HIDDEN
