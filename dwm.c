@@ -101,6 +101,8 @@ static char *tabFontgroup = NULL;		// alt-tab switcher font group;
 #endif // PATCH_ALTTAB
 #endif // PATCH_FONT_GROUPS
 
+static char **coloursbackup = NULL;
+
 typedef struct {
 	const char *name;
 	const char *help;
@@ -21493,6 +21495,10 @@ main(int argc, char *argv[], char *envp[])
 		wrap_length = window_size.ws_col;
 	}
 	#endif // PATCH_IPC
+
+	coloursbackup = malloc(sizeof(colours));
+	memcpy(coloursbackup, colours, sizeof(colours));
+
 reload:
 	for (int i = 0; i < LENGTH(colourflags); i++) {
 		if (colourflags[i]) {
@@ -21795,11 +21801,14 @@ fputs("dwm: finished.\n", stderr);
 
 	// reload;
 	if (running == -1) {
+		memcpy(colours, coloursbackup, sizeof(colours));
 		running = 1;
 		logdatetime(stderr);
 		fputs("dwm: reloading...\n", stderr);
 		goto reload;
 	}
+
+	free(coloursbackup);
 
 	return EXIT_SUCCESS;
 }
