@@ -171,6 +171,9 @@ static const supported_json supported_layout_global[] = {
 	#if PATCH_COLOUR_BAR
 	{ "colours-status",				"status zone colours, in the form\n[<foreground>, <background>, <border>]" },
 	{ "colours-tag-bar",			"tag bar zone colours, in the form\n[<foreground>, <background>, <border>]" },
+	#if PATCH_FLAG_HIDDEN
+	{ "colours-tag-bar-hidden",		"tag bar zone colours for tags with no visible and 1 or more hidden clients, in the form\n[<foreground>, <background>, <border>]" },
+	#endif // PATCH_FLAG_HIDDEN
 	{ "colours-tag-bar-selected",	"tag bar zone colours for selected elements, in the form\n[<foreground>, <background>, <border>]" },
 	{ "colours-title",				"window title zone colours, in the form\n[<foreground>, <background>, <border>]" },
 	{ "colours-title-selected",		"window title zone colours for selected elements, in the form\n[<foreground>, <background>, <border>]" },
@@ -770,6 +773,9 @@ enum {	SchemeNorm, SchemeSel
 		#endif // PATCH_TORCH
 		#if PATCH_COLOUR_BAR
 		, SchemeTagBar, SchemeTagBarSel
+		#if PATCH_FLAG_HIDDEN
+		, SchemeTagBarHide
+		#endif // PATCH_FLAG_HIDDEN
 		, SchemeLayout
 		, SchemeTitle, SchemeTitleSel
 		, SchemeStatus
@@ -6115,11 +6121,17 @@ drawbar(Monitor *m, int skiptags)
 							#endif // PATCH_RAINBOW_TAGS
 						:
 						#if PATCH_FLAG_HIDDEN
-						visible[i] < 0
+						visible[i] <= 0
 						#if PATCH_SHOW_DESKTOP
 						|| (m->showdesktop && m->tagset[m->seltags] & 1 << i)
 						#endif // PATCH_SHOW_DESKTOP
-						? SchemeHide :
+						?
+							#if PATCH_COLOUR_BAR
+							SchemeTagBarHide
+							#else // NO PATCH_COLOUR_BAR
+							SchemeHide
+							#endif // PATCH_COLOUR_BAR
+						:
 						#endif // PATCH_FLAG_HIDDEN
 						#if PATCH_COLOUR_BAR
 						SchemeTagBar
@@ -11377,6 +11389,9 @@ movemouse(const Arg *arg)
 		XUnmapWindow(dpy, focuswin);
 	}
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	// prevent client moves via resize() triggering updates of
+	// the client's parent offset coordinates, sfxo & sfyo
+	nonstop = 1;
 	do {
 		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
 		switch(ev.type) {
@@ -11423,7 +11438,8 @@ movemouse(const Arg *arg)
 		}
 	} while (ev.type != ButtonRelease);
 	XUngrabPointer(dpy, CurrentTime);
-
+	// normal coord tracking behaviour continues;
+	nonstop = 0;
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	if (focuswin)
 		XMapWindow(dpy, focuswin);
@@ -11436,6 +11452,9 @@ movemouse(const Arg *arg)
 	#endif // PATCH_CROP_WINDOWS
 	if ((m = recttomon(c->x, c->y, c->w, c->h)) != selmon) {
 		if (
+			#if PATCH_FLAG_FOLLOW_PARENT
+			(c->followparent && c->parent && c->parent->mon == c->mon) ||
+			#endif // PATCH_FLAG_FOLLOW_PARENT
 			#if PATCH_MODAL_SUPPORT
 			mc ||
 			#endif // PATCH_MODAL_SUPPORT
@@ -11954,6 +11973,14 @@ parselayoutjson(cJSON *layout)
 						continue;
 				cJSON_AddNumberToObject(unsupported, "\"colours-tag-bar\" must contain an array of strings", 0);
 			}
+			#if PATCH_FLAG_HIDDEN
+			else if (strcmp(L->string, "colours-tag-bar-hidden")==0) {
+				if (cJSON_IsArray(L))
+					if (validate_colours(L, colours[SchemeTagBarHide], colours[SchemeHide]))
+						continue;
+				cJSON_AddNumberToObject(unsupported, "\"colours-tag-bar-hidden\" must contain an array of strings", 0);
+			}
+			#endif // PATCH_FLAG_HIDDEN
 			else if (strcmp(L->string, "colours-tag-bar-selected")==0) {
 				if (cJSON_IsArray(L))
 					if (validate_colours(L, colours[SchemeTagBarSel], colours[SchemeSel]))
@@ -15602,6 +15629,9 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 	if (c->ismodal) {
 		Client *cc, *p;
 		for (cc = c->snext; cc && cc->snext; cc = cc->snext);
+		// prevent client moves via resize() triggering updates of
+		// the client's parent offset coordinates, sfxo & sfyo
+		nonstop = 1;
 		for (; cc; cc = p) {
 			p = cc->sprev;
 			if (cc->ultparent == c->ultparent && ISVISIBLE(cc)) {
@@ -15617,11 +15647,16 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 				attach(cc);
 				attachstack(cc);
 				#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+				// ensure floating clients are within the monitor bounds;
+				if (cc->isfloating)
+					resize(cc, cc->x, cc->y, cc->w, cc->h, False);
 				#if PATCH_PERSISTENT_METADATA
 				setclienttagprop(cc);
 				#endif // PATCH_PERSISTENT_METADATA
 			}
 		}
+		// normal coord tracking behaviour continues;
+		nonstop = 0;
 		snapchildclients(c->ultparent, 1);
 	}
 	else
@@ -16618,6 +16653,9 @@ setup(void)
 
 	#if PATCH_COLOUR_BAR
 	setdefaultcolours(colours[SchemeTagBar], colours[SchemeNorm]);
+	#if PATCH_FLAG_HIDDEN
+	setdefaultcolours(colours[SchemeTagBarHide], colours[SchemeHide]);
+	#endif // PATCH_FLAG_HIDDEN
 	setdefaultcolours(colours[SchemeTagBarSel], colours[SchemeSel]);
 	setdefaultcolours(colours[SchemeLayout], colours[SchemeNorm]);
 	setdefaultcolours(colours[SchemeTitle], colours[SchemeNorm]);
@@ -18324,7 +18362,8 @@ altTabStart(const Arg *arg)
 
 		if (altTabMon->nTabs >
 			(
-				(altTabMon->isAlt & ALTTAB_MOUSE)
+				(altTabMon->isAlt & ALTTAB_MOUSE) &&
+				!(altTabMon->isAlt & ALTTAB_ALL_MONITORS || altTabMon->isAlt & ALTTAB_ALL_TAGS)
 				#if PATCH_SHOW_DESKTOP
 				&& !(showdesktop && altTabMon->showdesktop)
 				#endif // PATCH_SHOW_DESKTOP
@@ -18448,6 +18487,7 @@ altTabStart(const Arg *arg)
 			if (listIndex <=
 				(
 					(altTabMon->isAlt & ALTTAB_MOUSE)
+					&& !(altTabMon->isAlt & ALTTAB_ALL_MONITORS || altTabMon->isAlt & ALTTAB_ALL_TAGS)
 					#if PATCH_SHOW_DESKTOP
 					&& !(showdesktop && altTabMon->showdesktop)
 					#endif // PATCH_SHOW_DESKTOP

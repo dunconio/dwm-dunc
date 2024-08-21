@@ -201,6 +201,9 @@ static char *colours[][3] = {
 	#if PATCH_COLOUR_BAR
 	[SchemeTagBar]	= { col_grey3,	col_normbg,		col_normbdr },
 	[SchemeTagBarSel]={ NULL, NULL, NULL },
+	#if PATCH_FLAG_HIDDEN
+	[SchemeTagBarHide]={ NULL, NULL, NULL },
+	#endif // PATCH_FLAG_HIDDEN
 	[SchemeLayout]  = {	NULL, NULL, NULL },
 	[SchemeTitle]	= { col_grey3,	col_normbg,		col_normbdr },
 	[SchemeTitleSel]= { NULL, NULL, NULL },
