@@ -13954,7 +13954,11 @@ resizeclient(Client *c, int x, int y, int w, int h, int save_old)
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			&& c->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
-			))
+			)
+			#if PATCH_FLAG_PANEL
+			|| c->ispanel
+			#endif // PATCH_FLAG_PANEL
+			)
 			XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
 		else {
 			unsigned int size = 0;
@@ -14000,10 +14004,14 @@ resizeclient(Client *c, int x, int y, int w, int h, int save_old)
 				XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
 		}
 		#elif PATCH_FOCUS_PIXEL
-		if (c->isfullscreen
+		if ((c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			&& c->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
+			)
+			#if PATCH_FLAG_PANEL
+			|| c->ispanel
+			#endif // PATCH_FLAG_PANEL
 			)
 			XMoveResizeWindow(dpy, focuswin, 0, -fh - 1, fh, fh);
 		else {
