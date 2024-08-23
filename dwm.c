@@ -1525,6 +1525,9 @@ static void print_wrap(FILE *f, size_t line_length, const char *indent, size_t c
 	const char *col1_text, const char *line1_gap, const char *normal_gap, const char *col2_text);
 static void propertynotify(XEvent *e);
 static void publishwindowstate(Client *c);
+#if PATCH_ALTTAB
+static void quietunmap(Window w);
+#endif // PATCH_ALTTAB
 static void quit(const Arg *arg);
 static void raiseclient(Client *c);
 static void raisewin(Monitor *m, Window w, int above_bar);
@@ -13514,6 +13517,26 @@ propertynotify(XEvent *e)
 	}
 }
 
+#if PATCH_ALTTAB
+void
+quietunmap(Window w)
+{
+	static XWindowAttributes ra, ca;
+
+	// more or less taken directly from blackbox's hide() function
+	XGrabServer(dpy);
+	XGetWindowAttributes(dpy, root, &ra);
+	XGetWindowAttributes(dpy, w, &ca);
+	// prevent UnmapNotify events
+	XSelectInput(dpy, root, ra.your_event_mask & ~SubstructureNotifyMask);
+	XSelectInput(dpy, w, ca.your_event_mask & ~StructureNotifyMask);
+	XUnmapWindow(dpy, w);
+	XSelectInput(dpy, root, ra.your_event_mask);
+	XSelectInput(dpy, w, ca.your_event_mask);
+	XUngrabServer(dpy);
+}
+#endif // PATCH_ALTTAB
+
 void
 quit(const Arg *arg)
 {
@@ -18561,6 +18584,9 @@ altTabStart(const Arg *arg)
 				int smoothwarp = isAltMouse;
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 				#endif // PATCH_MOUSE_POINTER_WARPING
+
+				XButtonPressedEvent bev = { 0 };
+				XKeyEvent kev = { 0 };
 				while (grabbed) {
 					XNextEvent(dpy, &event);
 					if (event.type == KeyPress || event.type == KeyRelease || event.type == MotionNotify || event.type == ButtonPress) {
@@ -18587,38 +18613,39 @@ altTabStart(const Arg *arg)
 								}
 							}
 							else if (event.type == ButtonPress) {
-								XButtonPressedEvent ev = event.xbutton;
+								bev = event.xbutton;
 								#if PATCH_MOUSE_POINTER_WARPING
-								if (ev.button == 1 || ev.button == 3) {
+								if (bev.button == 1 || bev.button == 3) {
 								#else // NO PATCH_MOUSE_POINTER_WARPING
-								if (ev.button == 1) {
+								if (bev.button == 1) {
 								#endif // PATCH_MOUSE_POINTER_WARPING
 
-									if (ev.x < altTabMon->tx || ev.x > (altTabMon->tx + altTabMon->maxWTab) ||
-										ev.y < altTabMon->ty || ev.y > (altTabMon->ty + altTabMon->maxHTab)) {
+									if (bev.x < altTabMon->tx || bev.x > (altTabMon->tx + altTabMon->maxWTab) ||
+										bev.y < altTabMon->ty || bev.y > (altTabMon->ty + altTabMon->maxHTab)) {
 										highlight(NULL);
 										break;
 									}
 									else {
 										#if PATCH_MOUSE_POINTER_WARPING
 										#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-										smoothwarp = (ev.button == 3) ? 1 : 0;
+										smoothwarp = (bev.button == 3) ? 1 : 0;
 										#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 										#endif // PATCH_MOUSE_POINTER_WARPING
 										break;
 									}
 								}
 								else if (
-									(ev.button == 4 || ev.button == 5) &&
-									(ev.x >= altTabMon->tx && ev.x <= (altTabMon->tx + altTabMon->maxWTab) &&
-									 ev.y >= altTabMon->ty && ev.y <= (altTabMon->ty + altTabMon->maxHTab))
+									(bev.button == 4 || bev.button == 5) &&
+									(bev.x >= altTabMon->tx && bev.x <= (altTabMon->tx + altTabMon->maxWTab) &&
+									 bev.y >= altTabMon->ty && bev.y <= (altTabMon->ty + altTabMon->maxHTab))
 								) {
-									if (ev.button == 5 && altTabMon->altTabN < (altTabMon->nTabs - 1)) altTab(+1, 0);
-									if (ev.button == 4 && altTabMon->altTabN > 0) altTab(-1, 0);
+									if (bev.button == 5 && altTabMon->altTabN < (altTabMon->nTabs - 1)) altTab(+1, 0);
+									if (bev.button == 4 && altTabMon->altTabN > 0) altTab(-1, 0);
 								}
 							}
 							else if (event.type == KeyPress) {
-								if (event.xkey.keycode == tabEndKey) {
+								kev = event.xkey;
+								if (kev.keycode == tabEndKey) {
 									highlight(NULL);
 									#if PATCH_MOUSE_POINTER_WARPING
 									#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
@@ -18627,15 +18654,15 @@ altTabStart(const Arg *arg)
 									#endif // PATCH_MOUSE_POINTER_WARPING
 									break;
 								}
-								else if (event.xkey.keycode == 116 && altTabMon->altTabN < (altTabMon->nTabs - 1)) altTab(+1, 0);
-								else if (event.xkey.keycode == 111 && altTabMon->altTabN > 0) altTab(-1, 0);
-								else if (event.xkey.keycode == 104 || event.xkey.keycode == 36) {
+								else if (kev.keycode == 116 && altTabMon->altTabN < (altTabMon->nTabs - 1)) altTab(+1, 0);
+								else if (kev.keycode == 111 && altTabMon->altTabN > 0) altTab(-1, 0);
+								else if (kev.keycode == 104 || kev.keycode == 36) {
 									if (altTabMon->highlight == altTabMon->altTabSel || !altTabActive)
 										highlight(NULL);
 									break;
 								}
 								else {
-									DEBUG("event.xkey.keycode == %i\n", event.xkey.keycode);
+									DEBUG("kev.keycode == %i\n", kev.keycode);
 								}
 							}
 
@@ -18659,8 +18686,46 @@ altTabStart(const Arg *arg)
 						}
 					}
 				}
-				XSync(dpy, True);
-				while (XCheckMaskEvent(dpy, KeyReleaseMask, &event));
+
+				// make the alt-tab window disappear;
+				quietunmap(altTabMon->tabwin);
+
+				// redraw the bar;
+				drawbar(altTabMon, True);
+
+				// if the triggering event was a button or key press
+				// we want to wait for the following button or key release
+				// to prevent the release event passing through the active client;
+				if (event.type == ButtonPress)
+					same = 1;
+				else if (event.type == KeyPress) {
+					same = 2;
+				}
+				else
+					same = 0;
+
+				// quit waiting for the button or key release event
+				// prematurely if we get a critical event;
+				while (same) {
+					XNextEvent(dpy, &event);
+					switch (event.type) {
+						case ButtonRelease:
+							if (same == 1 && event.xbutton.button == bev.button)
+								same = 0;
+							break;
+						case KeyRelease:
+							if (same == 2 && event.xkey.keycode == kev.keycode)
+								same = 0;
+							break;
+						case CreateNotify:
+						case MapNotify:
+						case UnmapNotify:
+						case DestroyNotify:
+							XPutBackEvent(dpy, &event);
+							same = 0;
+							break;
+					}
+				}
 
 				if (!(c = altTabMon->highlight))
 					c = altTabMon->sel;
