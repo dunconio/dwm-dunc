@@ -5368,9 +5368,6 @@ drawbar(Monitor *m, int skiptags)
 	else m->stw = 0;
 	#endif // PATCH_SYSTRAY
 
-	resizebarwin(m);
-	showhidebar(m);
-
 	#if PATCH_FLAG_PANEL
 	#if PATCH_FLAG_FLOAT_ALIGNMENT
 	getpanelpadding(m, &px, &pw);
@@ -6653,6 +6650,9 @@ drawbar(Monitor *m, int skiptags)
 		drw_rect(drw, m->mw - pw, 0, pw, bh, 1, 1);
 	}
 	#endif // PATCH_FLAG_PANEL
+
+	resizebarwin(m);
+	showhidebar(m);
 
 	unsigned int j = 0;
 	#if PATCH_FLAG_PANEL
@@ -17871,6 +17871,9 @@ drawTab(Monitor *m, int active, int first)
 			if (m->tabPosX == 2)
 				posX += m->mw - m->maxWTab;
 
+			m->tih = (m->maxHTab - 2*bw) / m->nTabs;
+			m->maxHTab = (m->tih * m->nTabs) + 2*bw;
+
 			if (m->tabPosY == 0)
 				posY += 0;
 			if (m->tabPosY == 1)
@@ -17961,6 +17964,9 @@ drawTab(Monitor *m, int active, int first)
 			if ((first = m->mw - ((posX - m->mx) + m->maxWTab)) < 0)
 				posX += first;
 
+			m->tih = (m->maxHTab - 2*bw) / m->nTabs;
+			m->maxHTab = (m->tih * m->nTabs) + 2*bw;
+
 			if (!m->topbar) {
 				posY += m->mh - m->maxHTab - 1;
 				m->isAlt |= ALTTAB_BOTTOMBAR;
@@ -17968,7 +17974,6 @@ drawTab(Monitor *m, int active, int first)
 			m->tx = posX+bw;
 			m->ty = posY+bw;
 		}
-		m->tih = (m->maxHTab - 2*bw) / m->nTabs;
 
 		m->maxWTab -= 2*bw;
 		m->maxHTab -= 2*bw;
@@ -21800,7 +21805,9 @@ fprintf(stderr, "debug: after layout delete\n");
 		cJSON_Delete(rules_json);
 fprintf(stderr, "debug: after rules delete\n");
 
+	XGrabServer(dpy);
 	XCloseDisplay(dpy);
+	XUngrabServer(dpy);
 
 logdatetime(stderr);
 fputs("dwm: waiting for any child processes...\n", stderr);
