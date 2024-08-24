@@ -18691,7 +18691,7 @@ altTabStart(const Arg *arg)
 				quietunmap(altTabMon->tabwin);
 
 				// redraw the bar;
-				drawbar(altTabMon, True);
+				drawbar(altTabMon, False);
 
 				// if the triggering event was a button or key press
 				// we want to wait for the following button or key release
