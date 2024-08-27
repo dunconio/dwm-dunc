@@ -224,8 +224,10 @@
 #define DESCRIPTION_VIEW_ALL_TAGS					"View all tags"
 
 #define DESCRIPTION_VOLUME_DOWN						"System volume down"
+#define DESCRIPTION_VOLUME_DOWN_BOOST				"System volume down (boosted maximum)"
 #define DESCRIPTION_VOLUME_MUTE						"Mute system volume"
 #define DESCRIPTION_VOLUME_UP						"System volume up"
+#define DESCRIPTION_VOLUME_UP_BOOST					"System volume up (boosted maximum)"
 
 #define DESCRIPTION_XKILL							"Kill a GUI program via xkill"
 

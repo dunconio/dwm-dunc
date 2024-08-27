@@ -21870,9 +21870,9 @@ fprintf(stderr, "debug: after layout delete\n");
 		cJSON_Delete(rules_json);
 fprintf(stderr, "debug: after rules delete\n");
 
-	XGrabServer(dpy);
+	//XGrabServer(dpy);
 	XCloseDisplay(dpy);
-	XUngrabServer(dpy);
+	//XUngrabServer(dpy);
 
 logdatetime(stderr);
 fputs("dwm: waiting for any child processes...\n", stderr);
