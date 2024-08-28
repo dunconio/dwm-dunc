@@ -7019,8 +7019,13 @@ expose(XEvent *e)
 					|| c->ispanel
 					#endif // PATCH_FLAG_PANEL
 				) && !MINIMIZED(c))
-					if ((a = INTERSECTC(x, y, w, h, c)))
+					if ((a = INTERSECTC(x, y, w, h, c))) {
+						//logdatetime(stderr);
+						//fprintf(stderr, "debug: expose x:%i y:%i w:%i h:%i intersects:\"%s\"\n", x,y,w,h, c->name);
+						if (c->ispanel)
+							raisewin(m, c->win, 1);
 						return;
+					}
 			}
 			// if not caused by the panel window, redraw the bar as normal
 			// (which will cause a panel-related expose and drop out above)
