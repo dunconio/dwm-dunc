@@ -1228,6 +1228,7 @@ struct Monitor {
 	#endif // PATCH_WINDOW_ICONS
 	int isdefault;
 	unsigned int defaulttag;
+	Client *focusontag[9];
 	#if PATCH_ALT_TAGS
 	char *tags[9];
 	int alttags;
@@ -1659,6 +1660,7 @@ static void tagmon(const Arg *arg);
 #if PATCH_FLAG_FOLLOW_PARENT
 static int tagsatellites(Client *p);
 #endif // PATCH_FLAG_FOLLOW_PARENT
+static int tagtoindex(unsigned int tag);
 #if PATCH_TERMINAL_SWALLOWING
 static Client *termforwin(const Client *w);
 #endif // PATCH_TERMINAL_SWALLOWING
@@ -4411,6 +4413,9 @@ createmon(void)
 	m = ecalloc(1, sizeof(Monitor));
 	m->tagset[0] = m->tagset[1] = 1;
 
+	for (i = 0; i < LENGTH(tags); i++)
+		m->focusontag[i] = NULL;
+
 	// set defaults;
 
 	for (i = 0; i < LENGTH(m->bar); ++i) {
@@ -5015,6 +5020,10 @@ detachstackex(Client *c)
 	if (c->snext)
 		c->snext->sprev = (*tc)->sprev;
 	*tc = c->snext;
+
+	for (int i = 0; i < LENGTH(tags); i++)
+		if (c->mon->focusontag[i] == c)
+			c->mon->focusontag[i] = NULL;
 }
 
 void
@@ -7174,6 +7183,12 @@ focus(Client *c, int force)
 	if (!altTabMon)
 	#endif // PATCH_ALTTAB
 	{
+		#if PATCH_SHOW_DESKTOP
+		if (!showdesktop || !selmon->showdesktop)
+		#endif // PATCH_SHOW_DESKTOP
+		if ((force = tagtoindex(selmon->tagset[selmon->seltags])))
+			selmon->focusontag[force - 1] =
+				(c && !c->isfloating && (c->tags & selmon->tagset[selmon->seltags])) ? c : NULL;
 		selmon->sel = c;
 		#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 		if (focuswin)
@@ -9829,7 +9844,16 @@ logdiagnostics(const Arg *arg)
 		);
 		#endif // PATCH_SYSTRAY
 
-		fprintf(stderr, "    Clients:\n");
+		fprintf(stderr, "    Focused on tag:");
+		for (int i = 0; i < LENGTH(tags); i++) {
+			fprintf(stderr, "\n        [%i] ", i + 1);
+			if ((c = m->focusontag[i]))
+				logdiagnostics_client_common(c, "", "");
+			else
+				fputs("<none>", stderr);
+		}
+
+		fprintf(stderr, "\n    Clients:\n");
 
 		checkstack(m);
 
@@ -11020,6 +11044,10 @@ minimize(Client *c)
 {
 	if (!c || MINIMIZED(c))
 		return;
+
+	for (int i = 0; i < LENGTH(tags); i++)
+		if (c->mon->focusontag[i] == c)
+			c->mon->focusontag[i] = NULL;
 
 	Window w = c->win;
 	static XWindowAttributes ra, ca;
@@ -14228,6 +14256,15 @@ tagsatellites(Client *p) {
 	return changes;
 }
 #endif // PATCH_FLAG_FOLLOW_PARENT
+
+int
+tagtoindex(unsigned int tag)
+{
+	for (int i = 0; i < LENGTH(tags); i++)
+		if (tag & (1 << i))
+			return i + 1;
+	return 0;
+}
 
 #if PATCH_TERMINAL_SWALLOWING
 Client *
@@ -20650,7 +20687,14 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 		if (!altTabMon)
 		#endif // PATCH_ALTTAB
 		{
-			focus(NULL, 0);
+			if ((switchmon = tagtoindex(m->tagset[m->seltags])) &&
+				m->focusontag[switchmon - 1] &&
+				m->focusontag[switchmon - 1]->mon == m &&
+				ISVISIBLE(m->focusontag[switchmon - 1])
+				)
+				focus(m->focusontag[switchmon - 1], 1);
+			else
+				focus(NULL, 0);
 
 			#if PATCH_SHOW_DESKTOP
 			if (showdesktop && !m->sel) {
