@@ -5302,7 +5302,7 @@ elementafter(Monitor *m, unsigned int el1, unsigned int el2)
 void
 drawbar(Monitor *m, int skiptags)
 {
-	if (running != 1 || nonstop
+	if (running != 1 || (nonstop & 1)
 		#if PATCH_TORCH
 		|| torchwin
 		#endif // PATCH_TORCH
@@ -6913,7 +6913,8 @@ enternotify(XEvent *e)
 	if (!c)
 		c = cropwintoclient(ev->window);
 	#endif // PATCH_CROP_WINDOWS
-	if (c && c == sel) {
+
+	if (nonstop || (c && c == sel)) {
 		while (XCheckMaskEvent(dpy, EnterWindowMask, &xev));
 		return;
 	}
@@ -7183,12 +7184,16 @@ focus(Client *c, int force)
 	if (!altTabMon)
 	#endif // PATCH_ALTTAB
 	{
+		/*
 		#if PATCH_SHOW_DESKTOP
 		if (!showdesktop || !selmon->showdesktop)
 		#endif // PATCH_SHOW_DESKTOP
-		if ((force = tagtoindex(selmon->tagset[selmon->seltags])))
-			selmon->focusontag[force - 1] =
-				(c && !c->isfloating && (c->tags & selmon->tagset[selmon->seltags])) ? c : NULL;
+		{
+			int i = tagtoindex(selmon->tagset[selmon->seltags]);
+			if (i)
+				selmon->focusontag[i - 1] = c;
+		}
+		*/
 		selmon->sel = c;
 		#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 		if (focuswin)
@@ -10112,7 +10117,7 @@ manage(Window w, XWindowAttributes *wa)
 	if (c)
 		return;
 
-	int takefocus = !nonstop;
+	int takefocus = !(nonstop & 1);
 
 	Client *t = NULL;
 	#if PATCH_TERMINAL_SWALLOWING
@@ -10685,7 +10690,7 @@ manage(Window w, XWindowAttributes *wa)
 
 	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 	if (
-		(nonstop || c->newmaster || (
+		((nonstop & 1) || c->newmaster || (
 			((ISVISIBLE(c) && c->mon == selmon) || (c->tags & c->mon->tagset[c->mon->seltags]))
 			&& c->mon->lt[c->mon->sellt]->arrange == monocle
 		)) &&
@@ -14126,7 +14131,7 @@ resizeclient(Client *c, int x, int y, int w, int h, int save_old)
 	#endif // PATCH_FLAG_FAKEFULLSCREEN
 		XSync(dpy, False);
 
-	if (!nonstop
+	if (!(nonstop & 1)
 		#if PATCH_FLAG_IGNORED
 		&& !c->isignored
 		#endif // PATCH_FLAG_IGNORED
@@ -17051,7 +17056,7 @@ showhide(Client *c, int client_only)
 	if (c->isignored)
 		return;
 	#endif // PATCH_FLAG_IGNORED
-	if (nonstop || ISVISIBLE(c)) {
+	if ((nonstop & 1) || ISVISIBLE(c)) {
 		/* show clients top down */
 		#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 		if (c->autohide
@@ -20621,6 +20626,7 @@ view(const Arg *arg)
 void
 viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 {
+	Client *sel = NULL;
 	if ((tagmask & TAGMASK) == m->tagset[m->seltags])
 		return;
 	#if PATCH_ALTTAB
@@ -20630,7 +20636,17 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 	}
 	else
 	#endif // PATCH_ALTTAB
+	{
+		#if PATCH_SHOW_DESKTOP
+		if (!showdesktop || !m->showdesktop)
+		#endif // PATCH_SHOW_DESKTOP
+		{
+			int i = tagtoindex(m->tagset[m->seltags]);
+			if (i)
+				m->focusontag[i - 1] = m->sel;
+		}
 		m->seltags ^= 1; /* toggle sel tagset */
+	}
 	if (tagmask & TAGMASK) {
 		m->tagset[m->seltags] = tagmask & TAGMASK;
 		#if PATCH_PERTAG
@@ -20671,7 +20687,7 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 		togglebarex(m);
 	#endif // PATCH_PERTAG
 
-	if (nonstop) {
+	if (nonstop & 1) {
 		arrange(m);
 		return;
 	}
@@ -20687,12 +20703,17 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 		if (!altTabMon)
 		#endif // PATCH_ALTTAB
 		{
-			if ((switchmon = tagtoindex(m->tagset[m->seltags])) &&
-				m->focusontag[switchmon - 1] &&
-				m->focusontag[switchmon - 1]->mon == m &&
-				ISVISIBLE(m->focusontag[switchmon - 1])
+			int i;
+			if (
+				#if PATCH_SHOW_DESKTOP
+				(!showdesktop || !m->showdesktop) &&
+				#endif // PATCH_SHOW_DESKTOP
+				(i = tagtoindex(m->tagset[m->seltags])) &&
+				m->focusontag[i - 1] &&
+				m->focusontag[i - 1]->mon == m &&
+				ISVISIBLE(m->focusontag[i - 1])
 				)
-				focus(m->focusontag[switchmon - 1], 1);
+				sel = m->focusontag[i - 1];
 			else
 				focus(NULL, 0);
 
@@ -20748,6 +20769,8 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 			#endif // PATCH_SHOW_DESKTOP
 		}
 		arrange(m);
+		if (sel)
+			focus(sel, 1);
 		/*
 		if (m->sel
 			#if PATCH_ALTTAB
@@ -21001,7 +21024,7 @@ warptoclient(Client *c, int force)
 	}
 	#endif // DEBUGGING
 
-	if (nonstop || !selmon)
+	if ((nonstop & 1) || !selmon)
 		return;
 	else if (c) {
 		if (c->neverfocus ||
@@ -21042,7 +21065,7 @@ warptoclient(Client *c, int force)
 	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	// can't go smoothly if we can't find mouse pointer coords;
 	// and no warp required if already over the client;
-	else if (!getrootptr(&px, &py) || nonstop)
+	else if (!getrootptr(&px, &py) || (nonstop & 1))
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		smoothly = 0
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
