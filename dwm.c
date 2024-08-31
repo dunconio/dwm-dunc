@@ -196,6 +196,9 @@ static const supported_json supported_layout_global[] = {
 	{ "cursor-autohide",			"true to hide cursor when stationary or keys are pressed, for all clients" },
 	{ "cursor-autohide-delay",		"the number of seconds before a stationary cursor can be hidden, 0 to disable" },
 	#endif // PATCH_MOUSE_POINTER_HIDING
+	#if PATCH_CUSTOM_TAG_ICONS
+	{ "custom-tag-icons",			"array of paths to icon files to show in place of tag identifier (for each tag)" },
+	#endif // PATCH_CUSTOM_TAG_ICONS
 	#if PATCH_WINDOW_ICONS
 	#if PATCH_WINDOW_ICONS_DEFAULT_ICON
 	{ "default-icon",				"path to default icon file for clients without icons" },
@@ -230,6 +233,9 @@ static const supported_json supported_layout_global[] = {
 	{ "mirror-layout",				"switch master area and stack area" },
 	#endif // PATCH_MIRROR_LAYOUT
 	{ "monitors",					"array of monitor objects (see \"monitor sections\")" },
+	#if PATCH_CUSTOM_TAG_ICONS
+	{ "show-custom-tag-icons",		"true to show a custom icon in place of tag identifier (for each tag)" },
+	#endif // PATCH_CUSTOM_TAG_ICONS
 	#if PATCH_SHOW_DESKTOP
 	{ "show-desktop",				"true to enable management of desktop clients, and toggle desktop" },
 	#if PATCH_SHOW_DESKTOP_BUTTON
@@ -309,6 +315,9 @@ static const supported_json supported_layout_mon[] = {
 	{ "set-cursor-autohide",	"true to hide cursor when stationary on this monitor" },
 	{ "set-cursor-hide-on-keys","true to hide cursor when keys are pressed on this monitor" },
 	#endif // PATCH_MOUSE_POINTER_HIDING
+	#if PATCH_CUSTOM_TAG_ICONS
+	{ "set-custom-tag-icons",	"array of paths to icon files to show in place of tag identifier (for each tag) on this monitor" },
+	#endif // PATCH_CUSTOM_TAG_ICONS
 	{ "set-default",		    "set this monitor to be the default selected on startup" },
 	#if PATCH_VANITY_GAPS
 	{ "set-enable-gaps",		"set to true to enable vanity gaps between clients (default)" },
@@ -339,6 +348,9 @@ static const supported_json supported_layout_mon[] = {
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	{ "set-reverse-master",		"set to true if the master client class should be shown before the tag indicator" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+	#if PATCH_CUSTOM_TAG_ICONS
+	{ "set-show-custom-tag-icons",	"true to show a custom icon in place of tag identifier (for each tag) on this monitor" },
+	#endif // PATCH_CUSTOM_TAG_ICONS
 	#if PATCH_WINDOW_ICONS
 	#if PATCH_WINDOW_ICONS_ON_TAGS
 	{ "set-show-icons-on-tags",	"true to show primary master client's icon in place of tag identifier (for each tag) on this monitor" },
@@ -1050,11 +1062,11 @@ struct Client {
 	unsigned int alticw, altich;
 	Picture alticon;
 	#endif // PATCH_ALTTAB
-	#if PATCH_WINDOW_ICONS_ON_TAGS
+	#endif // PATCH_WINDOW_ICONS
+	#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 	unsigned int tagicw, tagich;
 	Picture tagicon;
-	#endif // PATCH_WINDOW_ICONS_ON_TAGS
-	#endif // PATCH_WINDOW_ICONS
+	#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 	#if PATCH_FLAG_PARENT
 	int neverparent;
 	int parent_late;	// -1, 0 (parent changed), 1 (awaiting parent client);
@@ -1226,6 +1238,13 @@ struct Monitor {
 	int showiconsontags;
 	#endif // PATCH_WINDOW_ICONS_ON_TAGS
 	#endif // PATCH_WINDOW_ICONS
+	#if PATCH_CUSTOM_TAG_ICONS
+	int showcustomtagicons;
+	Picture tagicons[9];
+	unsigned int tagicw[9];
+	unsigned int tagich[9];
+	char *tagiconpaths[9];
+	#endif // PATCH_CUSTOM_TAG_ICONS
 	int isdefault;
 	unsigned int defaulttag;
 	Client *focusontag[9];
@@ -1664,9 +1683,7 @@ static int tagtoindex(unsigned int tag);
 #if PATCH_TERMINAL_SWALLOWING
 static Client *termforwin(const Client *w);
 #endif // PATCH_TERMINAL_SWALLOWING
-#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-#if PATCH_WINDOW_ICONS
-#if PATCH_WINDOW_ICONS_ON_TAGS
+#if PATCH_SHOW_MASTER_CLIENT_ON_TAG && ((PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS)
 static void textwithicon(char *text, Picture icon, unsigned int icw,
 	unsigned int ich, char *placeholder_text, int x, int y, unsigned int w,
 	unsigned int h, int offsetx,
@@ -1675,9 +1692,7 @@ static void textwithicon(char *text, Picture icon, unsigned int icw,
 	#endif // PATCH_CLIENT_INDICATORS
 	int invert
 );
-#endif // PATCH_WINDOW_ICONS_ON_TAGS
-#endif // PATCH_WINDOW_ICONS
-#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG && ((PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS)
 #if PATCH_FLAG_ALWAYSONTOP
 static void togglealwaysontop(const Arg *arg);
 #endif // PATCH_FLAG_ALWAYSONTOP
@@ -1826,11 +1841,9 @@ static int nonstop = 1;		// scanning for windows or cleaning up before exit;
 static unsigned int client_ind_offset = 0;
 #endif // PATCH_CLIENT_INDICATORS
 
-#if PATCH_FLAG_GAME
-#if PATCH_FLAG_GAME_STRICT
+#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 static Client *game = NULL;
-#endif // PATCH_FLAG_GAME_STRICT
-#endif // PATCH_FLAG_GAME
+#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 
 #if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
 static int xfixes_support = 0;
@@ -1842,6 +1855,11 @@ static PointerBarrier barrierBottom = 0;
 #if PATCH_CONSTRAIN_MOUSE
 static Monitor *constrained = NULL;
 #endif // PATCH_CONSTRAIN_MOUSE
+
+#if PATCH_CUSTOM_TAG_ICONS
+static Client *dummyc = NULL;
+#endif // PATCH_CUSTOM_TAG_ICONS
+
 
 #if PATCH_MOUSE_POINTER_WARPING
 static int warptoclient_stop_flag = 0;
@@ -3833,6 +3851,11 @@ fprintf(stderr, "dwm: done unmanage().\n");
 logdatetime(stderr);
 fprintf(stderr, "dwm: done cleanupmon().\n");
 
+	#if PATCH_CUSTOM_TAG_ICONS
+	if (dummyc)
+		free(dummyc);
+	#endif // PATCH_CUSTOM_TAG_ICONS
+
 	#if PATCH_SYSTRAY
 	if (showsystray) {
 		for (Client *ii = systray->icons; ii; ii = ii->next)
@@ -3874,6 +3897,11 @@ cleanupmon(Monitor *mon)
 	}
 	XUnmapWindow(dpy, mon->barwin);
 	XDestroyWindow(dpy, mon->barwin);
+	#if PATCH_CUSTOM_TAG_ICONS
+	for (int i = 0; i < LENGTH(tags); i++)
+		if (mon->tagicons[i])
+			XRenderFreePicture(dpy, mon->tagicons[i]);
+	#endif // PATCH_CUSTOM_TAG_ICONS
 	#if PATCH_PERTAG
 	free(mon->pertag);
 	#endif // PATCH_PERTAG
@@ -4476,6 +4504,15 @@ createmon(void)
 	m->ptagf = ptagf;
 	m->showmaster = showmaster;
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+	#if PATCH_CUSTOM_TAG_ICONS
+	m->showcustomtagicons = showcustomtagicons;
+	for (i = 0; i < LENGTH(tags); i++) {
+		m->tagiconpaths[i] = tagiconpaths[i];
+		if (m->tagicons[i])
+			XRenderFreePicture(dpy, m->tagicons[i]);
+		m->tagicons[i] = None;
+	}
+	#endif // PATCH_CUSTOM_TAG_ICONS
 	#if PATCH_WINDOW_ICONS
 	#if PATCH_WINDOW_ICONS_ON_TAGS
 	m->showiconsontags = showiconsontags;
@@ -4620,11 +4657,21 @@ createmon(void)
 			m->etagf = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-tag-format-empty")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->etagf;
 			m->ptagf = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-tag-format-populated")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->ptagf;
 			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			#if PATCH_WINDOW_ICONS
-			#if PATCH_WINDOW_ICONS_ON_TAGS
+			#if PATCH_CUSTOM_TAG_ICONS
+			m->showcustomtagicons = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-show-custom-tag-icons")) && json_isboolean(l_node)) ? l_node->valueint : m->showcustomtagicons;
+			if ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-custom-tag-icons")) && cJSON_IsArray(l_node)) {
+				int sz = cJSON_GetArraySize(l_node);
+				if (sz && sz <= LENGTH(tags)) {
+					cJSON *e = NULL;
+					for (int j = 0; j < sz; j++)
+						if ((e = cJSON_GetArrayItem(l_node, j)) && cJSON_IsString(e))
+							m->tagiconpaths[j] = e->valuestring;
+				}
+			}
+			#endif // PATCH_CUSTOM_TAG_ICONS
+			#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 			m->showiconsontags = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-show-icons-on-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->showiconsontags;
-			#endif // PATCH_WINDOW_ICONS_ON_TAGS
-			#endif // PATCH_WINDOW_ICONS
+			#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 			m->showstatus = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-showstatus")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->showstatus;
 			#if PATCH_SWITCH_TAG_ON_EMPTY
 			m->switchonempty = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-switch-on-empty")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->switchonempty;
@@ -5341,18 +5388,16 @@ drawbar(Monitor *m, int skiptags)
 	Client *c;
 	char tagdisp[64];
 	#if PATCH_FLAG_HIDDEN
-	int visible[LENGTH(tags)];
+	int hidden[LENGTH(tags)], visible[LENGTH(tags)];
 	#endif // PATCH_FLAG_HIDDEN
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	char masterclientbuff[64];
 	char *masterclientontag[LENGTH(tags)];
 	int masterclientontagmem[LENGTH(tags)];
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-	#if PATCH_WINDOW_ICONS
-	#if PATCH_WINDOW_ICONS_ON_TAGS
+	#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 	Client *mc[LENGTH(tags)];		// (primary) master client per tag;
-	#endif // PATCH_WINDOW_ICONS_ON_TAGS
-	#endif // PATCH_WINDOW_ICONS
+	#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 
 	if ((m->showbar && (
 		!m->sel || !m->sel->isfullscreen
@@ -5812,13 +5857,11 @@ drawbar(Monitor *m, int skiptags)
 				masterclientontag[i] = NULL;
 				masterclientontagmem[i] = 0;
 				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
+				#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				mc[i] = NULL;
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
-				#endif // PATCH_WINDOW_ICONS
+				#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				#if PATCH_FLAG_HIDDEN
-				visible[i] = 0;
+				visible[i] = hidden[i] = 0;
 				#endif // PATCH_FLAG_HIDDEN
 				#if PATCH_CLIENT_INDICATORS
 				total[i] = 0;
@@ -5874,22 +5917,17 @@ drawbar(Monitor *m, int skiptags)
 								if (ch.res_name)
 									XFree(ch.res_name);
 							}
-							#if PATCH_WINDOW_ICONS
-							#if PATCH_WINDOW_ICONS_ON_TAGS
+							#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 							if (m->showiconsontags)
 								mc[i] = c;
-							#endif // PATCH_WINDOW_ICONS_ON_TAGS;
-							#endif // PATCH_WINDOW_ICONS
+							#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 						}
 				}
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
+				#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 				else if (m->showiconsontags)
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS
-				#endif // PATCH_WINDOW_ICONS
+				#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
+				#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 				{
 					for (i = 0; i < LENGTH(tags); i++)
 						if (!mc[i] && c->tags & (1<<i)
@@ -5899,8 +5937,7 @@ drawbar(Monitor *m, int skiptags)
 							)
 							mc[i] = c;
 				}
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS
-				#endif // PATCH_WINDOW_ICONS
+				#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 				#if PATCH_FLAG_HIDDEN || PATCH_CLIENT_INDICATORS
 				for (i = 0; i < LENGTH(tags); i++) {
 					if (
@@ -5913,7 +5950,9 @@ drawbar(Monitor *m, int skiptags)
 						++total[i];
 						#endif // PATCH_CLIENT_INDICATORS
 						#if PATCH_FLAG_HIDDEN
-						if (!c->ishidden)
+						if (c->ishidden)
+							++hidden[i];
+						else
 							++visible[i];
 						#endif // PATCH_FLAG_HIDDEN
 					}
@@ -5943,8 +5982,7 @@ drawbar(Monitor *m, int skiptags)
 					continue;
 				}
 
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
+				#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 				if (m->showiconsontags && mc[i] && !mc[i]->tagicon)
 						mc[i]->tagicon = geticonprop(
 							#if PATCH_WINDOW_ICONS_DEFAULT_ICON || PATCH_WINDOW_ICONS_CUSTOM_ICONS
@@ -5964,13 +6002,55 @@ drawbar(Monitor *m, int skiptags)
 								drw->fonts->h
 							)
 						);
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
-				#endif // PATCH_WINDOW_ICONS
+				#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+				#if PATCH_CUSTOM_TAG_ICONS
+				if (m->showcustomtagicons) {
+					if (!mc[i]) {
+						mc[i] = dummyc;
+						mc[i]->tagicon = None;
+					}
+					if (mc[i] && !mc[i]->tagicon) {
+						if (m->tagiconpaths[i] && !m->tagicons[i]) {
+							m->tagicons[i] = drw_picture_create_resized_from_file(drw,
+								m->tagiconpaths[i], &m->tagicw[i], &m->tagich[i],
+								#if 0 // icon size relative to total bar height;
+								#if PATCH_CLIENT_INDICATORS
+								client_ind ? (MIN((bh - (client_ind_size / 2) - 7), (minbh - 2))) :
+								#endif // PATCH_CLIENT_INDICATORS
+								(MIN((bh - 8), (minbh - 2)))
+								#endif // icon size relative to total bar height;
+								(
+									#if PATCH_FONT_GROUPS
+									drw->selfonts ? drw->selfonts->h :
+									#endif // PATCH_FONT_GROUPS
+									drw->fonts->h
+								)
+							);
+						}
+						if (m->tagicons[i]) {
+							mc[i]->tagicon = m->tagicons[i];
+							mc[i]->tagicw = m->tagicw[i];
+							mc[i]->tagich = m->tagich[i];
+						}
+					}
+				}
+				#endif // PATCH_CUSTOM_TAG_ICONS
 
 				#if PATCH_ALT_TAGS
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
-				if (m->showiconsontags && mc[i] && mc[i]->tagicon && mc[i]->tagicw) {
+				#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
+				if (
+					(
+						#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+						m->showiconsontags
+						#if PATCH_CUSTOM_TAG_ICONS
+						||
+						#endif // PATCH_CUSTOM_TAG_ICONS
+						#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+						#if PATCH_CUSTOM_TAG_ICONS
+						m->showcustomtagicons
+						#endif // PATCH_CUSTOM_TAG_ICONS
+					) && mc[i] && mc[i]->tagicon && mc[i]->tagicw
+				) {
 					if ((tagw = mc[i]->tagicw))
 						tagw += lrpad;
 					else {
@@ -5979,8 +6059,7 @@ drawbar(Monitor *m, int skiptags)
 					}
 				}
 				else
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
-				#endif // PATCH_WINDOW_ICONS
+				#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				{
 					snprintf(tagdisp, 64, "%s", m->tags[i]);
 					tagw = TEXTW(tagdisp);
@@ -6011,8 +6090,7 @@ drawbar(Monitor *m, int skiptags)
 					if (masterclientontagmem[i])
 						XFree(masterclientontag[i]);
 				#if PATCH_ALT_TAGS
-					#if PATCH_WINDOW_ICONS
-					#if PATCH_WINDOW_ICONS_ON_TAGS
+					#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 					if (!m->alttags && mc[i] && mc[i]->tagicon && mc[i]->tagicw) {
 						if (m->reversemaster)
 							snprintf(tagdisp, 64, m->ptagf, masterclientbuff, "%s");
@@ -6020,8 +6098,7 @@ drawbar(Monitor *m, int skiptags)
 							snprintf(tagdisp, 64, m->ptagf, "%s", masterclientbuff);
 					}
 					else
-					#endif // PATCH_WINDOW_ICONS_ON_TAGS;
-					#endif // PATCH_WINDOW_ICONS
+					#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 					{
 						if (m->reversemaster)
 							snprintf(tagdisp, 64, m->ptagf, masterclientbuff, m->alttags ? tags[i] : m->tags[i]);
@@ -6030,23 +6107,21 @@ drawbar(Monitor *m, int skiptags)
 					}
 				}
 				else
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
-				if (m->alttags || !mc[i] || !mc[i]->tagicw)
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS
-				#endif // PATCH_WINDOW_ICONS
+				#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
+				if (!m->alttags && mc[i] && mc[i]->tagicon && mc[i]->tagicw)
+					snprintf(tagdisp, 64, (m->showmaster ? m->etagf : "%s"), "%s");
+				else
+				#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 					snprintf(tagdisp, 64, (m->showmaster ? m->etagf : "%s"), m->alttags ? tags[i] : m->tags[i]);
 
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
+				#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				if (!m->alttags && mc[i] && mc[i]->tagicon && mc[i]->tagicw) {
 					w = mc[i]->tagicw + tagw + lrpad;
 					if (m->showmaster)
 						w += (drw_fontset_getwidth(drw, tagdisp) - drw_fontset_getwidth(drw, "%s"));
 				}
 				else
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS
-				#endif // PATCH_WINDOW_ICONS
+				#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				w = (TEXTW(tagdisp) + tagw);
 				if (x + w >= m->bar[StatusText].x - customwidth)
 					w = ((m->bar[StatusText].x - customwidth) - x);
@@ -6060,40 +6135,58 @@ drawbar(Monitor *m, int skiptags)
 					drw_rect(drw, x, 0, w, bh, 1, 1);
 				}
 				#else // NO PATCH_ALT_TAGS
-					#if PATCH_WINDOW_ICONS
-					#if PATCH_WINDOW_ICONS_ON_TAGS
-					if (mc[i] && mc[i]->tagicw) {
+
+					#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
+					if (
+						(
+							#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+							m->showiconsontags
+							#if PATCH_CUSTOM_TAG_ICONS
+							||
+							#endif // PATCH_CUSTOM_TAG_ICONS
+							#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+							#if PATCH_CUSTOM_TAG_ICONS
+							m->showcustomtagicons
+							#endif // PATCH_CUSTOM_TAG_ICONS
+						) && mc[i] && mc[i]->tagicon && mc[i]->tagicw) {
 						if (m->reversemaster)
 							snprintf(tagdisp, 64, m->ptagf, masterclientbuff, "%s");
 						else
 							snprintf(tagdisp, 64, m->ptagf, "%s", masterclientbuff);
 					}
 					else
-					#endif // PATCH_WINDOW_ICONS_ON_TAGS;
-					#endif // PATCH_WINDOW_ICONS
-					snprintf(tagdisp, 64, m->ptagf, tags[i], masterclientbuff);
+					#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
+					{
+						if (m->reversemaster)
+							snprintf(tagdisp, 64, m->ptagf, masterclientbuff, tags[i]);
+						else
+							snprintf(tagdisp, 64, m->ptagf, tags[i], masterclientbuff);
+					}
 				}
 				else
+					#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
+					if (mc[i] && mc[i]->tagicon && mc[i]->tagicw)
+						snprintf(tagdisp, 64, (m->showmaster ? m->etagf : "%s"), "%s");
+					else
+					#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 					snprintf(tagdisp, 64, (m->showmaster ? m->etagf : "%s"), tags[i]);
 
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
+				#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				if (mc[i] && mc[i]->tagicon && mc[i]->tagicw) {
 					w = mc[i]->tagicw + lrpad;
 					if (m->showmaster)
 						w += (drw_fontset_getwidth(drw, tagdisp) - drw_fontset_getwidth(drw, "%s"));
 				}
 				else
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS
-				#endif // PATCH_WINDOW_ICONS
+				#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				w = TEXTW(tagdisp);
 				if (x + w >= m->bar[StatusText].x - customwidth)
 					w = ((m->bar[StatusText].x - customwidth) - x);
 				m->tagw[i] = w;
+
 				#endif // PATCH_ALT_TAGS
 				#else // NO PATCH_SHOW_MASTER_CLIENT_ON_TAG
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
+				#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				if (
 					#if PATCH_ALT_TAGS
 					!m->alttags &&
@@ -6102,8 +6195,7 @@ drawbar(Monitor *m, int skiptags)
 					)
 					w = mc[i]->tagicw + lrpad;
 				else
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS
-				#endif // PATCH_WINDOW_ICONS
+				#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				{
 					#if PATCH_ALT_TAGS
 					snprintf(tagdisp, 64, "%s", m->alttags ? tags[i] : m->tags[i]);
@@ -6135,7 +6227,7 @@ drawbar(Monitor *m, int skiptags)
 							#endif // PATCH_RAINBOW_TAGS
 						:
 						#if PATCH_FLAG_HIDDEN
-						visible[i] <= 0
+						(!visible[i] && hidden[i] > 0)
 						#if PATCH_SHOW_DESKTOP
 						|| (m->showdesktop && m->tagset[m->seltags] & 1 << i)
 						#endif // PATCH_SHOW_DESKTOP
@@ -6154,10 +6246,22 @@ drawbar(Monitor *m, int skiptags)
 						#endif // PATCH_COLOUR_BAR
 				]);
 
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
+				#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				if (
-					(!m->showiconsontags || !mc[i] || !mc[i]->tagicon || !mc[i]->tagicw)
+					(
+						(
+							#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+							!m->showiconsontags
+							#if PATCH_CUSTOM_TAG_ICONS
+							&&
+							#endif // PATCH_CUSTOM_TAG_ICONS
+							#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+							#if PATCH_CUSTOM_TAG_ICONS
+							!m->showcustomtagicons
+							#endif // PATCH_CUSTOM_TAG_ICONS
+						)
+						|| !mc[i] || !mc[i]->tagicon || !mc[i]->tagicw
+					)
 					#if PATCH_ALT_TAGS
 					|| m->alttags
 					#endif // PATCH_ALT_TAGS
@@ -6165,20 +6269,27 @@ drawbar(Monitor *m, int skiptags)
 					|| m->showmaster
 					#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				)
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS
-				#endif // PATCH_WINDOW_ICONS
+				#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
 				{
 					#if PATCH_BIDIRECTIONAL_TEXT
 					apply_fribidi(tagdisp);
 					#endif // PATCH_BIDIRECTIONAL_TEXT
-					#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-					#if PATCH_WINDOW_ICONS
-					#if PATCH_WINDOW_ICONS_ON_TAGS
+					#if (PATCH_SHOW_MASTER_CLIENT_ON_TAG && ((PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS))
 					if (
 						#if PATCH_ALT_TAGS
 						!m->alttags &&
 						#endif // PATCH_ALT_TAGS
-						m->showiconsontags && mc[i] && mc[i]->tagicon && mc[i]->tagicw
+						(
+							#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+							m->showiconsontags
+							#if PATCH_CUSTOM_TAG_ICONS
+							||
+							#endif // PATCH_CUSTOM_TAG_ICONS
+							#endif // NO PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+							#if PATCH_CUSTOM_TAG_ICONS
+							m->showcustomtagicons
+							#endif // PATCH_CUSTOM_TAG_ICONS
+						) && mc[i] && mc[i]->tagicon && mc[i]->tagicw
 						)
 						textwithicon(
 							#if PATCH_BIDIRECTIONAL_TEXT
@@ -6210,9 +6321,7 @@ drawbar(Monitor *m, int skiptags)
 							0
 						);
 					else
-					#endif // PATCH_WINDOW_ICONS_ON_TAGS
-					#endif // PATCH_WINDOW_ICONS
-					#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+					#endif // (PATCH_SHOW_MASTER_CLIENT_ON_TAG && ((PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS))
 					drw_text(
 						drw, x, 0, w, bh,
 						(lrpad / 2)
@@ -6247,9 +6356,19 @@ drawbar(Monitor *m, int skiptags)
 						0
 					);
 				}
-				#if PATCH_WINDOW_ICONS
-				#if PATCH_WINDOW_ICONS_ON_TAGS
-				else if (m->showiconsontags && mc[i] && mc[i]->tagicon && mc[i]->tagicw
+				#if (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
+				else if (
+					(
+						#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+						m->showiconsontags
+						#if PATCH_CUSTOM_TAG_ICONS
+						||
+						#endif // PATCH_CUSTOM_TAG_ICONS
+						#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+						#if PATCH_CUSTOM_TAG_ICONS
+						m->showcustomtagicons
+						#endif // PATCH_CUSTOM_TAG_ICONS
+					) && mc[i] && mc[i]->tagicon && mc[i]->tagicw
 					#if PATCH_ALT_TAGS
 					&& !m->alttags
 					#endif // PATCH_ALT_TAGS
@@ -6265,8 +6384,11 @@ drawbar(Monitor *m, int skiptags)
 						mc[i]->tagicw, mc[i]->tagich, mc[i]->tagicon
 					);
 				}
-				#endif // PATCH_WINDOW_ICONS_ON_TAGS;
-				#endif // PATCH_WINDOW_ICONS
+				#endif // (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS
+				#if PATCH_CUSTOM_TAG_ICONS
+				if (mc[i] == dummyc)
+					dummyc->tagicon = None;
+				#endif // PATCH_CUSTOM_TAG_ICONS
 
 				#if PATCH_CLIENT_INDICATORS
 				if (client_ind && (
@@ -12075,6 +12197,32 @@ parselayoutjson(cJSON *layout)
 				cJSON_AddNumberToObject(unsupported, "\"cursor-autohide-delay\" must contain an integer value", 0);
 			}
 			#endif // PATCH_MOUSE_POINTER_HIDING
+			#if PATCH_CUSTOM_TAG_ICONS
+			else if (strcmp(L->string, "show-custom-tag-icons")==0) {
+				if (json_isboolean(L)) {
+					showcustomtagicons = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"show-custom-tag-icons\" must contain a boolean value", 0);
+			}
+			else if (strcmp(L->string, "custom-tag-icons")==0) {
+				if (cJSON_IsArray(L)) {
+					int sz = cJSON_GetArraySize(L);
+					if (sz && sz <= LENGTH(tags)) {
+						cJSON *e = NULL;
+						for (int j = 0; j < sz; j++)
+							if ((e = cJSON_GetArrayItem(L, j)) && cJSON_IsString(e))
+								tagiconpaths[j] = e->valuestring;
+						continue;
+					}
+					else {
+						cJSON_AddNumberToObject(unsupported, "\"custom-tag-icons\" has too many elements", 0);
+						continue;
+					}
+				}
+				cJSON_AddNumberToObject(unsupported, "\"custom-tag-icons\" must contain an array of strings", 0);
+			}
+			#endif // PATCH_CUSTOM_TAG_ICONS
 			#if PATCH_SHOW_DESKTOP
 			else if (strcmp(L->string, "show-desktop")==0) {
 				if (json_isboolean(L)) {
@@ -14292,9 +14440,7 @@ termforwin(const Client *w)
 }
 #endif // PATCH_TERMINAL_SWALLOWING
 
-#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-#if PATCH_WINDOW_ICONS
-#if PATCH_WINDOW_ICONS_ON_TAGS
+#if PATCH_SHOW_MASTER_CLIENT_ON_TAG && ((PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS)
 void
 textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 	char *placeholder_text, int x, int y, unsigned int w, unsigned int h,
@@ -14370,9 +14516,7 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 
 	}
 }
-#endif // PATCH_WINDOW_ICONS_ON_TAGS
-#endif // PATCH_WINDOW_ICONS
-#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG && ((PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS) || PATCH_CUSTOM_TAG_ICONS)
 
 #if PATCH_FLAG_ALWAYSONTOP
 void
@@ -16824,6 +16968,10 @@ setup(void)
 	scheme = ecalloc(LENGTH(colours), sizeof(Clr *));
 	for (i = 0; i < LENGTH(colours); i++)
 		scheme[i] = drw_scm_create(drw, colours[i], 3);
+
+	#if PATCH_CUSTOM_TAG_ICONS
+	dummyc = ecalloc(1, sizeof(Client));
+	#endif // PATCH_CUSTOM_TAG_ICONS
 
 	#if PATCH_SYSTRAY
 	/* init system tray */

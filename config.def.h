@@ -98,6 +98,9 @@ static Bool showdesktop_floating = True;
 #define MOVE_FLOATING_STEP_BIG	100
 #endif // PATCH_MOVE_FLOATING_WINDOWS
 
+#if PATCH_CUSTOM_TAG_ICONS
+static Bool showcustomtagicons = True;		// show custom icons on tags;
+#endif // PATCH_CUSTOM_TAG_ICONS
 #if PATCH_WINDOW_ICONS
 #if PATCH_WINDOW_ICONS_ON_TAGS
 static Bool showiconsontags = True;			// show window icons on tags;
@@ -249,6 +252,11 @@ static char *colours[][3] = {
 /* tagging */
 static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 //static char *tags[] = { "󾠮", "󾠯", "󾠰", "󾠱", "󾠲", "󾠳", "󾠴", "󾠵", "󾠶" };
+#if PATCH_CUSTOM_TAG_ICONS
+static char *tagiconpaths[] = {
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+#endif // PATCH_CUSTOM_TAG_ICONS
 
 #if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 static int showmaster = 1;				// show master client on tag bar;

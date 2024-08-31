@@ -55,6 +55,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_COLOUR_BAR` | Define colours for each bar element; |
 | `PATCH_CONSTRAIN_MOUSE` | Add a toggle to constrain the mouse pointer to the current monitor; |
 | `PATCH_CROP_WINDOWS` | |
+| `PATCH_CUSTOM_TAG_ICONS` | Each tag can have a custom icon loaded from an icon file; |
 | `PATCH_DRAG_FACTS` | Resize master area size and tiled clients with the mouse; |
 | `PATCH_EWMH_TAGS` | Supports reporting workspace(tag) changes; |
 | `PATCH_EXTERNAL_WINDOW_ACTIVATION` | Behaves like spawn except will allow focus stealing for the life of the spawnee; |

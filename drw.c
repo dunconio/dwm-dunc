@@ -90,18 +90,18 @@ drw_create(Display *dpy, int screen, Window root, unsigned int w, unsigned int h
 		drw->cmap = cmap;
 		drw->drawable = XCreatePixmap(dpy, root, w, h, depth);
 		drw->gc = XCreateGC(dpy, drw->drawable, 0, NULL);
-		#if PATCH_WINDOW_ICONS
+		#if PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 		drw->picture = XRenderCreatePicture(dpy, drw->drawable, XRenderFindVisualFormat(dpy, drw->visual), 0, NULL);
-		#endif // PATCH_WINDOW_ICONS
+		#endif // PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	}
 	else
 	#endif // PATCH_ALPHA_CHANNEL
 	{
 		drw->drawable = XCreatePixmap(dpy, root, w, h, DefaultDepth(dpy, screen));
 		drw->gc = XCreateGC(dpy, root, 0, NULL);
-		#if PATCH_WINDOW_ICONS
+		#if PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 		drw->picture = XRenderCreatePicture(dpy, drw->drawable, XRenderFindVisualFormat(dpy, DefaultVisual(dpy, screen)), 0, NULL);
-		#endif // PATCH_WINDOW_ICONS
+		#endif // PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	}
 	XSetLineAttributes(dpy, drw->gc, 1, LineSolid, CapButt, JoinMiter);
 
@@ -116,26 +116,26 @@ drw_resize(Drw *drw, unsigned int w, unsigned int h)
 
 	drw->w = w;
 	drw->h = h;
-	#if PATCH_WINDOW_ICONS
+	#if PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	if (drw->picture)
 		XRenderFreePicture(drw->dpy, drw->picture);
-	#endif // PATCH_WINDOW_ICONS
+	#endif // PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	if (drw->drawable)
 		XFreePixmap(drw->dpy, drw->drawable);
 	#if PATCH_ALPHA_CHANNEL
 	if (drw->useargb) {
 		drw->drawable = XCreatePixmap(drw->dpy, drw->root, w, h, drw->depth);
-		#if PATCH_WINDOW_ICONS
+		#if PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 		drw->picture = XRenderCreatePicture(drw->dpy, drw->drawable, XRenderFindVisualFormat(drw->dpy, drw->visual), 0, NULL);
-		#endif // PATCH_WINDOW_ICONS
+		#endif // PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	}
 	else
 	#endif // PATCH_ALPHA_CHANNEL
 	{
 		drw->drawable = XCreatePixmap(drw->dpy, drw->root, w, h, DefaultDepth(drw->dpy, drw->screen));
-		#if PATCH_WINDOW_ICONS
+		#if PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 		drw->picture = XRenderCreatePicture(drw->dpy, drw->drawable, XRenderFindVisualFormat(drw->dpy, DefaultVisual(drw->dpy, drw->screen)), 0, NULL);
-		#endif // PATCH_WINDOW_ICONS
+		#endif // PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	}
 }
 
@@ -168,9 +168,9 @@ drw_fontgroup_create_json(Drw *drw, cJSON *fontgroup)
 void
 drw_free(Drw *drw)
 {
-	#if PATCH_WINDOW_ICONS
+	#if PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	XRenderFreePicture(drw->dpy, drw->picture);
-	#endif // PATCH_WINDOW_ICONS
+	#endif // PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	XFreePixmap(drw->dpy, drw->drawable);
 	XFreeGC(drw->dpy, drw->gc);
 	drw_fontset_free(drw->fonts);
@@ -552,8 +552,7 @@ drw_setscheme(Drw *drw, Clr *scm)
 		drw->scheme = scm;
 }
 
-#if PATCH_WINDOW_ICONS
-#if PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_WINDOW_ICONS_DEFAULT_ICON
+#if (PATCH_WINDOW_ICONS && (PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_WINDOW_ICONS_DEFAULT_ICON)) || PATCH_CUSTOM_TAG_ICONS
 Picture
 drw_picture_create_resized_from_file(Drw *drw, char *src_file, unsigned int *picw, unsigned int *pich, unsigned int iconsize) {
 	Pixmap pm;
@@ -602,7 +601,8 @@ drw_picture_create_resized_from_file(Drw *drw, char *src_file, unsigned int *pic
 
 	return pic;
 }
-#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_WINDOW_ICONS_DEFAULT_ICON
+#endif // (PATCH_WINDOW_ICONS && (PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_WINDOW_ICONS_DEFAULT_ICON)) || PATCH_CUSTOM_TAG_ICONS
+#if PATCH_WINDOW_ICONS
 Picture
 drw_picture_create_resized(Drw *drw, char *src, unsigned int srcw, unsigned int srch, unsigned int dstw, unsigned int dsth) {
 	Pixmap pm;
@@ -994,7 +994,7 @@ no_match:
 	return x + (render ? w : 0);
 }
 
-#if PATCH_WINDOW_ICONS
+#if PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 void
 drw_pic(Drw *drw, int x, int y, unsigned int w, unsigned int h, Picture pic)
 {
@@ -1002,7 +1002,7 @@ drw_pic(Drw *drw, int x, int y, unsigned int w, unsigned int h, Picture pic)
 		return;
 	XRenderComposite(drw->dpy, PictOpOver, pic, None, drw->picture, 0, 0, 0, 0, x, y, w, h);
 }
-#endif // PATCH_WINDOW_ICONS
+#endif // PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 
 void
 drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h)

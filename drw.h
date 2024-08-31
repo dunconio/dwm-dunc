@@ -42,9 +42,9 @@ typedef struct {
     Colormap cmap;
 	#endif // PATCH_ALPHA_CHANNEL
 	Drawable drawable;
-	#if PATCH_WINDOW_ICONS
+	#if PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	Picture picture;
-	#endif // PATCH_WINDOW_ICONS
+	#endif // PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 	GC gc;
 	Clr *scheme;
 	#if PATCH_TWO_TONE_TITLE
@@ -89,10 +89,10 @@ void drw_setscheme(Drw *drw, Clr *scm);
 
 #if PATCH_WINDOW_ICONS
 Picture drw_picture_create_resized(Drw *drw, char *src, unsigned int src_w, unsigned int src_h, unsigned int dst_w, unsigned int dst_h);
-#if PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_WINDOW_ICONS_DEFAULT_ICON
-Picture drw_picture_create_resized_from_file(Drw *drw, char *src_file, unsigned int *picw, unsigned int *pich, unsigned int iconsize);
-#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_WINDOW_ICONS_DEFAULT_ICON
 #endif // PATCH_WINDOW_ICONS
+#if (PATCH_WINDOW_ICONS && (PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_WINDOW_ICONS_DEFAULT_ICON)) || PATCH_CUSTOM_TAG_ICONS
+Picture drw_picture_create_resized_from_file(Drw *drw, char *src_file, unsigned int *picw, unsigned int *pich, unsigned int iconsize);
+#endif // (PATCH_WINDOW_ICONS && (PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_WINDOW_ICONS_DEFAULT_ICON)) || PATCH_CUSTOM_TAG_ICONS
 
 /* Drawing functions */
 void drw_ellipse(Drw *drw, int x, int y, unsigned int w, unsigned int h, int filled, int invert);
@@ -105,9 +105,9 @@ int drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned in
 #else // NO PATCH_CLIENT_INDICATORS
 int drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, unsigned int rpad, int ellipsis_align, const char *text, int invert);
 #endif // PATCH_CLIENT_INDICATORS
-#if PATCH_WINDOW_ICONS
+#if PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 void drw_pic(Drw *drw, int x, int y, unsigned int w, unsigned int h, Picture pic);
-#endif // PATCH_WINDOW_ICONS
+#endif // PATCH_WINDOW_ICONS || PATCH_CUSTOM_TAG_ICONS
 
 /* Map functions */
 void drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h);
