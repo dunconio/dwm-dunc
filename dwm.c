@@ -12948,9 +12948,9 @@ parselayoutjson(cJSON *layout)
 			fprintf(stderr, "dwm: %s: %s.\n", c->string, c->valuestring);
 		else {
 			if (c->valueint > 1)
-				fprintf(stderr, "dwm: warning: parameter ignored - not supported in global section: (%lux) \"%s\".\n", c->valueint, c->string);
+				fprintf(stderr, "dwm: warning: parameter ignored - not supported in main section: (%lux) \"%s\".\n", c->valueint, c->string);
 			else if (c->valueint)
-				fprintf(stderr, "dwm: warning: parameter ignored - not supported in global section: \"%s\".\n", c->string);
+				fprintf(stderr, "dwm: warning: parameter ignored - not supported in main section: \"%s\".\n", c->string);
 			else
 				fprintf(stderr, "dwm: warning: parameter ignored - %s.\n", c->string);
 		}
@@ -21841,7 +21841,7 @@ reload:
 				print_supported_json(f,
 					supported_layout_global,
 					LENGTH(supported_layout_global),
-					"layout-file.json supported names:\n=================================\n\n    global section:\n    ---------------",
+					"layout-file.json supported names:\n=================================\n\n    main section:\n    -------------",
 					"        "
 				);
 				print_supported_json(f,
