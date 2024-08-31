@@ -2598,9 +2598,17 @@ applyrules(Client *c, int deferred)
 			) {
 				// attempt to set the parent according to its title;
 				c->parent_late = 1;
+				if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-is"))) {
+					if (cJSON_IsNull(r_node)) {
+						c->parent = NULL;
+						c->ultparent = c;
+						goto skip_parenting;
+					}
+					else if (cJSON_IsString(r_node))
+						c->parent_is = r_node;
+				}
 				if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-begins")) && cJSON_IsString(r_node)) c->parent_begins = r_node;
 				if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-contains")) && cJSON_IsString(r_node)) c->parent_contains = r_node;
-				if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-is")) && cJSON_IsString(r_node)) c->parent_is = r_node;
 				if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-ends")) && cJSON_IsString(r_node)) c->parent_ends = r_node;
 				for (m = mons; m; m = m->next) {
 					for (p = m->clients; p; p = p->next) {
@@ -2692,7 +2700,7 @@ applyrules(Client *c, int deferred)
 				}
 				*/
 			}
-
+skip_parenting:
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-guess")) && json_isboolean(r_node)) {
 				if (!(m = selmon))
 					for (m = mons; m && !m->stack; m = m->next);
