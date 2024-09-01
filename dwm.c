@@ -102,6 +102,7 @@ static char *tabFontgroup = NULL;		// alt-tab switcher font group;
 #endif // PATCH_FONT_GROUPS
 
 static char **coloursbackup = NULL;
+static char **tagiconpathsbackup = NULL;
 
 typedef struct {
 	const char *name;
@@ -21807,6 +21808,8 @@ main(int argc, char *argv[], char *envp[])
 
 	coloursbackup = malloc(sizeof(colours));
 	memcpy(coloursbackup, colours, sizeof(colours));
+	tagiconpathsbackup = malloc(sizeof(tagiconpaths));
+	memcpy(tagiconpathsbackup, tagiconpaths, sizeof(tagiconpaths));
 
 reload:
 	for (int i = 0; i < LENGTH(colourflags); i++) {
@@ -22112,6 +22115,7 @@ fputs("dwm: finished.\n", stderr);
 
 	// reload;
 	if (running == -1) {
+		memcpy(tagiconpaths, tagiconpathsbackup, sizeof(tagiconpaths));
 		memcpy(colours, coloursbackup, sizeof(colours));
 		running = 1;
 		logdatetime(stderr);
