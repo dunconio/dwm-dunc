@@ -9282,7 +9282,16 @@ killclient(const Arg *arg)
 		#endif // PATCH_PAUSE_PROCESS
 		DEBUG("client continued: \"%s\".\n", selmon->sel->name);
 	}
+	#if PATCH_PAUSE_PROCESS
+	else
+	#endif // PATCH_PAUSE_PROCESS
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
+	#if PATCH_PAUSE_PROCESS
+	if (selmon->sel->paused) {
+		kill (selmon->sel->pid, SIGCONT);
+		selmon->sel->paused = 0;
+	}
+	#endif // PATCH_PAUSE_PROCESS
 	killwin(selmon->sel->win);
 }
 void
@@ -9380,7 +9389,16 @@ killgroup(const Arg *arg)
 				#endif // PATCH_PAUSE_PROCESS
 				DEBUG("client continued: \"%s\".\n", c->name);
 			}
+			#if PATCH_PAUSE_PROCESS
+			else
+			#endif // PATCH_PAUSE_PROCESS
 			#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
+			#if PATCH_PAUSE_PROCESS
+			if (c->paused) {
+				kill (c->pid, SIGCONT);
+				c->paused = 0;
+			}
+			#endif // PATCH_PAUSE_PROCESS
 			killwin(c->win);
 		}
 
