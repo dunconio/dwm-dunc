@@ -15228,6 +15228,8 @@ restack(Monitor *m)
 
 	// raise the selected/highighted client if applicable;
 	if (raised) {
+		if (!raised->isfloating)
+			raisewin(raised->mon, raised->win, False);
 		/*
 		if (raised->isfloating
 			#if PATCH_FLAG_ALWAYSONTOP
