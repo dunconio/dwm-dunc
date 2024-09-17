@@ -15930,12 +15930,20 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		c->monindex = m->num;
 		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
 		#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-		attachBelow(c);
-		attachstackBelow(c);
-		#else // NO PATCH_ATTACH_BELOW_AND_NEWMASTER
-		attach(c);
-		attachstack(c);
+		if (!c->isfullscreen
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			|| c->fakefullscreen == 1
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+		) {
+			attachBelow(c);
+			attachstackBelow(c);
+		}
+		else
 		#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+		{
+			attach(c);
+			attachstack(c);
+		}
 		#if PATCH_PERSISTENT_METADATA
 		setclienttagprop(c);
 		#endif // PATCH_PERSISTENT_METADATA
