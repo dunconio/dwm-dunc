@@ -7586,11 +7586,16 @@ focusstack(const Arg *arg)
 
 			#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 			if (s->pauseinvisible && s->pid) {
-				if (!ISVISIBLE(s) || s->mon->lt[s->mon->sellt]->arrange == monocle || (c->isfullscreen
-					#if PATCH_FLAG_FAKEFULLSCREEN
-					&& c->fakefullscreen != 1
-					#endif // PATCH_FLAG_FAKEFULLSCREEN
-				)) {
+				if (!ISVISIBLE(s) || s->mon->lt[s->mon->sellt]->arrange == monocle ||
+					#if PATCH_FLAG_HIDDEN
+					s->ishidden ||
+					#endif // PATCH_FLAG_HIDDEN
+					(c->isfullscreen
+						#if PATCH_FLAG_FAKEFULLSCREEN
+						&& c->fakefullscreen != 1
+						#endif // PATCH_FLAG_FAKEFULLSCREEN
+					)
+				) {
 					if (s->pauseinvisible == 1) {
 						kill (s->pid, SIGSTOP);
 						s->pauseinvisible = -1;
@@ -15006,7 +15011,11 @@ restack(Monitor *m)
 		#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 		for (c = m->stack; c; c = c->snext) {
 			if (c->pauseinvisible && c->pid) {
-				if (ISVISIBLE(c) && (
+				if (ISVISIBLE(c)
+					#if PATCH_FLAG_HIDDEN
+					&& !c->ishidden
+					#endif // PATCH_FLAG_HIDDEN
+					&& (
 					(c->isfullscreen
 						#if PATCH_FLAG_FAKEFULLSCREEN
 						&& c->fakefullscreen != 1
