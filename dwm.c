@@ -2203,11 +2203,14 @@ applyrulesdeferred(Client *c)
 	Monitor *m = c->mon;
 	int sel = (m->sel == c);
 	unsigned int tags = c->tags;
+	unsigned int floating = c->isfloating_override;
 	if (applyrules(c, 1)) {
 		if (!c->tags && tags)
 			c->tags = tags;
 		Monitor *mm = c->mon;
 		c->mon = m;
+		if (floating != c->isfloating_override && c->isurgent && c->isfloating)
+			focus(c, 0);
 		if (m == mm && (c->tags == tags || ISVISIBLE(c)))
 			c->monindex = mm->num;
 		else {
@@ -2820,7 +2823,15 @@ skip_parenting:
 			#if PATCH_FLAG_PANEL
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-panel")) && json_isboolean(r_node)) c->ispanel = r_node->valueint;
 			#endif // PATCH_FLAG_PANEL
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-floating")) && json_isboolean(r_node)) c->isfloating = c->isfloating_override = r_node->valueint;
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-floating")) && json_isboolean(r_node)) {
+				c->isfloating_override = r_node->valueint;
+				if (deferred) {
+					if (c->isfloating != c->isfloating_override)
+						togglefloatingex(c);
+				}
+				else
+					c->isfloating = c->isfloating_override;
+			}
 			#if PATCH_FLAG_GAME
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-game")) && json_isboolean(r_node)) c->isgame = r_node->valueint;
 			#if PATCH_FLAG_GAME_STRICT
@@ -19386,7 +19397,7 @@ togglefloatingex(Client *c)
 		cropdelete(c);
 	#endif // PATCH_CROP_WINDOWS
 	if (vis)
-		arrange(selmon);
+		arrange(c->mon);
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
