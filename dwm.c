@@ -20618,7 +20618,7 @@ updatewindowstate(Client *c)
 	}
 	#endif // PATCH_FLAG_STICKY
 	#if PATCH_MODAL_SUPPORT
-	if (c->ismodal_override != 0) {
+	if (c->ismodal_override == -1) {
 		c->ismodal = modal;
 		di = 1;
 	}
