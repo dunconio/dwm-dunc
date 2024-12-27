@@ -560,6 +560,7 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask|ControlMask, XK_c,      spawn,          SHCMD("thorium-browser --incognito >/dev/null 2>&1"), DESCRIPTION_RUN_THORIUM_PRIVATE},
 	{ MODKEY|ShiftMask,             XK_b,      spawn,          SHCMD("/opt/brave.com/brave/brave-browser >/dev/null 2>&1"), DESCRIPTION_RUN_BRAVE},
 	{ MODKEY|ShiftMask|ControlMask, XK_b,      spawn,          SHCMD("/opt/brave.com/brave/brave-browser --incognito --tor >/dev/null 2>&1"), DESCRIPTION_RUN_BRAVE_PRIVATE},
+	{ 0,                   XF86AudioPlay,      spawn,          SHCMD ("playerctl -a play-pause"), DESCRIPTION_PLAY_PAUSE},
 	{ 0,            XF86AudioLowerVolume,      spawn,          SHCMD ("pamixer -d 5 >/dev/null 2>&1; pkill -RTMIN+8 dwmblocks"), DESCRIPTION_VOLUME_DOWN},
 	{ ShiftMask|ControlMask,XF86AudioLowerVolume,spawn,        SHCMD ("pamixer --allow-boost --set-limit 150 -d 5 >/dev/null 2>&1; pkill -RTMIN+8 dwmblocks"), DESCRIPTION_VOLUME_DOWN_BOOST},
 	{ 0,                   XF86AudioMute,      spawn,          SHCMD ("pamixer --toggle-mute >/dev/null 2>&1; pkill -RTMIN+8 dwmblocks"), DESCRIPTION_VOLUME_MUTE},

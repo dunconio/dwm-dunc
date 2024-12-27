@@ -223,6 +223,7 @@
 
 #define DESCRIPTION_VIEW_ALL_TAGS					"View all tags"
 
+#define DESCRIPTION_PLAY_PAUSE						"Play/pause media"
 #define DESCRIPTION_VOLUME_DOWN						"System volume down"
 #define DESCRIPTION_VOLUME_DOWN_BOOST				"System volume down (boosted maximum)"
 #define DESCRIPTION_VOLUME_MUTE						"Mute system volume"
