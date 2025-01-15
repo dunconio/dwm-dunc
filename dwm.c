@@ -261,6 +261,9 @@ static const supported_json supported_layout_global[] = {
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	{ "showmaster", 				"set to true if the master client class should be shown on each tag on the bar" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+	#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+	{ "status-allow-fixed-monitor",	"if only one monitor has showstatus set, enable rendering the status bar element whether or not the monitor is active" },
+	#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
 	#if PATCH_STATUSCMD
 	#if PATCH_STATUSCMD_COLOURS
 	{ "status-colour-1",			"status zone section colour 1" },
@@ -1841,6 +1844,10 @@ static int nonstop = 1;		// scanning for windows or cleaning up before exit;
 #if PATCH_CLIENT_INDICATORS
 static unsigned int client_ind_offset = 0;
 #endif // PATCH_CLIENT_INDICATORS
+
+#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+static Monitor *status_always_on = NULL;
+#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
 
 #if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 static Client *game = NULL;
@@ -5460,7 +5467,13 @@ drawbar(Monitor *m, int skiptags)
 	#endif // PATCH_FLAG_PANEL
 
 	/* draw status first so it can be overdrawn by tags later */
-	if (m == selmon && m->showstatus) { /* status is only drawn on selected monitor */
+	if (m->showstatus &&
+			(m == selmon
+			#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+			|| m == status_always_on
+			#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
+			)
+		) {
 		#if PATCH_COLOUR_BAR
 		drw_setscheme(drw, scheme[SchemeStatus]);
 		#else // NO PATCH_COLOUR_BAR
@@ -12359,6 +12372,16 @@ parselayoutjson(cJSON *layout)
 				}
 				cJSON_AddNumberToObject(unsupported, "\"bar-layout\" must contain an array of strings", 0);
 			}
+
+			#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+			else if (strcmp(L->string, "status-allow-fixed-monitor")==0) {
+				if (json_isboolean(L)) {
+					status_allow_fixed_mon = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-allow-fixed-monitor\" must contain a boolean value", 0);
+			}
+			#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
 
 			#if PATCH_STATUSCMD
 			#if PATCH_STATUSCMD_COLOURS
@@ -20224,20 +20247,40 @@ updategeom(void)
 		}
 		free(unique);
 
+		#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+		Monitor *last_status_mon, *status_mon;
+		status_mon = NULL;
+		status_always_on = status_allow_fixed_mon ? mons : NULL;
+		#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
 		// move any clients that want a monitor that they are not currently on;
 		for (m = mons; m; m = m->next)
+		{
+			#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+			if (status_allow_fixed_mon && status_always_on) {
+				last_status_mon = status_mon;
+				if (m->showstatus)
+					status_mon = status_always_on = m;
+				if (last_status_mon && last_status_mon != status_mon)
+					status_always_on = NULL;
+			}
+			#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
+
 			for (c = m->clients; c; c = c->next)
 				if (c->monindex != -1 && c->mon->num != c->monindex) {
 					for (mm = mons; mm && mm->num != c->monindex; mm = mm->next);
 					if (mm)
 						sendmon(c, mm, NULL, 1);
 				}
+		}
 
 	} else
 #endif /* XINERAMA */
 	{ /* default monitor setup */
 		if (!mons)
 			mons = createmon();
+		#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+		status_always_on = status_allow_fixed_mon ? mons : NULL;
+		#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
 		if (mons->mw != sw || mons->mh != sh) {
 			dirty = 1;
 			mons->mw = mons->ww = sw;
@@ -20315,28 +20358,39 @@ updatesizehints(Client *c)
 void
 updatestatus(void)
 {
+	Monitor *m = selmon;
+
 	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
 		strcpy(stext, DWM_VERSION_STRING_SHORT); // no shining of dwm version thru panel, when transparent
-	else if (selmon->showstatus == -1)
+	else if (m->showstatus == -1
+			#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+			&& !status_always_on
+			#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
+		)
 		return;
 
-	if (selmon->showstatus && (
+	#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+	if (m->showstatus != 1 && status_always_on)
+		m = status_always_on;
+	#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
+
+	if (m->showstatus && (
 		#if PATCH_ALT_TAGS
-		selmon->alttags ||
+		m->alttags ||
 		#endif // PATCH_ALT_TAGS
-		!selmon->sel ||
-		!(selmon->sel->isfullscreen
+		!m->sel ||
+		!(m->sel->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			&& selmon->sel->fakefullscreen != 1
+			&& m->sel->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		))) {
 		#if PATCH_SYSTRAY
-		if (showsystray)
+		if (showsystray && m == systraytomon(m))
 			updatesystray(1);
 		else
 		#endif // PATCH_SYSTRAY
 			//drawbars();
-			drawbar(selmon, 1);
+			drawbar(m, 1);
 	}
 }
 

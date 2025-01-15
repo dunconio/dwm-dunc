@@ -84,6 +84,7 @@ These can be enabled/disabled by editing `patches.h`
 | <ul>`PATCH_SHOW_DESKTOP_UNMANAGED`</ul> | Support an unmanaged desktop that will typically span the entire screen space; |
 | <ul>`PATCH_SHOW_DESKTOP_WITH_FLOATING`</ul> | Allow visible floating clients to remain visible while the desktop is shown; |
 | `PATCH_SHOW_MASTER_CLIENT_ON_TAG` | Shows the first `master` client on each tag on the bar; |
+| `PATCH_STATUS_ALLOW_FIXED_MONITOR` | Allow status to be drawn on non-active monitor if it's the only monitor allowed to display the status; |
 | `PATCH_STATUSCMD` | Supports using `dwmblocks` or similar to manage the status bar content; |
 | <ul>`PATCH_STATUSCMD_COLOURS`</ul> | Supports using status bar content with colour changes denoted by `^Cindex^`, where `index` is one of the following:<ul><li>a colour number between 1 and 15, corresponding to colour scheme `SchemeStatC1` - `SchemeStatC15`;</li><li>a X11 colour definition mnemonic, e.g. `red`, `pink`, `cyan`, etc.</li><li>a colour code in the form `#rgb`, `#rrggbb`, or `#rrggbbaa`;</li></ul> |
 | <ul>`PATCH_STATUSCMD_MODIFIERS`</ul> | Add modifier values to button value when signalling `dwmblocks`;<br />An appropriately patched `dwmblocks` can set additional environment variables based on the bits 8-15; |
@@ -327,6 +328,9 @@ layout-file.json supported names:
                                        in place of tag identifier (for each tag)
         showmaster                   - set to true if the master client class
                                        should be shown on each tag on the bar
+        status-allow-fixed-monitor   - if only one monitor has showstatus set,
+                                       enable rendering the status bar element
+                                       whether or not the monitor is active
         status-colour-1              - status zone section colour 1
         status-colour-2              - status zone section colour 2
         status-colour-3              - status zone section colour 3

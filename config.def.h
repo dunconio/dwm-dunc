@@ -93,6 +93,10 @@ static Bool showdesktop_floating = True;
 #endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
 #endif // PATCH_SHOW_DESKTOP
 
+#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+static Bool status_allow_fixed_mon = True;
+#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
+
 #if PATCH_MOVE_FLOATING_WINDOWS
 #define MOVE_FLOATING_STEP		20
 #define MOVE_FLOATING_STEP_BIG	100

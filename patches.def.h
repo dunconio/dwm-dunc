@@ -42,6 +42,7 @@
 #define PATCH_SHOW_DESKTOP_UNMANAGED		1	// Don't manage desktop clients;
 #define PATCH_SHOW_DESKTOP_WITH_FLOATING	1	// Allow floating clients to be visible while the desktop is;
 #define PATCH_SHOW_MASTER_CLIENT_ON_TAG		1
+#define PATCH_STATUS_ALLOW_FIXED_MONITOR	1	// Allow status to be drawn on non-active monitor if it's only allowed on that monitor;
 #define PATCH_STATUSCMD						0
 #define PATCH_STATUSCMD_COLOURS				1
 #define PATCH_STATUSCMD_MODIFIERS			1	// Add modifier values to button signal;
