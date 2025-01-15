@@ -262,7 +262,7 @@ static const supported_json supported_layout_global[] = {
 	{ "showmaster", 				"set to true if the master client class should be shown on each tag on the bar" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	#if PATCH_STATUS_ALLOW_FIXED_MONITOR
-	{ "status-allow-fixed-monitor",	"if only one monitor has showstatus set, enable rendering the status bar element whether or not the monitor is active" },
+	{ "status-allow-fixed-monitor",	"true to enable rendering the status bar element whether or not the monitor is active (if only one monitor has showstatus set)" },
 	#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
 	#if PATCH_STATUSCMD
 	#if PATCH_STATUSCMD_COLOURS
@@ -281,6 +281,9 @@ static const supported_json supported_layout_global[] = {
 	{ "status-colour-13",			"status zone section colour 13" },
 	{ "status-colour-14",			"status zone section colour 14" },
 	{ "status-colour-15",			"status zone section colour 15" },
+	#if PATCH_STATUSCMD_COLOURS_DECOLOURIZE
+	{"status-decolourize-inactive",	"true to decolourize the status text when monitor is inactive" },
+	#endif // PATCH_STATUSCMD_COLOURS_DECOLOURIZE
 	#endif // PATCH_STATUSCMD_COLOURS
 	#endif // PATCH_STATUSCMD
 	#if PATCH_SYSTRAY
@@ -5643,7 +5646,11 @@ drawbar(Monitor *m, int skiptags)
 					text = s;
 
 					#if PATCH_STATUSCMD_COLOURS
-					if ((unsigned char)(*(s + 1)) == 'C') {
+					if ((unsigned char)(*(s + 1)) == 'C'
+						#if PATCH_STATUSCMD_COLOURS_DECOLOURIZE
+						&& (!status_decolourize_inactive || m == selmon)
+						#endif // PATCH_STATUSCMD_COLOURS_DECOLOURIZE
+					) {
 
 						isCode = atoi(s + 2);
 						if (isCode && isCode <= (SchemeStatusCmd - SchemeStatC1 + 1))
@@ -12490,6 +12497,15 @@ parselayoutjson(cJSON *layout)
 				}
 				cJSON_AddNumberToObject(unsupported, "\"status-colour-15\" must contain a string value", 0);
 			}
+			#if PATCH_STATUSCMD_COLOURS_DECOLOURIZE
+			else if (strcmp(L->string, "status-decolourize-inactive")==0) {
+				if (json_isboolean(L)) {
+					status_decolourize_inactive = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"status-decolourize-inactive\" must contain a boolean value", 0);
+			}
+			#endif // PATCH_STATUSCMD_COLOURS_DECOLOURIZE
 			#endif // PATCH_STATUSCMD_COLOURS
 			#endif // PATCH_STATUSCMD
 

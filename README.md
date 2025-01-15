@@ -87,6 +87,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_STATUS_ALLOW_FIXED_MONITOR` | Allow status to be drawn on non-active monitor if it's the only monitor allowed to display the status; |
 | `PATCH_STATUSCMD` | Supports using `dwmblocks` or similar to manage the status bar content; |
 | <ul>`PATCH_STATUSCMD_COLOURS`</ul> | Supports using status bar content with colour changes denoted by `^Cindex^`, where `index` is one of the following:<ul><li>a colour number between 1 and 15, corresponding to colour scheme `SchemeStatC1` - `SchemeStatC15`;</li><li>a X11 colour definition mnemonic, e.g. `red`, `pink`, `cyan`, etc.</li><li>a colour code in the form `#rgb`, `#rrggbb`, or `#rrggbbaa`;</li></ul> |
+| <ul>`PATCH_STATUSCMD_COLOURS_DECOLOURIZE`</ul> | Decolourize the status bar content when monitor is not active; |
 | <ul>`PATCH_STATUSCMD_MODIFIERS`</ul> | Add modifier values to button value when signalling `dwmblocks`;<br />An appropriately patched `dwmblocks` can set additional environment variables based on the bits 8-15; |
 | <ul>`PATCH_STATUSCMD_NONPRINTING`</ul> | Supports using status bar content with non-printing characters denoted by `^Nchars^`, where empty space will replace each of the characters; |
 | `PATCH_SWITCH_TAG_ON_EMPTY` | Enables tag switch if there are no visible clients; |
@@ -328,9 +329,10 @@ layout-file.json supported names:
                                        in place of tag identifier (for each tag)
         showmaster                   - set to true if the master client class
                                        should be shown on each tag on the bar
-        status-allow-fixed-monitor   - if only one monitor has showstatus set,
-                                       enable rendering the status bar element
-                                       whether or not the monitor is active
+        status-allow-fixed-monitor   - true to enable rendering the status bar
+                                       element whether or not the monitor is
+                                       active (if only one monitor has
+                                       showstatus set)
         status-colour-1              - status zone section colour 1
         status-colour-2              - status zone section colour 2
         status-colour-3              - status zone section colour 3
@@ -346,6 +348,8 @@ layout-file.json supported names:
         status-colour-13             - status zone section colour 13
         status-colour-14             - status zone section colour 14
         status-colour-15             - status zone section colour 15
+        status-decolourize-inactive  - true to decolourize the status text when
+                                       monitor is inactive
         system-tray                  - true to enable system tray handling
         system-tray-align            - align the system tray to side of the
                                        status area:

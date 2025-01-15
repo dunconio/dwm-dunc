@@ -379,6 +379,9 @@ static IPCCommand ipccommands[] = {
 
 #if PATCH_STATUSCMD
 #define STATUSBAR "dwmblocks"
+#if PATCH_STATUSCMD_COLOURS_DECOLOURIZE
+static Bool status_decolourize_inactive = True;
+#endif // PATCH_STATUSCMD_COLOURS_DECOLOURIZE
 #endif // PATCH_STATUSCMD
 
 /* commands */
