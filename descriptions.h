@@ -76,6 +76,7 @@
 #define DESCRIPTION_MFACT_INCREASE_5PC				"Increase master client area proportion by 5%"
 #define DESCRIPTION_MFACT_RESET						"Reset master client area proportion"
 #define DESCRIPTION_MUTE_GUI						"Mute an audio device or application"
+#define DESCRIPTION_MUTE_MEDIA_APPS					"Mute common media playing applications"
 #define DESCRIPTION_NMASTER_DECREASE				"Increase number of master clients"
 #define DESCRIPTION_NMASTER_INCREASE				"Decrease number of master clients"
 
