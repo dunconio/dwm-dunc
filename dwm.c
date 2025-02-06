@@ -4729,8 +4729,8 @@ createmon(void)
 			m->title_align = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-title-align")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->title_align;
 
 			#if PATCH_MOUSE_POINTER_HIDING
-			m->cursorautohide = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
-			m->cursorhideonkeys = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
+			m->cursorautohide = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
+			m->cursorhideonkeys = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
 			#endif // PATCH_MOUSE_POINTER_HIDING
 
 			#if PATCH_ALTTAB
@@ -4866,8 +4866,8 @@ createmon(void)
 							m->pertag->class_stacking[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-class-stacking")) && json_isboolean(l_node)) ? l_node->valueint : m->class_stacking;
 							#endif // PATCH_CLASS_STACKING
 							#if PATCH_MOUSE_POINTER_HIDING
-							m->pertag->cursorautohide[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
-							m->pertag->cursorhideonkeys[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
+							m->pertag->cursorautohide[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
+							m->pertag->cursorhideonkeys[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
 							#endif // PATCH_MOUSE_POINTER_HIDING
 							m->pertag->enablegaps[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-enable-gaps")) && json_isboolean(l_node)) ? l_node->valueint : m->enablegaps;
 							m->pertag->mfacts_def[i] = m->pertag->mfacts[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-mfact")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->mfact;
@@ -12109,7 +12109,7 @@ parselayoutjson(cJSON *layout)
 					client_ind = L->valueint;
 					continue;
 				}
-				cJSON_AddNumberToObject(unsupported, "\"client-indicator-size\" must contain a boolean value.", 0);
+				cJSON_AddNumberToObject(unsupported, "\"client-indicators\" must contain a boolean value.", 0);
 			}
 			else if (strcmp(L->string, "client-indicator-size")==0) {
 				if (cJSON_IsInteger(L)) {
