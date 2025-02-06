@@ -50,6 +50,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_BORDERLESS_SOLITARY_CLIENTS` | Supports removal of solitary tiled clients' borders; |
 | `PATCH_BIDIRECTIONAL_TEXT` | Supports LTR and RTL languages via freebidi library; |
 | `PATCH_CFACTS` | Client sizing factor support in various layouts, which can be specified via rules and also changed at run-time; |
+| `PATCH_CLASS_STACKING` | Keep tiled clients of the same class together as one tile; |
 | `PATCH_CLIENT_INDICATORS` | Add blobs to the bar tag to indicate clients visible on that tag; |
 | `PATCH_CLIENT_OPACITY` | Define opacity levels (between 0 and 1) for focused and unfocused clients; |
 | `PATCH_COLOUR_BAR` | Define colours for each bar element; |

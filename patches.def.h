@@ -8,6 +8,7 @@
 #define PATCH_BIDIRECTIONAL_TEXT			1
 #define PATCH_BORDERLESS_SOLITARY_CLIENTS	1
 #define PATCH_CFACTS						1
+#define PATCH_CLASS_STACKING				1	// Toggle keeping tiled clients of the same class as one tile
 #define PATCH_CLIENT_INDICATORS				1
 #define PATCH_CLIENT_OPACITY				1
 #define PATCH_COLOUR_BAR					1

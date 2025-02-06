@@ -23,6 +23,10 @@
 #define DESCRIPTION_CFACT_RESET						"Reset the tiled client's size weighting factor"
 #endif // PATCH_CFACTS
 
+#if PATCH_CLASS_STACKING
+#define DESCRIPTION_CLASS_STACKING_TOGGLE			"Toggle class stacking"
+#endif // PATCH_CLASS_STACKING
+
 #define DESCRIPTION_CLEAR_URGENCY					"Clear all urgency hints"
 
 #define DESCRIPTION_FOCUSMON_BACKWARD				"Focus the previous monitor"

@@ -152,6 +152,9 @@ static const supported_json supported_layout_global[] = {
 	#if PATCH_BORDERLESS_SOLITARY_CLIENTS
 	{ "borderless-solitary",		"true to hide window borders for solitary tiled clients" },
 	#endif // PATCH_BORDERLESS_SOLITARY_CLIENTS
+	#if PATCH_CLASS_STACKING
+	{ "class-stacking",				"true for visible tiled clients of the same class to occupy the same tile" },
+	#endif // PATCH_CLASS_STACKING
 	#if PATCH_CLIENT_INDICATORS
 	{ "client-indicators",			"true to show indicators blobs on the edge of each tag to represent the number of clients present" },
 	{ "client-indicator-size",		"size in pixels of client indicators" },
@@ -318,6 +321,9 @@ static const supported_json supported_layout_mon[] = {
 	{ "set-alt-tab-y",			"alt-tab switcher position on this monitor - 0:top, 1:middle, 2:bottom" },
 	#endif // PATCH_ALTTAB
 	{ "set-bar-layout",			"array of bar elements in order of appearance (TagBar, LtSymbol, WinTitle, StatusText)" },
+	#if PATCH_CLASS_STACKING
+	{ "set-class-stacking",		"true for visible tiled clients of the same class to occupy the same tile on this monitor" },
+	#endif // PATCH_CLASS_STACKING
 	#if PATCH_MOUSE_POINTER_HIDING
 	{ "set-cursor-autohide",	"true to hide cursor when stationary on this monitor" },
 	{ "set-cursor-hide-on-keys","true to hide cursor when keys are pressed on this monitor" },
@@ -384,6 +390,9 @@ static const supported_json supported_layout_tag[] = {
 	{ "comment", 			"ignored" },
 	{ "index",				"tag index number, usually between 1 and 9" },
 	#if PATCH_PERTAG
+	#if PATCH_CLASS_STACKING
+	{ "set-class-stacking",	"true for visible tiled clients of the same class to occupy the same tile on this tag" },
+	#endif // PATCH_CLASS_STACKING
 	#if PATCH_MOUSE_POINTER_HIDING
 	{ "set-cursor-autohide","true to hide cursor when stationary on this tag" },
 	{ "set-cursor-hide-on-keys","true to hide cursor when keys are pressed on this tag" },
@@ -969,6 +978,9 @@ struct Client {
 	unsigned int tags;
 	int dormant;
 	int isfixed, isfloating, isurgent;
+	#if PATCH_CLASS_STACKING
+	Client *isstacked;		// tiled window whose position is to be matched;
+	#endif // PATCH_CLASS_STACKING
 	#if PATCH_SHOW_DESKTOP
 	int wasdesktop;		// started with NetWMWindowTypeDesktop;
 	int isdesktop;		// desktop client
@@ -1165,6 +1177,9 @@ struct Monitor {
 	int by;               /* bar geometry */
 	int mx, my, mw, mh;   /* screen size */
 	int wx, wy, ww, wh;   /* window area  */
+	#if PATCH_CLASS_STACKING
+	int class_stacking;
+	#endif // PATCH_CLASS_STACKING
 	#if PATCH_ALTTAB
 	int altTabN;		  /* move that many clients forward */
 	int altTabIndex;      /* currently highlighted index */
@@ -1735,6 +1750,9 @@ static void togglepause(const Arg *arg);
 #if DEBUGGING
 static void toggleskiprules(const Arg *arg);
 #endif // DEBUGGING
+#if PATCH_CLASS_STACKING
+static void togglestacking(const Arg *arg);
+#endif // PATCH_CLASS_STACKING
 #if PATCH_FLAG_STICKY
 static void togglesticky(const Arg *arg);
 #endif // PATCH_FLAG_STICKY
@@ -2002,6 +2020,9 @@ struct Pertag {
 	int showbars[LENGTH(tags) + 1]; /* display bar for the current tag */
 	int enablegaps[LENGTH(tags) + 1]; /* enable/disable vanity gaps */
 	int alttagsquiet[LENGTH(tags) + 1];	// don't raise the bar or show over fullscreen clients;
+	#if PATCH_CLASS_STACKING
+	int class_stacking[LENGTH(tags) + 1];
+	#endif // PATCH_CLASS_STACKING
 	#if PATCH_MOUSE_POINTER_HIDING
 	int cursorautohide[LENGTH(tags) + 1]; // autohide the cursor when stationary for the current tag;
 	int cursorhideonkeys[LENGTH(tags) + 1]; // autohide the cursor on keys for the current tag;
@@ -3183,6 +3204,76 @@ arrangemon(Monitor *m)
 #pragma GCC diagnostic ignored "-Wstringop-truncation"
 	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof m->ltsymbol);
 #pragma GCC diagnostic pop
+	#if PATCH_CLASS_STACKING
+	Client *c, *c2;
+	XClassHint ch = { NULL, NULL };
+	XClassHint ch2 = { NULL, NULL };
+	XWindowChanges wc;
+
+	for (c = m->clients; c; c = c->next)
+		c->isstacked = NULL;
+	if (m->class_stacking)
+	{
+		for (c = m->stack; c; c = c->snext)
+		{
+			if (!ISVISIBLE(c) || c->isstacked || !c->next
+				#if PATCH_FLAG_HIDDEN
+				|| c->ishidden
+				#endif // PATCH_FLAG_HIDDEN
+				#if PATCH_FLAG_IGNORED
+				|| c->isignored
+				#endif // PATCH_FLAG_IGNORED
+			)
+				continue;
+			XGetClassHint(dpy, c->win, &ch);
+			if (ch.res_name)
+				XFree(ch.res_name);
+			if (!ch.res_class)
+				continue;
+
+			for (c2 = c->next; c2; c2 = c2->next)
+			{
+				if (!ISVISIBLE(c2) || c2->isstacked
+					#if PATCH_FLAG_HIDDEN
+					|| c2->ishidden
+					#endif // PATCH_FLAG_HIDDEN
+					#if PATCH_FLAG_IGNORED
+					|| c2->isignored
+					#endif // PATCH_FLAG_IGNORED
+				)
+					continue;
+				XGetClassHint(dpy, c2->win, &ch2);
+				if (ch2.res_name)
+					XFree(ch2.res_name);
+				if (!ch2.res_class)
+					continue;
+				if (strcmp(ch.res_class, ch2.res_class) == 0)
+					c2->isstacked = c;
+				XFree(ch2.res_class);
+			}
+
+			if (ch.res_class)
+				XFree(ch.res_class);
+		}
+
+		if (m->lt[m->sellt]->arrange)
+			m->lt[m->sellt]->arrange(m);
+
+		for (c = m->clients; c; c = c->next)
+		{
+			if (!c->isstacked)
+				continue;
+			c->x = c->isstacked->x;
+			c->y = c->isstacked->y;
+			c->w = c->isstacked->w;
+			c->h = c->isstacked->h;
+			XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
+			wc.border_width = solitary(c->isstacked) ? 0 : c->bw;
+			XConfigureWindow(dpy, c->win, CWBorderWidth, &wc);
+		}
+	}
+	else
+	#endif // PATCH_CLASS_STACKING
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/*
@@ -4492,6 +4583,9 @@ createmon(void)
 	m->activeopacity = activeopacity;
 	m->inactiveopacity = inactiveopacity;
 	#endif // PATCH_CLIENT_OPACITY
+	#if PATCH_CLASS_STACKING
+	m->class_stacking = class_stacking;
+	#endif // PATCH_CLASS_STACKING
 	#if PATCH_MOUSE_POINTER_HIDING
 	m->cursorautohide = cursorautohide;
 	m->cursorhideonkeys = cursorhideonkeys;
@@ -4594,6 +4688,9 @@ createmon(void)
 		#if PATCH_ALT_TAGS
 		m->pertag->alttagsquiet[i] = m->alttagsquiet;
 		#endif // PATCH_ALT_TAGS
+		#if PATCH_CLASS_STACKING
+		m->pertag->class_stacking[i] = m->class_stacking;
+		#endif // PATCH_CLASS_STACKING
 	}
 	#endif // PATCH_PERTAG
 	// identify monitor index;
@@ -4665,6 +4762,9 @@ createmon(void)
 			m->inactiveopacity = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-opacity-inactive")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->inactiveopacity;
 			#endif // PATCH_CLIENT_OPACITY
 			m->isdefault = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-default")) && json_isboolean(l_node)) ? l_node->valueint : m->isdefault;
+			#if PATCH_CLASS_STACKING
+			m->class_stacking = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-class-stacking")) && json_isboolean(l_node)) ? l_node->valueint : m->class_stacking;
+			#endif // PATCH_CLASS_STACKING
 			#if PATCH_VANITY_GAPS
 			m->enablegaps = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-enable-gaps")) && json_isboolean(l_node)) ? l_node->valueint : m->enablegaps;
 			m->gappih = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-inner-h")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappih;
@@ -4746,6 +4846,9 @@ createmon(void)
 				#if PATCH_ALT_TAGS
 				m->pertag->alttagsquiet[i] = m->alttagsquiet;
 				#endif // PATCH_ALT_TAGS
+				#if PATCH_CLASS_STACKING
+				m->pertag->class_stacking[i] = m->class_stacking;
+				#endif // PATCH_CLASS_STACKING
 				#endif // PATCH_PERTAG
 				if (cJSON_IsArray(tags_json)) {
 
@@ -4759,6 +4862,9 @@ createmon(void)
 							#if PATCH_ALT_TAGS
 							m->pertag->alttagsquiet[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-quiet-alt-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->alttagsquiet;
 							#endif // PATCH_ALT_TAGS
+							#if PATCH_CLASS_STACKING
+							m->pertag->class_stacking[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-class-stacking")) && json_isboolean(l_node)) ? l_node->valueint : m->class_stacking;
+							#endif // PATCH_CLASS_STACKING
 							#if PATCH_MOUSE_POINTER_HIDING
 							m->pertag->cursorautohide[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
 							m->pertag->cursorhideonkeys[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
@@ -4805,6 +4911,9 @@ createmon(void)
 			m->cursorautohide = m->pertag->cursorautohide[1];
 			m->cursorhideonkeys = m->pertag->cursorhideonkeys[1];
 			#endif // PATCH_MOUSE_POINTER_HIDING
+			#if PATCH_CLASS_STACKING
+			m->class_stacking = m->pertag->class_stacking[1];
+			#endif // PATCH_CLASS_STACKING
 			#if PATCH_ALT_TAGS
 			m->alttagsquiet = m->pertag->alttagsquiet[1];
 			#endif // PATCH_ALT_TAGS
@@ -7285,6 +7394,17 @@ focus(Client *c, int force)
 	}
 
 	if (c) {
+
+		#if PATCH_CLASS_STACKING
+		if (c->isstacked)
+		{
+			for (Client *cc = c->mon->clients; cc; cc = cc->next)
+				if (cc->isstacked == c->isstacked && cc != c)
+					cc->isstacked = c;
+			c->isstacked->isstacked = c;
+			c->isstacked = NULL;
+		}
+		#endif // PATCH_CLASS_STACKING
 
 		if (c->mon != selmon)
 			selmon = c->mon;
@@ -9881,6 +10001,9 @@ logdiagnostics(const Arg *arg)
 		#if PATCH_FLAG_PANEL
 		"p: ispanel",
 		#endif // PATCH_FLAG_PANEL
+		#if PATCH_CLASS_STACKING
+		"=: class stacked",
+		#endif // PATCH_CLASS_STACKING
 		"P: client has a parent",
 		"u: client is an ultimate parent",
 		"U: client is urgent",
@@ -9961,28 +10084,31 @@ logdiagnostics(const Arg *arg)
 			fprintf(stderr, "        type:%s    x:%-5i    width:%u\n", buffer, e.x, e.w);
 		}
 
+		#if PATCH_CLASS_STACKING
+		fprintf(stderr, "    class-stacking: %i\n", m->class_stacking);
+		#endif // PATCH_CLASS_STACKING
 		#if PATCH_WINDOW_ICONS
 		#if PATCH_WINDOW_ICONS_ON_TAGS
-		fprintf(stderr, "    iconsontags: %i\n", m->showiconsontags);
+		fprintf(stderr, "    iconsontags   : %i\n", m->showiconsontags);
 		#endif // PATCH_WINDOW_ICONS_ON_TAGS
 		#endif // PATCH_WINDOW_ICONS
 
 		fprintf(stderr,
-			"    layout     : %s\n    mfact      : %f\n    nmaster    : %u\n",
+			"    layout        : %s\n    mfact         : %f\n    nmaster       : %u\n",
 			m->ltsymbol, m->mfact, m->nmaster
 		);
 
 		if (m->sel) {
-			fprintf(stderr, "    selected   : ");
+			fprintf(stderr, "    selected      : ");
 			logdiagnostics_client_common(m->sel, "", "");
 			fprintf(stderr, "\n");
 		}
 		else
-			fprintf(stderr, "    selected   : <none>\n");
+			fprintf(stderr, "    selected      : <none>\n");
 
 		#if PATCH_SHOW_DESKTOP
 			if (showdesktop) {
-				fprintf(stderr, "    showdesktop: %i", m->showdesktop);
+				fprintf(stderr, "    showdesktop   : %i", m->showdesktop);
 				for (c = m->clients; c; c = c->next)
 					if (c->isdesktop) {
 						fprintf(stderr, ": ");
@@ -9994,7 +10120,7 @@ logdiagnostics(const Arg *arg)
 		#endif // PATCH_SHOW_DESKTOP
 
 		#if PATCH_SWITCH_TAG_ON_EMPTY
-		fprintf(stderr, "    switch-to  : %u\n", m->switchonempty);
+		fprintf(stderr, "    switch-to     : %u\n", m->switchonempty);
 		#endif // PATCH_SWITCH_TAG_ON_EMPTY
 
 		unsigned int seltags = m->tagset[m->seltags];
@@ -10006,7 +10132,7 @@ logdiagnostics(const Arg *arg)
 		}
 		buffer[LENGTH(tags)+1] = '\0';
 
-		fprintf(stderr,"    tags-mask  : %s [ ", buffer);
+		fprintf(stderr,"    tags-mask     : %s [ ", buffer);
 		seltags = m->tagset[m->seltags];
 		for (int i = 0; i < LENGTH(tags); i++)
 			if (seltags & (1 << i))
@@ -10122,7 +10248,7 @@ void
 logdiagnostics_client_common(Client *c, const char *indent1, const char *indent2)
 {
 	fprintf(stderr,
-		"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s "
+		"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s "
 		#if PATCH_FLAG_CENTRED
 		"c%u "
 		#endif // PATCH_FLAG_CENTRED
@@ -10221,6 +10347,11 @@ logdiagnostics_client_common(Client *c, const char *indent1, const char *indent2
 		#else // NO PATCH_FLAG_PANEL
 		"",
 		#endif // PATCH_FLAG_PANEL
+		#if PATCH_CLASS_STACKING
+		(c->isstacked ? "=" : "_"),
+		#else // NO PATCH_CLASS_STACKING
+		"",
+		#endif // PATCH_CLASS_STACKING
 		(c->ultparent == c ? "u" : "_"),
 		(c->parent ? "P" : "_"),
 		(c->isurgent ? "U" : "_"),
@@ -11904,6 +12035,9 @@ prevtiled(Client *c)
 			#if PATCH_SHOW_DESKTOP
 			|| i->isdesktop
 			#endif // PATCH_SHOW_DESKTOP
+			#if PATCH_CLASS_STACKING
+			|| i->isstacked
+			#endif // PATCH_CLASS_STACKING
 		)) r = i;
 	return r;
 }
@@ -11925,6 +12059,9 @@ nexttiled(Client *c)
 		#if PATCH_SHOW_DESKTOP
 		|| c->isdesktop
 		#endif // PATCH_SHOW_DESKTOP
+		#if PATCH_CLASS_STACKING
+		|| c->isstacked
+		#endif // PATCH_CLASS_STACKING
 	); c = c->next);
 	return c;
 }
@@ -12196,6 +12333,16 @@ parselayoutjson(cJSON *layout)
 			}
 			#endif // PATCH_FLAG_HIDDEN
 			#endif // PATCH_ALTTAB
+
+			#if PATCH_CLASS_STACKING
+			else if (strcmp(L->string,"class-stacking")==0) {
+				if (json_isboolean(L)) {
+					class_stacking = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"class-stacking\" must contain a boolean value", 0);
+			}
+			#endif // PATCH_CLASS_STACKING
 
 			#if PATCH_COLOUR_BAR
 			else if (strcmp(L->string, "colours-tag-bar")==0) {
@@ -12906,6 +13053,12 @@ parselayoutjson(cJSON *layout)
 							else if (strcmp(c->string, "set-title-align")==0 && !cJSON_IsInteger(c)) {
 								cJSON_AddNumberToObject(unsupported_mon, "\"set-title-align\" must contain an integer value", 0);
 							}
+
+							#if PATCH_CLASS_STACKING
+							else if (strcmp(c->string,"set-class-stacking")==0 && !json_isboolean(c)) {
+								cJSON_AddNumberToObject(unsupported_mon, "\"set-class-stacking\" must contain a boolean value", 0);
+							}
+							#endif // PATCH_CLASS_STACKING
 
 							#if PATCH_MOUSE_POINTER_HIDING
 							else if (strcmp(c->string,"set-cursor-autohide")==0 && !json_isboolean(c)) {
@@ -19536,6 +19689,18 @@ toggleskiprules(const Arg *arg)
 }
 #endif // DEBUGGING
 
+#if PATCH_CLASS_STACKING
+void
+togglestacking(const Arg *arg)
+{
+	#if PATCH_PERTAG
+	selmon->pertag->class_stacking[selmon->pertag->curtag] = !selmon->pertag->class_stacking[selmon->pertag->curtag];
+	#endif // PATCH_PERTAG
+	selmon->class_stacking = !selmon->class_stacking;
+	arrange(selmon);
+}
+#endif // PATCH_CLASS_STACKING
+
 #if PATCH_FLAG_STICKY
 void
 togglesticky(const Arg *arg)
@@ -20953,6 +21118,10 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 	#if PATCH_ALT_TAGS
 	m->alttagsquiet = m->pertag->alttagsquiet[m->pertag->curtag];
 	#endif // PATCH_ALT_TAGS
+
+	#if PATCH_CLASS_STACKING
+	m->class_stacking = m->pertag->class_stacking[m->pertag->curtag];
+	#endif // PATCH_CLASS_STACKING
 
 	#if PATCH_SWITCH_TAG_ON_EMPTY
 	m->switchonempty = m->pertag->switchonempty[m->pertag->curtag];

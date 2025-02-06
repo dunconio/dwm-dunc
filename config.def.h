@@ -43,6 +43,10 @@ static Bool borderless_solitary = True;
 static Bool hidevacant = True;
 #endif // PATCH_HIDE_VACANT_TAGS
 
+#if PATCH_CLASS_STACKING
+static Bool class_stacking = False;
+#endif // PATCH_CLASS_STACKING
+
 #if PATCH_CLIENT_INDICATORS
 static         Bool client_ind				= True;
 static unsigned int client_ind_size			= 3;
@@ -508,6 +512,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_a,      togglealwaysontop, {0}, DESCRIPTION_TOGGLE_ALWAYSONTOP },
 #endif // PATCH_FLAG_ALWAYSONTOP
 	{ MODKEY,                       XK_b,      togglebar,      {0}, DESCRIPTION_TOGGLE_BAR},
+#if PATCH_CLASS_STACKING
+	{ MODKEY|ShiftMask,             XK_s,      togglestacking, {0}, DESCRIPTION_CLASS_STACKING_TOGGLE },
+#endif // PATCH_CLASS_STACKING
 #if PATCH_CONSTRAIN_MOUSE
 	{ MODKEY|ControlMask|ShiftMask, XK_m,      toggleconstrain, {0}, DESCRIPTION_TOGGLE_CONSTRAIN },
 #endif // PATCH_CONSTRAIN_MOUSE
