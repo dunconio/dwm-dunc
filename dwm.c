@@ -3216,7 +3216,7 @@ arrangemon(Monitor *m)
 	{
 		for (c = m->stack; c; c = c->snext)
 		{
-			if (!ISVISIBLE(c) || c->isstacked || !c->next
+			if (c->isfloating || !ISVISIBLE(c) || c->isstacked || !c->next
 				#if PATCH_FLAG_HIDDEN
 				|| c->ishidden
 				#endif // PATCH_FLAG_HIDDEN
@@ -3233,7 +3233,7 @@ arrangemon(Monitor *m)
 
 			for (c2 = c->next; c2; c2 = c2->next)
 			{
-				if (!ISVISIBLE(c2) || c2->isstacked
+				if (c2->isfloating || !ISVISIBLE(c2) || c2->isstacked
 					#if PATCH_FLAG_HIDDEN
 					|| c2->ishidden
 					#endif // PATCH_FLAG_HIDDEN
