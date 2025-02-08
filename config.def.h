@@ -351,7 +351,7 @@ static IPCCommand ipccommands[] = {
 	IPCCOMMAND(  focusmon,            1,      {ARG_TYPE_SINT}   ),
 	IPCCOMMAND(  focusstack,          1,      {ARG_TYPE_SINT}   ),
 	IPCCOMMAND(  incnmaster,          1,      {ARG_TYPE_SINT}   ),
-	IPCCOMMAND(  killclient,          1,      {ARG_TYPE_SINT}   ),
+	IPCCOMMAND(  killclient,          1,      {ARG_TYPE_UINT}   ),
 	#if PATCH_LOG_DIAGNOSTICS
 	IPCCOMMAND(  logdiagnostics,      1,      {ARG_TYPE_UINT}   ),
 	#endif // PATCH_LOG_DIAGNOSTICS
@@ -543,8 +543,8 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_s,      togglesticky,   {0}, DESCRIPTION_TOGGLE_STICKY },
 #endif // PATCH_FLAG_STICKY
 
-	{ MODKEY,                       XK_q,      killclient,     {0}, DESCRIPTION_KILL_CLIENT },
-	{ Mod1Mask,						XK_F4,     killclient,     {0}, DESCRIPTION_KILL_CLIENT },
+	{ MODKEY,                       XK_q,      killclient,     {.ui = 1}, DESCRIPTION_KILL_CLIENT },
+	{ Mod1Mask,						XK_F4,     killclient,     {.ui = 1}, DESCRIPTION_KILL_CLIENT },
 	{ MODKEY|ShiftMask,             XK_q,      killgroup,      {.ui = (KILLGROUP_BY_CLASS | KILLGROUP_BY_INSTANCE) }, DESCRIPTION_KILL_GROUP },
 	{ MODKEY|ShiftMask|ControlMask, XK_Escape, spawn,          SHCMD("xkill >/dev/null 2>&1"), DESCRIPTION_XKILL },
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Escape, reload,{0}, DESCRIPTION_RELOAD },

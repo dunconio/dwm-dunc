@@ -3208,7 +3208,6 @@ arrangemon(Monitor *m)
 	Client *c, *c2;
 	XClassHint ch = { NULL, NULL };
 	XClassHint ch2 = { NULL, NULL };
-	XWindowChanges wc;
 
 	for (c = m->clients; c; c = c->next)
 		c->isstacked = NULL;
@@ -3216,22 +3215,27 @@ arrangemon(Monitor *m)
 	{
 		for (c = m->stack; c; c = c->snext)
 		{
-			if (c->isfloating || !ISVISIBLE(c) || c->isstacked || !c->next
+			if (c->isfloating || !ISVISIBLE(c) || c->isstacked || !c->snext
 				#if PATCH_FLAG_HIDDEN
 				|| c->ishidden
 				#endif // PATCH_FLAG_HIDDEN
 				#if PATCH_FLAG_IGNORED
 				|| c->isignored
 				#endif // PATCH_FLAG_IGNORED
-			)
-				continue;
+				#if PATCH_FLAG_PANEL
+				|| c->ispanel
+				#endif // PATCH_FLAG_PANEL
+				#if PATCH_SHOW_DESKTOP
+				|| c->isdesktop || c->ondesktop
+				#endif // PATCH_SHOW_DESKTOP
+			) continue;
 			XGetClassHint(dpy, c->win, &ch);
 			if (ch.res_name)
 				XFree(ch.res_name);
 			if (!ch.res_class)
 				continue;
 
-			for (c2 = c->next; c2; c2 = c2->next)
+			for (c2 = c->snext; c2; c2 = c2->snext)
 			{
 				if (c2->isfloating || !ISVISIBLE(c2) || c2->isstacked
 					#if PATCH_FLAG_HIDDEN
@@ -3252,8 +3256,7 @@ arrangemon(Monitor *m)
 				XFree(ch2.res_class);
 			}
 
-			if (ch.res_class)
-				XFree(ch.res_class);
+			XFree(ch.res_class);
 		}
 
 		if (m->lt[m->sellt]->arrange)
@@ -3263,13 +3266,8 @@ arrangemon(Monitor *m)
 		{
 			if (!c->isstacked)
 				continue;
-			c->x = c->isstacked->x;
-			c->y = c->isstacked->y;
-			c->w = c->isstacked->w;
-			c->h = c->isstacked->h;
-			XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
-			wc.border_width = solitary(c->isstacked) ? 0 : c->bw;
-			XConfigureWindow(dpy, c->win, CWBorderWidth, &wc);
+			// force class-stacked clients to match the position/dimensions of the stack head client;
+			resizeclient(c, c->isstacked->x, c->isstacked->y, c->isstacked->w, c->isstacked->h, 0);
 		}
 	}
 	else
@@ -9085,6 +9083,9 @@ hidewin(const Arg *arg) {
 				setclienttagprop(h);
 				#endif // PATCH_PERSISTENT_METADATA
 			}
+		#if PATCH_CLASS_STACKING
+		c->isstacked = NULL;
+		#endif // PATCH_CLASS_STACKING
 		focus(NULL, 0);
 		h = NULL;
 	} else {
@@ -9104,6 +9105,12 @@ hidewin(const Arg *arg) {
 		setclienttagprop(c);
 		#endif // PATCH_PERSISTENT_METADATA
 		if (!c->isfloating) {
+			#if PATCH_CLASS_STACKING
+			if (c->isstacked)
+				c->isstacked = NULL;
+			else
+				arrangemon(c->mon);
+			#endif // PATCH_CLASS_STACKING
 			if (!(h = nexttiled(c)))
 				h = prevtiled(c);
 		}
@@ -9416,39 +9423,46 @@ keyrelease(XEvent *e)
 void
 killclient(const Arg *arg)
 {
-	if (!selmon || !selmon->sel)
+	if (!arg->ui)
 		return;
+	Client *sel;
+	if (arg->ui > 1 || !selmon || !(sel = selmon->sel))
+		return;
+	if (arg->ui > 1) {
+		if (!(sel = wintoclient(arg->ui)))
+		return;
+	}
 	#if PATCH_CROP_WINDOWS
-	if (selmon->sel->crop)
-		cropdelete(selmon->sel);
+	if (sel->crop)
+		cropdelete(sel);
 	#endif // PATCH_CROP_WINDOWS
 
 	#if PATCH_FLAG_GAME
 	#if PATCH_FLAG_GAME_STRICT
-	if (selmon->sel == game)
+	if (sel == game)
 		game = NULL;
 	#endif // PATCH_FLAG_GAME_STRICT
 	#endif // PATCH_FLAG_GAME
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
-	if (selmon->sel->pauseinvisible == -1 && selmon->sel->pid) {
-		kill (selmon->sel->pid, SIGCONT);
-		selmon->sel->pauseinvisible = 1;
+	if (sel->pauseinvisible == -1 && sel->pid) {
+		kill (sel->pid, SIGCONT);
+		sel->pauseinvisible = 1;
 		#if PATCH_PAUSE_PROCESS
-		selmon->sel->paused = 0;
+		sel->paused = 0;
 		#endif // PATCH_PAUSE_PROCESS
-		DEBUG("client continued: \"%s\".\n", selmon->sel->name);
+		DEBUG("client continued: \"%s\".\n", sel->name);
 	}
 	#if PATCH_PAUSE_PROCESS
 	else
 	#endif // PATCH_PAUSE_PROCESS
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
 	#if PATCH_PAUSE_PROCESS
-	if (selmon->sel->paused) {
-		kill (selmon->sel->pid, SIGCONT);
-		selmon->sel->paused = 0;
+	if (sel->paused) {
+		kill (sel->pid, SIGCONT);
+		sel->paused = 0;
 	}
 	#endif // PATCH_PAUSE_PROCESS
-	killwin(selmon->sel->win);
+	killwin(sel->win);
 }
 void
 killgroup(const Arg *arg)
@@ -14363,23 +14377,29 @@ resizeclient(Client *c, int x, int y, int w, int h, int save_old)
 	if (c->beingmoved)
 		return;
 
-	wc.border_width = c->bw;
+	#if PATCH_CLASS_STACKING
+	if (c->isstacked)
+		wc.border_width = solitary(c->isstacked) ? 0 : c->bw;
+	else
+	#endif // PATCH_CLASS_STACKING
+	{
+		wc.border_width = c->bw;
+		if (solitary(c)) {
+			c->w = wc.width += c->bw * 2;
+			c->h = wc.height += c->bw * 2;
+			wc.border_width = 0;
+		}
 
-	if (solitary(c)) {
-		c->w = wc.width += c->bw * 2;
-		c->h = wc.height += c->bw * 2;
-		wc.border_width = 0;
+		if (
+			#if PATCH_FLAG_PANEL
+			c->ispanel ||
+			#endif // PATCH_FLAG_PANEL
+			#if PATCH_FLAG_IGNORED
+			c->isignored ||
+			#endif // PATCH_FLAG_IGNORED
+			0)
+			c->bw = wc.border_width = 0;
 	}
-
-	if (
-		#if PATCH_FLAG_PANEL
-		c->ispanel ||
-		#endif // PATCH_FLAG_PANEL
-		#if PATCH_FLAG_IGNORED
-		c->isignored ||
-		#endif // PATCH_FLAG_IGNORED
-		0)
-		c->bw = wc.border_width = 0;
 
 	#if PATCH_FLAG_FLOAT_ALIGNMENT
 	// nail it to no border & y=0:
@@ -15137,6 +15157,8 @@ restack(Monitor *m)
 		validate_pid(c);
 		#endif // PATCH_FLAG_IGNORED
 
+	//#if 0
+	// this may cause "free(): double free detected in tcache 2" crash:
 	// remove dormant (BadWindow) clients;
 	for (c = m->clients; c; ) {
 		raised = c->next;
@@ -15153,6 +15175,7 @@ restack(Monitor *m)
 		}
 		c = raised;
 	}
+	//#endif
 
 	raised = m->sel && ((m == selmon && (
 		focusedontoptiled
