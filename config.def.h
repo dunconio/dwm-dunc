@@ -356,6 +356,7 @@ static IPCCommand ipccommands[] = {
 	IPCCOMMAND(  logdiagnostics,      1,      {ARG_TYPE_UINT}   ),
 	#endif // PATCH_LOG_DIAGNOSTICS
 	IPCCOMMAND(  reload,              1,      {ARG_TYPE_NONE}   ),
+	IPCCOMMAND(  reloadrules,         1,      {ARG_TYPE_NONE}   ),
 //	IPCCOMMAND(  setlayoutsafe,       1,      {ARG_TYPE_PTR}    ),
 	IPCCOMMAND(  setmfact,            1,      {ARG_TYPE_FLOAT}  ),
 	IPCCOMMAND(  tag,                 1,      {ARG_TYPE_UINT}   ),

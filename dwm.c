@@ -93,6 +93,7 @@ cJSON *layout_json = NULL;
 cJSON *fonts_json = NULL;
 cJSON *monitors_json = NULL;
 cJSON *rules_json = NULL;
+static const char *rules_filename = NULL;
 #if PATCH_FONT_GROUPS
 cJSON *fontgroups_json = NULL;
 cJSON *barelement_fontgroups_json = NULL;
@@ -1547,6 +1548,7 @@ static Client *nexttiled(Client *c);
 #if PATCH_CLIENT_OPACITY
 static void opacity(Client *c, int focused);
 #endif // PATCH_CLIENT_OPACITY
+static cJSON *parsejsonfile(const char *filename, const char *filetype);
 static int parselayoutjson(cJSON *layout);
 static int parserulesjson(cJSON *json);
 static void placemouse(const Arg *arg);
@@ -1585,6 +1587,8 @@ static int recv_message(uint8_t *msg_type, uint32_t *reply_size, uint8_t **reply
 static void refocuspointer(const Arg *arg);
 #endif // PATCH_MOUSE_POINTER_WARPING
 static void reload(const Arg *arg);
+static int reload_rules(void);
+static void reloadrules(const Arg *arg);
 static void removelinks(Client *c);
 #if PATCH_SYSTRAY
 static void removesystrayicon(Client *i);
@@ -14224,6 +14228,31 @@ reload(const Arg *arg)
 	running = -1;
 }
 
+int
+reload_rules(void)
+{
+	rules_json = parsejsonfile(rules_filename, "rules");
+	if (rules_json)
+		return (parserulesjson(rules_json));
+	return 0;
+}
+
+void
+reloadrules(const Arg *arg)
+{
+	int success;
+	logdatetime(stderr);
+	fputs("dwm: received reloadrules() signal.\n", stderr);
+	if (rules_json)
+		cJSON_Delete(rules_json);
+	success = reload_rules();
+	logdatetime(stderr);
+	if (success)
+		fputs("dwm: successfully parsed the rules JSON file.\n", stderr);
+	else
+		fputs("dwm: errors occurred while loading or parsing the rules JSON file.\n", stderr);
+}
+
 void
 removelinks(Client *c)
 {
@@ -22328,9 +22357,8 @@ reload:
 			parselayoutjson(layout_json);
 	}
 	if (r) {
-		rules_json = parsejsonfile(argv[r], "rules");
-		if (rules_json)
-			parserulesjson(rules_json);
+		rules_filename = argv[r];
+		reload_rules();
 	}
 
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale()) {
