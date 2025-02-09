@@ -14243,8 +14243,36 @@ reloadrules(const Arg *arg)
 	int success;
 	logdatetime(stderr);
 	fputs("dwm: received reloadrules() signal.\n", stderr);
-	if (rules_json)
+	if (rules_json) {
+		#if PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
+		logdatetime(stderr);
+		fputs("dwm: clearing links to stale JSON data from affected clients.\n", stderr);
+		for (Monitor *m = mons; m; m = m->next)
+			for (Client *c = m->clients; c; c = c->next) {
+				#if PATCH_FLAG_TITLE
+				c->displayname = NULL;
+				#endif // PATCH_FLAG_TITLE
+				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				c->dispclass = NULL;
+				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+				#if PATCH_ALTTAB
+				c->grpclass = NULL;
+				#endif // PATCH_ALTTAB
+				#if PATCH_WINDOW_ICONS_CUSTOM_ICONS
+				c->icon_file = NULL;
+				c->icon_replace = 0;
+				#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS
+				#if PATCH_FLAG_PARENT
+				c->parent_late = -1;
+				c->parent_is = NULL;
+				c->parent_begins = NULL;
+				c->parent_contains = NULL;
+				c->parent_ends = NULL;
+				#endif // PATCH_FLAG_PARENT
+			}
+		#endif // PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
 		cJSON_Delete(rules_json);
+	}
 	success = reload_rules();
 	logdatetime(stderr);
 	if (success)
