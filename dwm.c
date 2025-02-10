@@ -89,14 +89,17 @@
 #endif // PATCH_WINDOW_ICONS
 
 #include "parse-simple-expression.c"
-cJSON *layout_json = NULL;
-cJSON *fonts_json = NULL;
-cJSON *monitors_json = NULL;
-cJSON *rules_json = NULL;
+static cJSON *layout_json = NULL;
+static cJSON *fonts_json = NULL;
+static cJSON *monitors_json = NULL;
+static cJSON *rules_json = NULL;
 static const char *rules_filename = NULL;
+#if PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
+static cJSON *rules_compost = NULL;
+#endif // PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
 #if PATCH_FONT_GROUPS
-cJSON *fontgroups_json = NULL;
-cJSON *barelement_fontgroups_json = NULL;
+static cJSON *fontgroups_json = NULL;
+static cJSON *barelement_fontgroups_json = NULL;
 #if PATCH_ALTTAB
 static char *tabFontgroup = NULL;		// alt-tab switcher font group;
 #endif // PATCH_ALTTAB
@@ -1090,6 +1093,7 @@ struct Client {
 	#if PATCH_FLAG_PARENT
 	int neverparent;
 	int parent_late;	// -1, 0 (parent changed), 1 (awaiting parent client);
+	cJSON *parent_condition_node;	// pointer to the rule node containing the parent_ condition elements;
 	cJSON *parent_is;
 	cJSON *parent_begins;
 	cJSON *parent_contains;
@@ -2649,6 +2653,8 @@ applyrules(Client *c, int deferred)
 				if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-begins")) && cJSON_IsString(r_node)) c->parent_begins = r_node;
 				if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-contains")) && cJSON_IsString(r_node)) c->parent_contains = r_node;
 				if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-ends")) && cJSON_IsString(r_node)) c->parent_ends = r_node;
+				if (c->parent_is || c->parent_begins || c->parent_contains || c->parent_ends)
+					c->parent_condition_node = r_json;
 				for (m = mons; m; m = m->next) {
 					for (p = m->clients; p; p = p->next) {
 						sz_sp_title = strlen(p->name);
@@ -14237,6 +14243,54 @@ reload_rules(void)
 	return 0;
 }
 
+#if PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
+void
+compost(void **link, cJSON *parent, cJSON *item, const char *string)
+{
+	size_t sz;
+	cJSON *c = item, *cc = NULL;
+	if (rules_compost) {
+		sz = cJSON_GetArraySize(rules_compost);
+		for (size_t i = 0; i < sz; i++) {
+			cc = cJSON_GetArrayItem(rules_compost, i);
+			if (c && c == cc)
+				return;
+			if (string && cJSON_GetStringValue(cc) == string)
+				return;
+		}
+	}
+	else
+		rules_compost = cJSON_CreateArray();
+	if (c) {
+		c = cJSON_DetachItemViaPointer(parent, item);
+		*link = c;
+	}
+	else {
+		c = cJSON_CreateString(string);
+		*link = c->valuestring;
+	}
+	cJSON_AddItemToArray(rules_compost, c);
+}
+#endif // PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
+
+#if PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
+void
+uncompost(cJSON *item, const char *string)
+{
+	if (!rules_compost)
+		return;
+	cJSON *c = item, *cc = NULL;
+	size_t sz = cJSON_GetArraySize(rules_compost);
+	for (size_t i = 0; i < sz; i++) {
+		cc = cJSON_GetArrayItem(rules_compost, i);
+		if ((c && c == cc) || (string && cJSON_GetStringValue(cc) == string)) {
+			cJSON_DeleteItemFromArray(rules_compost, i);
+			return;
+		}
+	}
+}
+#endif // PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
+
 void
 reloadrules(const Arg *arg)
 {
@@ -14246,30 +14300,43 @@ reloadrules(const Arg *arg)
 	if (rules_json) {
 		#if PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
 		logdatetime(stderr);
-		fputs("dwm: clearing links to stale JSON data from affected clients.\n", stderr);
+		fputs("dwm: composting links to stale JSON data from affected clients.\n", stderr);
 		for (Monitor *m = mons; m; m = m->next)
 			for (Client *c = m->clients; c; c = c->next) {
 				#if PATCH_FLAG_TITLE
-				c->displayname = NULL;
+				if (c->displayname)
+					compost((void **)&c->displayname, NULL, NULL, c->displayname);
 				#endif // PATCH_FLAG_TITLE
 				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-				c->dispclass = NULL;
+				if (c->dispclass)
+					compost((void **)&c->dispclass, NULL, NULL, c->dispclass);
 				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				#if PATCH_ALTTAB
-				c->grpclass = NULL;
+				if (c->grpclass)
+					compost((void **)&c->grpclass, NULL, NULL, c->grpclass);
 				#endif // PATCH_ALTTAB
 				#if PATCH_WINDOW_ICONS_CUSTOM_ICONS
-				c->icon_file = NULL;
-				c->icon_replace = 0;
+				if (c->icon_file)
+					compost((void **)&c->icon_file, NULL, NULL, c->icon_file);
 				#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS
 				#if PATCH_FLAG_PARENT
-				c->parent_late = -1;
-				c->parent_is = NULL;
-				c->parent_begins = NULL;
-				c->parent_contains = NULL;
-				c->parent_ends = NULL;
+				if (c->parent_condition_node) {
+					if (c->parent_is)
+						compost((void **)&c->parent_is, c->parent_condition_node, c->parent_is, NULL);
+					if (c->parent_begins)
+						compost((void **)&c->parent_begins, c->parent_condition_node, c->parent_begins, NULL);
+					if (c->parent_contains)
+						compost((void **)&c->parent_contains, c->parent_condition_node, c->parent_contains, NULL);
+					if (c->parent_ends)
+						compost((void **)&c->parent_ends, c->parent_condition_node, c->parent_ends, NULL);
+					c->parent_condition_node = NULL;
+				}
 				#endif // PATCH_FLAG_PARENT
 			}
+		if (rules_compost) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: composted rule data items: %u\n", cJSON_GetArraySize(rules_compost));
+		}
 		#endif // PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
 		cJSON_Delete(rules_json);
 	}
@@ -20086,6 +20153,35 @@ unmanage(Client *c, int destroyed, int cleanup)
 	}
 	#endif // PATCH_FLAG_IGNORED
 
+	#if PATCH_FLAG_TITLE
+	if (c->displayname)
+		uncompost(NULL, c->displayname);
+	#endif // PATCH_FLAG_TITLE
+	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+	if (c->dispclass)
+		uncompost(NULL, c->dispclass);
+	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+	#if PATCH_ALTTAB
+	if (c->grpclass)
+		uncompost(NULL, c->grpclass);
+	#endif // PATCH_ALTTAB
+	#if PATCH_WINDOW_ICONS_CUSTOM_ICONS
+	if (c->icon_file)
+		uncompost(NULL, c->icon_file);
+	#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS
+	#if PATCH_FLAG_PARENT
+	if (!c->parent_condition_node) {
+		if (c->parent_is)
+			uncompost(c->parent_is, NULL);
+		if (c->parent_begins)
+			uncompost(c->parent_begins, NULL);
+		if (c->parent_contains)
+			uncompost(c->parent_contains, NULL);
+		if (c->parent_ends)
+			uncompost(c->parent_ends, NULL);
+	}
+	#endif // PATCH_FLAG_PARENT
+
 	#if PATCH_TERMINAL_SWALLOWING
 	if (c->swallowing) {
 		if (c->mon->sel == c->swallowing)
@@ -22466,6 +22562,8 @@ fprintf(stderr, "debug: after layout delete\n");
 	if (rules_json)
 		cJSON_Delete(rules_json);
 fprintf(stderr, "debug: after rules delete\n");
+	if (rules_compost)
+		cJSON_Delete(rules_compost);
 
 	//XGrabServer(dpy);
 	XCloseDisplay(dpy);
