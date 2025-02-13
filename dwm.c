@@ -21509,69 +21509,58 @@ viewactiveex(Monitor *m, int direction)
 }
 
 #if PATCH_MOUSE_POINTER_WARPING
-void
-warptoclient_gettargetzone(Client *c, Monitor *m, int *tx, int *ty, int *tw, int *th, int *tpx, int *tpy)
-{
-	if (c) {
-		*tx = c->x;
-		*ty = c->y;
-		*tw = c->w;
-		*th = c->h;
-		#if PATCH_ALTTAB
-		*tpx = c->x + (altTabMon ? 1 : c->focusdx) * c->w/2;
-		*tpy = c->y + (altTabMon ? 1 : c->focusdy) * c->h/2;
-		#else // NO PATCH_ALTTAB
-		*tpx = c->x + c->focusdx * c->w/2;
-		*tpy = c->y + c->focusdy * c->h/2;
-		#endif // PATCH_ALTTAB
-	}
-	else if (m) {
-		*tx = m->wx;
-		*ty = m->wy;
-		*tw = m->ww;
-		*th = m->wh;
-		*tpx = *tx + *tw / 2;
-		*tpy = *ty + *th / 2;
-	}
-}
-
 #if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 typedef struct w2c_data w2c_data;
 struct w2c_data {
-	Client *client;
-	Monitor *monitor;
+	Display *dpy;
+	Window root;
+	// client window;
+	Window win;
+	// target area rectangle;
+	int x;
+	int y;
+	int width;
+	int height;
+	// target pointer location;
+	int targetx;
+	int targety;
 	//Cursor cursor;
 	int force;
 	int grab;
+	Cursor cursor;	// if grab is non-zero;
 };
 void *
 warppointer(void *arg)
 {
 	w2c_data *data = arg;
-	Client *c = data->client;
-	Monitor *m = data->monitor;
+	Display *dpy = data->dpy;
+	Window root = data->root;
+	Window win = data->win;
+	// target area coords;
+	int tx = data->x;
+	int ty = data->y;
+	int tw = data->width;
+	int th = data->height;
+	// target pointer coords;
+	int tpx = data->targetx;
+	int tpy = data->targety;
 	int force = data->force;
-	//Cursor cursor = data->cursor;
 	int grab = data->grab;
+	Cursor cursor = data->cursor;
 	free(data);
 
 	int px, py;			// starting pointer coords;
-	int tx, ty, tw, th; // target area coords;
-	int tpx, tpy;		// target pointer coords;
 
 	// if the pointer is ungrabbable, we should not warp;
 	if (grab)
 		if (XGrabPointer(dpy, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
-			None, cursor[CurNormal]->cursor, CurrentTime) != GrabSuccess) return NULL;
-//		if (XGrabPointer(dpy, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
-//			None, cursor, CurrentTime) != GrabSuccess) return NULL;
+			None, cursor, CurrentTime) != GrabSuccess) return NULL;
 
 	#define PI 3.14159265358979323846
 
 	int warpx, warpy, curx, cury, lastx = 0, lasty = 0;
 
 	getrootptr(&px, &py);
-	warptoclient_gettargetzone(c, m, &tx, &ty, &tw, &th, &tpx, &tpy);
 
 	int steps = MAX(abs(px-tpx),abs(py-tpy));
 	// adjust delay time to account for approx cpu processing delay;
@@ -21582,8 +21571,6 @@ warppointer(void *arg)
 	for (int i = steps; i > 0; i--) {
 		if (warptoclient_stop_flag)
 			break;
-		if (c)
-			warptoclient_gettargetzone(c, NULL, &tx, &ty, &tw, &th, &tpx, &tpy);
 		warpx = (px + 2*(steps-i+1) * (tpx - px) / (2 * steps));
 		warpy = (py + 2*(steps-i+1) * (tpy - py) / (2 * steps));
 		if (abs(warpx-lastx) || abs(warpy-lasty))
@@ -21599,15 +21586,12 @@ warppointer(void *arg)
 
 		if (force == 1)
 			continue;
-		#if PATCH_FOCUS_FOLLOWS_MOUSE
 		// stop moving prematurely if the mouse was moved and the pointer is over the target area
-		if (c) {
-			if (getrootptr(&curx, &cury) && (curx != warpx || cury != warpy) && recttoclient(curx, cury, 1, 1, True) == c)
-				warptoclient_stop_flag = 1;
-		}
-		else
-		#endif // PATCH_FOCUS_FOLLOWS_MOUSE
-		if (getrootptr(&curx, &cury) && (curx != warpx || cury != warpy)) //&& recttomon(curx, cury, 1, 1) == selmon)
+		if (getrootptr(&curx, &cury) && (curx != warpx || cury != warpy)
+			#if PATCH_FOCUS_FOLLOWS_MOUSE
+			&& (curx >= tx && curx <= tx + tw && cury >= ty && cury <= ty + th)
+			#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+			)
 			warptoclient_stop_flag = 1;
 	}
 	if (grab)
@@ -21617,8 +21601,8 @@ warppointer(void *arg)
 		warptoclient_stop_flag = 0;
 		return NULL;
 	}
-	if (c)
-		XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, tpx - tx, tpy - ty);
+	if (win != None)
+		XWarpPointer(dpy, None, win, 0, 0, 0, 0, tpx - tx, tpy - ty);
 	else
 		XWarpPointer(dpy, None, root, 0, 0, 0, 0, tpx, tpy);
 
@@ -21668,7 +21652,29 @@ warptoclient(Client *c, int force)
 		}
 	}
 	#endif // PATCH_CONSTRAIN_MOUSE
-	warptoclient_gettargetzone(c, selmon, &tx, &ty, &tw, &th, &tpx, &tpy);
+
+	// get target zone;
+	if (c) {
+		tx = c->x;
+		ty = c->y;
+		tw = c->w;
+		th = c->h;
+		#if PATCH_ALTTAB
+		tpx = c->x + (altTabMon ? 1 : c->focusdx) * c->w/2;
+		tpy = c->y + (altTabMon ? 1 : c->focusdy) * c->h/2;
+		#else // NO PATCH_ALTTAB
+		tpx = c->x + c->focusdx * c->w/2;
+		tpy = c->y + c->focusdy * c->h/2;
+		#endif // PATCH_ALTTAB
+	}
+	else if (selmon) {
+		tx = selmon->wx;
+		ty = selmon->wy;
+		tw = selmon->ww;
+		th = selmon->wh;
+		tpx = tx + tw / 2;
+		tpy = ty + th / 2;
+	}
 
 	#if DEBUGGING
 	if (c && c->dispclass && strcmp(c->dispclass, "NMS Editor")==0) {
@@ -21728,10 +21734,18 @@ warptoclient(Client *c, int force)
 
 		pthread_t th;
 		w2c_data *th_data = ecalloc(1, sizeof(w2c_data));
-		th_data->client = c;
-		th_data->monitor = selmon;
+		th_data->dpy = dpy;
+		th_data->root = root;
+		th_data->win = c ? c->win : None;
+		th_data->x = tx;
+		th_data->y = ty;
+		th_data->width = tw;
+		th_data->height = th;
+		th_data->targetx = tpx;
+		th_data->targety = tpy;
 		th_data->force = force;
-		th_data->grab = (smoothly && force == 1) ? 0 : 1;
+		if ((th_data->grab = (smoothly && force == 1) ? 0 : 1))
+			th_data->cursor = cursor[CurNormal]->cursor;
 		pthread_create(&th, NULL, warppointer, th_data);
 		if (selmon->sel != c)
 			focus(c, 0);
