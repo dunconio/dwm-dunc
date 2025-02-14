@@ -14285,8 +14285,13 @@ uncompost(cJSON *item, const char *string)
 		cc = cJSON_GetArrayItem(rules_compost, i);
 		if ((c && c == cc) || (string && cJSON_GetStringValue(cc) == string)) {
 			cJSON_DeleteItemFromArray(rules_compost, i);
-			return;
+			--sz;
+			break;
 		}
+	}
+	if (!sz) {
+		cJSON_Delete(rules_compost);
+		rules_compost = NULL;
 	}
 }
 #endif // PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
