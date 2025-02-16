@@ -81,6 +81,7 @@
 #define DESCRIPTION_MFACT_RESET						"Reset master client area proportion"
 #define DESCRIPTION_MUTE_GUI						"Mute an audio device or application"
 #define DESCRIPTION_MUTE_MEDIA_APPS					"Mute common media playing applications"
+#define DESCRIPTION_MUTE_MEDIA_APPS_EXCEPT_ACTIVE	"Mute common media playing applications (unmute active application)"
 #define DESCRIPTION_NMASTER_DECREASE				"Increase number of master clients"
 #define DESCRIPTION_NMASTER_INCREASE				"Decrease number of master clients"
 
