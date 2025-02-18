@@ -339,8 +339,8 @@ static const Layout layouts[] = {
 };
 
 #if PATCH_IPC
-//static const char *socketpath = "${XDG_RUNTIME_DIR}/dwm/dwm.sock";	// sometimes we can't expand this - possibly not getting environment every time;
-static const char *socketpath = "/tmp/dwm.sock";
+static const char *socketpath = "${XDG_RUNTIME_DIR}/dwm.sock";	// sometimes we can't expand this - possibly not getting environment every time;
+static const char *socketpath_fallback = "/tmp/dwm.sock";
 static IPCCommand ipccommands[] = {
 	IPCCOMMAND(  activate,            1,      {ARG_TYPE_STR}    ),
 	IPCCOMMAND(  clearurgency,        1,      {ARG_TYPE_NONE}   ),

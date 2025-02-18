@@ -1347,7 +1347,7 @@ static void configure(Client *c);
 static void configurenotify(XEvent *e);
 static void configurerequest(XEvent *e);
 #if PATCH_IPC
-static void connect_to_socket();
+static int connect_to_socket();
 #endif // PATCH_IPC
 #if PATCH_FLAG_GAME
 static void createbarrier(Client *c);
@@ -4476,11 +4476,11 @@ configurerequest(XEvent *e)
 }
 
 #if PATCH_IPC
-void
+int
 connect_to_socket()
 {
 	if (sock_fd != -1)
-		return;
+		return sock_fd;
 
 	struct sockaddr_un addr;
 
@@ -4490,19 +4490,23 @@ connect_to_socket()
 	memset(&addr, 0, sizeof(struct sockaddr_un));
 
 	addr.sun_family = AF_UNIX;
-	ipcsockpath = expandenv(socketpath);
-	if (ipcsockpath) {
-		if (strchr(socketpath, '$') && strlen(ipcsockpath) == strlen(socketpath)) {
-			fprintf(stderr, "dwm: Failed to expand socket path: \"%s\".\n", socketpath);
-			return;
-		}
-		strcpy(addr.sun_path, ipcsockpath);
+	if (ipcsockpath)
 		free(ipcsockpath);
-		connect(sock, (const struct sockaddr *)&addr, sizeof(struct sockaddr_un));
-		sock_fd = sock;
+	ipcsockpath = expandenv(socketpath);
+	if (!ipcsockpath || (strchr(socketpath, '$') && strlen(ipcsockpath) == strlen(socketpath))) {
+		logdatetime(stderr);
+		if (ipcsockpath) {
+			fprintf(stderr, "dwm: Failed to expand socket path: \"%s\"; using fallback \"%s\".\n", socketpath, socketpath_fallback);
+			free(ipcsockpath);
+		}
+		else
+			fprintf(stderr, "dwm: Unable to evaluate socket path: \"%s\"; using fallback \"%s\".\n", socketpath, socketpath_fallback);
+		ipcsockpath = strdup(socketpath_fallback);
 	}
-	else
-		fprintf(stderr, "dwm: Unable to evaluate socket path: %s\n", socketpath);
+	strcpy(addr.sun_path, ipcsockpath);
+	connect(sock, (const struct sockaddr *)&addr, sizeof(struct sockaddr_un));
+	sock_fd = sock;
+	return sock_fd;
 }
 #endif // PATCH_IPC
 
@@ -7803,8 +7807,7 @@ fullscreen(const Arg *arg)
 int
 find_dwm_client(const char *name)
 {
-	connect_to_socket();
-	if (sock_fd == -1) {
+	if (connect_to_socket() == -1) {
 		logdatetime(stderr);
 		fprintf(stderr, "dwm: Failed to connect to socket \"%s\".\n", ipcsockpath);
 		return 0;
@@ -7836,8 +7839,7 @@ find_dwm_client(const char *name)
 int
 get_dwm_client(Window win)
 {
-	connect_to_socket();
-	if (sock_fd == -1) {
+	if (connect_to_socket() == -1) {
 		logdatetime(stderr);
 		fprintf(stderr, "dwm: Failed to connect to socket \"%s\".\n", ipcsockpath);
 		return 0;
@@ -7870,8 +7872,7 @@ get_dwm_client(Window win)
 int
 get_layouts()
 {
-	connect_to_socket();
-	if (sock_fd == -1) {
+	if (connect_to_socket() == -1) {
 		logdatetime(stderr);
 		fprintf(stderr, "dwm: Failed to connect to socket \"%s\".\n", ipcsockpath);
 		return 0;
@@ -7885,8 +7886,7 @@ get_layouts()
 int
 get_monitors()
 {
-	connect_to_socket();
-	if (sock_fd == -1) {
+	if (connect_to_socket() == -1) {
 		logdatetime(stderr);
 		fprintf(stderr, "dwm: Failed to connect to socket \"%s\".\n", ipcsockpath);
 		return 0;
@@ -7899,8 +7899,7 @@ get_monitors()
 int
 get_tags()
 {
-	connect_to_socket();
-	if (sock_fd == -1) {
+	if (connect_to_socket() == -1) {
 		logdatetime(stderr);
 		fprintf(stderr, "dwm: Failed to connect to socket \"%s\".\n", ipcsockpath);
 		return 0;
@@ -15881,8 +15880,7 @@ run(void)
 int
 run_command(char *name, char *args[], int argc)
 {
-	connect_to_socket();
-	if (sock_fd == -1) {
+	if (connect_to_socket() == -1) {
 		logdatetime(stderr);
 		fprintf(stderr, "dwm: Failed to connect to socket \"%s\".\n", ipcsockpath);
 		return 0;
@@ -17490,24 +17488,25 @@ setupepoll(void)
 		return result;
 	}
 
+	if (ipcsockpath)
+		free(ipcsockpath);
 	ipcsockpath = expandenv(socketpath);
-	if (ipcsockpath) {
-		if (strchr(socketpath, '$') && strlen(ipcsockpath) == strlen(socketpath)) {
-			logdatetime(stderr);
-			fprintf(stderr, "dwm: Failed to expand socket path: \"%s\".\n", socketpath);
-		}
-		else if (ipc_init(ipcsockpath, epoll_fd, ipccommands, LENGTH(ipccommands)) < 0) {
-			logdatetime(stderr);
-			fputs("dwm: Failed to initialize IPC\n", stderr);
+	if (!ipcsockpath || (strchr(socketpath, '$') && strlen(ipcsockpath) == strlen(socketpath))) {
+		logdatetime(stderr);
+		if (ipcsockpath) {
+			fprintf(stderr, "dwm: Failed to expand socket path: \"%s\"; using fallback \"%s\".\n", socketpath, socketpath_fallback);
+			free(ipcsockpath);
 		}
 		else
-			result = 1;
-		free(ipcsockpath);
+			fprintf(stderr, "dwm: Unable to evaluate socket path: \"%s\"; using fallback \"%s\".\n", socketpath, socketpath_fallback);
+		ipcsockpath = strdup(socketpath_fallback);
 	}
-	else {
+	if (ipc_init(ipcsockpath, epoll_fd, ipccommands, LENGTH(ipccommands)) < 0) {
 		logdatetime(stderr);
-		fprintf(stderr, "\n\n	dwm: Unable to evaluate socket path: %s\n\n\n", socketpath);
+		fputs("dwm: Failed to initialize IPC\n", stderr);
 	}
+	else
+		result = 1;
 	return result;
 
 }
@@ -18181,8 +18180,7 @@ spawnhelp(const Arg *arg)
 int
 subscribe(const char *event)
 {
-	connect_to_socket();
-	if (sock_fd == -1) {
+	if (connect_to_socket() == -1) {
 		logdatetime(stderr);
 		fprintf(stderr, "dwm: Failed to connect to socket \"%s\".\n", ipcsockpath);
 		return 0;
@@ -22392,6 +22390,12 @@ reload:
 			}
 
 			#if PATCH_IPC
+			else if (!strcmp("-p", argv[i])) {
+				if (i + 1 >= argc)
+					return(usage("error: No socket path specified after -p switch."));
+				++i;
+				socketpath = argv[i];
+			}
 			else if (!strcmp("-s", argv[i])) {
 				if (i + 1 >= argc)
 					return(usage("error: No IPC verb specified after -s switch."));
@@ -22559,7 +22563,7 @@ reload:
 	fputs(" (DEBUGGING is on)", stderr);
 	#endif // DEBUGGING
 	#if PATCH_IPC
-	fprintf(stderr, " (IPC socket FD: %d)", sock_fd);
+	fprintf(stderr, " (IPC socket \"%s\" FD:%d)", ipcsockpath, sock_fd);
 	#endif // PATCH_IPC
 	fputs("\n", stderr);
 	#endif // PATCH_LOG_DIAGNOSTICS
@@ -22568,6 +22572,10 @@ reload:
 finish:
 	#if PATCH_IPC
 	ipc_cleanup();
+	if (ipcsockpath) {
+		free(ipcsockpath);
+		ipcsockpath = NULL;
+	}
 	#endif // PATCH_IPC
 
 	cleanup();
@@ -22629,7 +22637,7 @@ usage(const char * err_text)
 		" [-n]"
 		#endif // PATCH_SYSTRAY
 		#if PATCH_IPC
-		"\n[-s <verb> [command [args]]]"
+		"\n[-p <socket-path>] [-s <verb> [command [args]]]"
 		#endif // PATCH_IPC
 		"\n"
 	);

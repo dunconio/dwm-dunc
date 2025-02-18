@@ -35,7 +35,7 @@
 #define PATCH_PAUSE_PROCESS					1
 #define PATCH_PERSISTENT_METADATA			1	// Store client metadata, restore metadata after a restart
 #define PATCH_PERTAG						1
-#define PATCH_RAINBOW_TAGS					1
+#define PATCH_RAINBOW_TAGS					0
 #define PATCH_SCAN_OVERRIDE_REDIRECTS		0	// Not usually necessary - only picks up windows during scan();
 #define PATCH_SHOW_DESKTOP					1
 #define PATCH_SHOW_DESKTOP_BUTTON			1
@@ -44,7 +44,7 @@
 #define PATCH_SHOW_DESKTOP_WITH_FLOATING	1	// Allow floating clients to be visible while the desktop is;
 #define PATCH_SHOW_MASTER_CLIENT_ON_TAG		1
 #define PATCH_STATUS_ALLOW_FIXED_MONITOR	1	// Allow status to be drawn on non-active monitor if it's only allowed on that monitor;
-#define PATCH_STATUSCMD						0
+#define PATCH_STATUSCMD						1
 #define PATCH_STATUSCMD_COLOURS				1
 #define PATCH_STATUSCMD_COLOURS_DECOLOURIZE	1	// Decolourize the status text when monitor is not active
 #define PATCH_STATUSCMD_MODIFIERS			1	// Add modifier values to button signal;

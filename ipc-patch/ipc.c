@@ -1038,6 +1038,9 @@ ipc_cleanup()
 		fprintf(stderr, "dwm: Failed to close epoll file descriptor\n");
 	}
 
+	// Delete socket
+	unlink(sockaddr.sun_path);
+
 	// Uninitialize all static variables
 	epoll_fd = -1;
 	sock_fd = -1;
@@ -1045,9 +1048,6 @@ ipc_cleanup()
 	ipc_commands_len = 0;
 	memset(&sock_epoll_event, 0, sizeof(struct epoll_event));
 	memset(&sockaddr, 0, sizeof(struct sockaddr_un));
-
-	// Delete socket
-	unlink(sockaddr.sun_path);
 
 	shutdown(sock_fd, SHUT_RDWR);
 	close(sock_fd);
