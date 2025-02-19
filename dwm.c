@@ -8809,8 +8809,16 @@ guessnextfocus(Client *c, Monitor *m)
 			m = c->mon;
 
 	// prefer the client's parent for the next focus;
-	if (!sel && c && c->parent && ISVISIBLE(c->parent) && c->parent->mon == c->mon)
+	if (!sel && c && c->parent && ISVISIBLE(c->parent) && c->parent->mon == c->mon) {
 		sel = c->parent;
+		// if floating client has autofocus=0 then look at its parent instead;
+		while (sel && sel->isfloating && !sel->autofocus) {
+			if (sel->parent && ISVISIBLE(sel->parent) && sel->parent->mon == c->mon)
+				sel = sel->parent;
+			else
+				sel = NULL;
+		}
+	}
 
 	#if PATCH_FLAG_GAME
 	// try to avoid disrupting an already focused fullscreen game client;
@@ -16578,6 +16586,9 @@ setfocus(Client *c)
 	if (c->crop)
 		c = c->crop;
 	#endif // PATCH_CROP_WINDOWS
+
+	// once the client has focus, set autofocus=1 (used in guessnextfocus);
+	c->autofocus = 1;
 
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 	if (c->pauseinvisible == -1 && c->pid) {
