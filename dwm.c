@@ -104,6 +104,7 @@ static cJSON *barelement_fontgroups_json = NULL;
 static char *tabFontgroup = NULL;		// alt-tab switcher font group;
 #endif // PATCH_ALTTAB
 #endif // PATCH_FONT_GROUPS
+static cJSON *badprocs = NULL;
 
 static char **coloursbackup = NULL;
 static char **tagiconpathsbackup = NULL;
@@ -241,6 +242,7 @@ static const supported_json supported_layout_global[] = {
 	{ "mirror-layout",				"switch master area and stack area" },
 	#endif // PATCH_MIRROR_LAYOUT
 	{ "monitors",					"array of monitor objects (see \"monitor sections\")" },
+	{ "process-no-sigterm",			"array of process names that don't respect SIGTERM conventions" },
 	#if PATCH_CUSTOM_TAG_ICONS
 	{ "show-custom-tag-icons",		"true to show a custom icon in place of tag identifier (for each tag)" },
 	#endif // PATCH_CUSTOM_TAG_ICONS
@@ -1452,6 +1454,7 @@ static int getpanelpadding(Monitor *m, unsigned int *px, unsigned int *pw);
 #endif // PATCH_FLAG_PANEL
 static Client *getparentclient(Client *c);
 static pid_t getparentprocess(pid_t p);
+static int getprocname(pid_t pid, char *buffer, size_t buffer_size, char **procname, char **parameters);
 #if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 static int getrelativeptr(Client *c, int *x, int *y);
 #endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
@@ -1507,6 +1510,7 @@ static void keypress(XEvent *e);
 static void keyrelease(XEvent *e);
 #endif // PATCH_ALT_TAGS
 static void killclient(const Arg *arg);
+static void killclientex(Client *c, int sigterm);
 static void killgroup(const Arg *arg);
 static void killwin(Window w);
 static int layoutstringtoindex(const char *layout);
@@ -8505,6 +8509,58 @@ getparentprocess(pid_t p)
 	return (pid_t)v;
 }
 
+int
+getprocname(pid_t pid, char *buffer, size_t buffer_size, char **procname, char **parameters)
+{
+	int ret = 0;
+	if (!pid)
+		return ret;
+#ifdef __linux__
+	FILE *fp;
+	char *substr;
+	snprintf(buffer, buffer_size, "/proc/%u/cmdline", (unsigned)pid);
+	if (!(fp = fopen(buffer, "r"))) {
+		logdatetime(stderr);
+		fprintf(stderr, "dwm: unable to open \"%s\"\n", buffer);
+		return 0;
+	}
+	memset(buffer,0,buffer_size);
+	fgets(buffer, buffer_size - 2, fp);
+	fclose(fp);
+
+	// cope with replaced command lines with spaces instead of nul chars;
+	substr = strchr(buffer, ' ');
+	if (substr) {
+		if (substr < buffer + buffer_size - 2) {
+			substr[0] = '\0';
+			*parameters = substr + 1;
+		}
+		else
+			*parameters = NULL;
+	}
+	else {
+		size_t flen = strlen(buffer);
+		if (flen < buffer_size - 1)
+			*parameters = buffer + flen + 1;
+		else
+			*parameters = NULL;
+	}
+	if (*parameters) {
+		for (char *pbuff = *parameters; pbuff < buffer + buffer_size - 1; ++pbuff)
+			if (pbuff[0] == '\0' && pbuff[1] != '\0')
+				pbuff[0] = ' ';
+
+	}
+	substr = strrchr(buffer, '/');
+	if (substr)
+		*procname = substr + 1;
+	else
+		*procname = buffer;
+	ret = 1;
+#endif /* __linux__*/
+	return ret;
+}
+
 #if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 int
 getrelativeptr(Client *c, int *x, int *y)
@@ -9450,46 +9506,84 @@ keyrelease(XEvent *e)
 void
 killclient(const Arg *arg)
 {
-	if (!arg->ui)
-		return;
-	Client *sel;
-	if (arg->ui > 1 || !selmon || !(sel = selmon->sel))
+	Client *c;
+	if (!selmon || !(c = selmon->sel))
 		return;
 	if (arg->ui > 1) {
-		if (!(sel = wintoclient(arg->ui)))
-		return;
+		if (!(c = wintoclient(arg->ui)))
+			return;
 	}
-	#if PATCH_CROP_WINDOWS
-	if (sel->crop)
-		cropdelete(sel);
-	#endif // PATCH_CROP_WINDOWS
-
-	#if PATCH_FLAG_GAME
-	#if PATCH_FLAG_GAME_STRICT
-	if (sel == game)
-		game = NULL;
-	#endif // PATCH_FLAG_GAME_STRICT
-	#endif // PATCH_FLAG_GAME
+	killclientex(c, (arg->ui == 0 ? 1 : 0));
+}
+void
+killclientex(Client *c, int sigterm)
+{
+	if (!c)
+		return;
+	char buffer[256];
+	char *params = NULL, *procname = NULL;
+	int gotname = 0;
+	if (sigterm) {
+		if ((gotname = getprocname(c->pid, buffer, sizeof(buffer), &procname, &params))) {
+			int cnt = 0;
+			if (badprocs && (cnt = cJSON_GetArraySize(badprocs))) {
+				for (int i = 0; i < cnt; ++i) {
+					cJSON *badproc = cJSON_GetArrayItem(badprocs, i);
+					char *string = cJSON_GetStringValue(badproc);
+					if (!string)
+						continue;
+					if (strcmp(string, buffer) == 0 || strcmp(string, procname) == 0 ||
+						(strchr(string, ' ') && params && strstr(string, buffer) == string && strstr(params, string + strlen(buffer) + 1))
+					) {
+						logdatetime(stderr);
+						fprintf(stderr, "dwm: found procname listed in process-no-sigterm: \"%s\"; will send WM_DELETE, not SIGTERM\n", buffer);
+						sigterm = 0;
+						break;
+					}
+				}
+			}
+		}
+	}
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
-	if (sel->pauseinvisible == -1 && sel->pid) {
-		kill (sel->pid, SIGCONT);
-		sel->pauseinvisible = 1;
+	if (c->pauseinvisible == -1 && c->pid) {
+		kill (c->pid, SIGCONT);
+		c->pauseinvisible = 1;
 		#if PATCH_PAUSE_PROCESS
-		sel->paused = 0;
+		c->paused = 0;
 		#endif // PATCH_PAUSE_PROCESS
-		DEBUG("client continued: \"%s\".\n", sel->name);
+		DEBUG("client continued: \"%s\".\n", c->name);
 	}
 	#if PATCH_PAUSE_PROCESS
 	else
 	#endif // PATCH_PAUSE_PROCESS
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
 	#if PATCH_PAUSE_PROCESS
-	if (sel->paused) {
-		kill (sel->pid, SIGCONT);
-		sel->paused = 0;
+	if (c->paused) {
+		kill (c->pid, SIGCONT);
+		c->paused = 0;
 	}
 	#endif // PATCH_PAUSE_PROCESS
-	killwin(sel->win);
+	if (sigterm) {
+		logdatetime(stderr);
+		if (gotname)
+			fprintf(stderr, "dwm: sending SIGTERM to process %d (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
+		else
+			fprintf(stderr, "dwm: sending SIGTERM to process %d for client \"%s\"\n", c->pid, c->name);
+
+		kill (c->pid, SIGTERM);
+		return;
+	}
+	#if PATCH_CROP_WINDOWS
+	if (c->crop)
+		cropdelete(c);
+	#endif // PATCH_CROP_WINDOWS
+	#if PATCH_FLAG_GAME
+	#if PATCH_FLAG_GAME_STRICT
+	if (c == game)
+		game = NULL;
+	#endif // PATCH_FLAG_GAME_STRICT
+	#endif // PATCH_FLAG_GAME
+	killwin(c->win);
 }
 void
 killgroup(const Arg *arg)
@@ -13213,6 +13307,14 @@ parselayoutjson(cJSON *layout)
 					}
 
 				}
+			}
+
+			else if (strcmp(L->string, "process-no-sigterm")==0) {
+				if (cJSON_IsArray(L)) {
+					badprocs = L;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"process-no-sigterm\" must contain an array of strings", 0);
 			}
 
 		}
