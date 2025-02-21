@@ -22667,6 +22667,7 @@ usage(const char * err_text)
 	print_wrap(f, wrap_length, indent, 2, "-l", indent, NULL, "use the layout configuration defined in the specified JSON layout file");
 	print_wrap(f, wrap_length, indent, 2, "-u", indent, NULL, "disable client urgency hinting");
 	#if PATCH_IPC
+	print_wrap(f, wrap_length, indent, 2, "-p", indent, NULL, "path to unix socket");
 	print_wrap(f, wrap_length, indent, 2, "-s", indent, NULL, "send request to running instance via socket");
 	#endif // PATCH_IPC
 	fputs("\n", f);
