@@ -1300,6 +1300,7 @@ struct Systray {
 
 /* function declarations */
 static void activate(const Arg *arg);
+static void activateclient(Client *c, int setfocus);
 #if PATCH_FLAG_FLOAT_ALIGNMENT
 static int alignfloat(Client *c, float relX, float relY);
 #endif // PATCH_FLAG_FLOAT_ALIGNMENT
@@ -2047,42 +2048,51 @@ struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 void
 activate(const Arg *arg)
 {
+	Client *c = getclientbyname(arg->v);
+	if (c)
+		activateclient(c, 1);
+}
+
+void
+activateclient(Client *c, int setfocus)
+{
+	if (!c)
+		return;
 	Monitor *selm = selmon;
-	Client *sel = getclientbyname(arg->v);
-	if (sel) {
 
-		if (selmon->sel)
-			#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
-			unfocus(selmon->sel, (sel->mon != selmon ? (1 << 1) : 0));
-			#else
-			unfocus(selmon->sel, 0);
-			#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
+	if (selmon->sel)
+		#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
+		unfocus(selmon->sel, (c->mon != selmon ? (1 << 1) : 0));
+		#else
+		unfocus(selmon->sel, 0);
+		#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 
-		#if PATCH_FLAG_HIDDEN
-		if (sel->ishidden) {
-			sel->ishidden = False;
-			#if PATCH_PERSISTENT_METADATA
-			setclienttagprop(sel);
-			#endif // PATCH_PERSISTENT_METADATA
-			unminimize(sel);
-		}
-		#endif // PATCH_FLAG_HIDDEN
-		if (!ISVISIBLE(sel))
-			viewmontag(sel->mon, sel->tags, 0);
-		selmon = sel->mon;
-		if (selmon != selm)
-			drawbar(selm, 1);
-		selmon->sel = sel;
-		focus(sel, 1);
-		#if PATCH_MOUSE_POINTER_WARPING
-		if (selmon->sel)
-			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(selmon->sel, 1, 1);
-			#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(selmon->sel, 1);
-			#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		#endif // PATCH_MOUSE_POINTER_WARPING
+	#if PATCH_FLAG_HIDDEN
+	if (c->ishidden) {
+		c->ishidden = False;
+		#if PATCH_PERSISTENT_METADATA
+		setclienttagprop(c);
+		#endif // PATCH_PERSISTENT_METADATA
+		unminimize(c);
 	}
+	#endif // PATCH_FLAG_HIDDEN
+	if (!ISVISIBLE(c))
+		viewmontag(c->mon, c->tags, 0);
+	if (!setfocus)
+		return;
+	selmon = c->mon;
+	if (selmon != selm)
+		drawbar(selm, 1);
+	selmon->sel = c;
+	focus(c, 1);
+	#if PATCH_MOUSE_POINTER_WARPING
+	if (selmon->sel)
+		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		warptoclient(selmon->sel, 1, 1);
+		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		warptoclient(selmon->sel, 1);
+		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	#endif // PATCH_MOUSE_POINTER_WARPING
 }
 
 #if PATCH_FLAG_FLOAT_ALIGNMENT
