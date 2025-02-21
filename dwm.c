@@ -13422,7 +13422,11 @@ placemouse(const Arg *arg)
 
 	if (!(c = selmon->sel) || c->dormant || !c->mon->lt[c->mon->sellt]->arrange) /* no support for placemouse when floating layout is used */
 		return;
-	if (c->isfullscreen) /* no support placing fullscreen windows by mouse */
+	if (c->isfullscreen
+		#if PATCH_FLAG_FAKEFULLSCREEN
+		&& c->fakefullscreen != 1
+		#endif // PATCH_FLAG_FAKEFULLSCREEN
+		) /* no support placing fullscreen windows by mouse */
 		return;
 	restack(selmon);
 	prevr = c;
