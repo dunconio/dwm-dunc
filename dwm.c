@@ -1959,7 +1959,7 @@ static int altTabActive = 0;	// 1 for selection is highlighted, 0 is not highlig
 #endif // PATCH_ALTTAB
 
 #if PATCH_EXTERNAL_WINDOW_ACTIVATION
-static int enable_switching = 0;
+static volatile sig_atomic_t enable_switching = 0;
 #endif // PATCH_EXTERNAL_WINDOW_ACTIVATION
 
 #if PATCH_ALPHA_CHANNEL
