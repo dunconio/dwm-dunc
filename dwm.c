@@ -1900,7 +1900,7 @@ static Client *dummyc = NULL;
 
 
 #if PATCH_MOUSE_POINTER_WARPING
-static int warptoclient_stop_flag = 0;
+static volatile sig_atomic_t warptoclient_stop_flag = 0;
 #endif // PATCH_MOUSE_POINTER_WARPING
 
 static int (*xerrorxlib)(Display *, XErrorEvent *);
