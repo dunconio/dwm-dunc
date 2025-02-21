@@ -658,7 +658,7 @@ static int cursor_always_hide = 0, ignore_scroll = 0;
 static unsigned char cursor_ignore_mods = (ShiftMask | ControlMask | Mod1Mask | Mod4Mask | Mod5Mask);
 static XSyncCounter cursor_idler_counter = 0;
 static XSyncAlarm cursor_idle_alarm = None;
-static int cursor_sync_event;
+static int timer_sync_event;
 static int cursormove_x = -1, cursormove_y = -1;
 #if 0
 static int cursormove = 0, cursormove_custom_x, cursormove_custom_y, cursormove_custom_mask;
@@ -1668,7 +1668,7 @@ static int setup(void);
 static int setupepoll(void);
 #endif // PATCH_IPC
 #if PATCH_MOUSE_POINTER_HIDING
-static void setup_idle_counter(void);
+static void setup_sync_counters(void);
 #endif // PATCH_MOUSE_POINTER_HIDING
 static void seturgent(Client *c, int urg);
 #if PATCH_EWMH_TAGS
@@ -8924,10 +8924,10 @@ handlexevent(struct epoll_event *ev)
 
 				XFreeEventData(dpy, cookie);
 			}
-			else if (ev.type == (cursor_sync_event + XSyncAlarmNotify)) {
-				if (cursortimeout) {
-					XSyncAlarmNotifyEvent *alarm_e = (XSyncAlarmNotifyEvent *)&ev;
-					if (alarm_e->alarm == cursor_idle_alarm) {
+			else if (ev.type == (timer_sync_event + XSyncAlarmNotify)) {
+				XSyncAlarmNotifyEvent *alarm_e = (XSyncAlarmNotifyEvent *)&ev;
+				if (alarm_e->alarm == cursor_idle_alarm) {
+					if (cursortimeout) {
 						int hide = 0;
 
 						if ((!selmon && cursorautohide)
@@ -15814,10 +15814,10 @@ run(void)
 
 			XFreeEventData(dpy, cookie);
 		}
-		else if (ev.type == (cursor_sync_event + XSyncAlarmNotify)) {
-			if (cursortimeout) {
-				XSyncAlarmNotifyEvent *alarm_e = (XSyncAlarmNotifyEvent *)&ev;
-				if (alarm_e->alarm == cursor_idle_alarm) {
+		else if (ev.type == (timer_sync_event + XSyncAlarmNotify)) {
+			XSyncAlarmNotifyEvent *alarm_e = (XSyncAlarmNotifyEvent *)&ev;
+			if (alarm_e->alarm == cursor_idle_alarm) {
+				if (cursortimeout) {
 					int hide = 0;
 
 					if ((!selmon && cursorautohide)
@@ -17529,34 +17529,35 @@ setupepoll(void)
 
 #if PATCH_MOUSE_POINTER_HIDING
 void
-setup_idle_counter(void)
+setup_sync_counters(void)
 {
 	int i;
 	XSyncSystemCounter *counters;
 	int error;
 	int major, minor, ncounters;
 
-	if (cursortimeout) {
-		if (XSyncQueryExtension(dpy, &cursor_sync_event, &error) != True) {
-			logdatetime(stderr);
-			fprintf(stderr, "dwm: no X sync extension available - no cursor autohiding available.\n");
+	if (XSyncQueryExtension(dpy, &timer_sync_event, &error) != True) {
+		logdatetime(stderr);
+		fputs("dwm: no X sync extension available;", stderr);
+		if (cursortimeout)
+			fputs(" no cursor autohiding available;", stderr);
+		fputs("\n", stderr);
+	}
+	else {
+		XSyncInitialize(dpy, &major, &minor);
+
+		counters = XSyncListSystemCounters(dpy, &ncounters);
+		for (i = 0; i < ncounters; i++) {
+			if (!strcmp(counters[i].name, "IDLETIME")) {
+				cursor_idler_counter = counters[i].counter;
+				break;
+			}
 		}
-		else {
-			XSyncInitialize(dpy, &major, &minor);
+		XSyncFreeSystemCounterList(counters);
 
-			counters = XSyncListSystemCounters(dpy, &ncounters);
-			for (i = 0; i < ncounters; i++) {
-				if (!strcmp(counters[i].name, "IDLETIME")) {
-					cursor_idler_counter = counters[i].counter;
-					break;
-				}
-			}
-			XSyncFreeSystemCounterList(counters);
-
-			if (!cursor_idler_counter) {
-				logdatetime(stderr);
-				fprintf(stderr, "dwm: no X idle counter - no cursor autohiding available.\n");
-			}
+		if (cursortimeout && !cursor_idler_counter) {
+			logdatetime(stderr);
+			fputs("dwm: no X idle counter - no cursor autohiding available.\n", stderr);
 		}
 	}
 }
@@ -22562,8 +22563,8 @@ reload:
 	#endif // PATCH_MOUSE_POINTER_HIDING
 	//#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
 	#if PATCH_MOUSE_POINTER_HIDING
+	setup_sync_counters();
 	if (cursortimeout > 0) {
-		setup_idle_counter();
 		// starts the timer;
 		showcursor();
 	}
