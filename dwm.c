@@ -1624,7 +1624,7 @@ static int send_message(IPCMessageType msg_type, uint32_t msg_size, uint8_t *msg
 static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
 static void sendmon(Client *c, Monitor *m, Client *leader, int force);
 #if PATCH_MOUSE_POINTER_HIDING
-static void set_alarm(XSyncAlarm *alarm, XSyncTestType test);
+static int set_idle_alarm(void);
 #endif // PATCH_MOUSE_POINTER_HIDING
 #if PATCH_FLAG_ALWAYSONTOP
 static void setalwaysontop(Client *c, int alwaysontop);
@@ -16386,8 +16386,8 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 
 
 #if PATCH_MOUSE_POINTER_HIDING
-void
-set_alarm(XSyncAlarm *alarm, XSyncTestType test)
+int
+set_idle_alarm(void)
 {
 	XSyncAlarmAttributes attr;
 	XSyncValue value;
@@ -16396,17 +16396,18 @@ set_alarm(XSyncAlarm *alarm, XSyncTestType test)
 	XSyncQueryCounter(dpy, cursor_idler_counter, &value);
 
 	attr.trigger.counter = cursor_idler_counter;
-	attr.trigger.test_type = test;
+	attr.trigger.test_type = XSyncPositiveComparison;
 	attr.trigger.value_type = XSyncRelative;
 	XSyncIntsToValue(&attr.trigger.wait_value, cursortimeout * 1000, (unsigned long)(cursortimeout * 1000) >> 32);
 	XSyncIntToValue(&attr.delta, 0);
 
 	flags = XSyncCACounter | XSyncCATestType | XSyncCAValue | XSyncCADelta;
 
-	if (*alarm)
-		XSyncDestroyAlarm(dpy, *alarm);
+	if (cursor_idle_alarm)
+		XSyncDestroyAlarm(dpy, cursor_idle_alarm);
 
-	*alarm = XSyncCreateAlarm(dpy, flags, &attr);
+	cursor_idle_alarm = XSyncCreateAlarm(dpy, flags, &attr);
+	return cursor_idle_alarm;
 }
 #endif // PATCH_MOUSE_POINTER_HIDING
 
@@ -17600,7 +17601,7 @@ void
 showcursor(void)
 {
 	if (cursortimeout) {
-		set_alarm(&cursor_idle_alarm, XSyncPositiveComparison);
+		set_idle_alarm();
 	}
 
 	if (!cursorhiding)
