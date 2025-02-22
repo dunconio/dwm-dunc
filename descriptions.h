@@ -62,6 +62,7 @@
 
 
 #define DESCRIPTION_KILL_CLIENT						"Kill the client's window"
+#define DESCRIPTION_KILL_CLIENT_PROCESS				"Kill the client's process (SIGTERM)"
 #define DESCRIPTION_KILL_GROUP						"Kill clients that match the selected client's class/instance"
 
 #if PATCH_LOG_DIAGNOSTICS

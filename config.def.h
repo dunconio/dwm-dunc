@@ -546,6 +546,7 @@ static const Key keys[] = {
 
 	{ MODKEY,                       XK_q,      killclient,     {.ui = 1}, DESCRIPTION_KILL_CLIENT },
 	{ Mod1Mask,						XK_F4,     killclient,     {.ui = 1}, DESCRIPTION_KILL_CLIENT },
+	{ MODKEY|ControlMask,           XK_q,      killclient,     {.ui = 0}, DESCRIPTION_KILL_CLIENT_PROCESS },
 	{ MODKEY|ShiftMask,             XK_q,      killgroup,      {.ui = (KILLGROUP_BY_CLASS | KILLGROUP_BY_INSTANCE) }, DESCRIPTION_KILL_GROUP },
 	{ MODKEY|ShiftMask|ControlMask, XK_Escape, spawn,          SHCMD("xkill >/dev/null 2>&1"), DESCRIPTION_XKILL },
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Escape, reload,{0}, DESCRIPTION_RELOAD },
@@ -553,9 +554,9 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_m,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-audio.sh -r"), DESCRIPTION_MUTE_GUI },
 	{ ShiftMask,                    XF86AudioPlay,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-app.sh firefox freetube thorium vlc"), DESCRIPTION_MUTE_MEDIA_APPS },
 	{ ShiftMask|ControlMask,        XF86AudioPlay,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-media-except-active.sh firefox freetube thorium vlc"), DESCRIPTION_MUTE_MEDIA_APPS_EXCEPT_ACTIVE },
-	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_l,    spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.quit; kill $(pidof dwm.running)"), DESCRIPTION_LOGOUT },
-	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Home, spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.restart; kill $(pidof dwm.running);"), DESCRIPTION_RESTART },
-	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_End,  spawn,   SHCMD("touch $XDG_RUNTIME_DIR/dwm/dwm.shutdown; kill $(pidof dwm.running);"), DESCRIPTION_SHUTDOWN },
+	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_l,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-quit.sh logout"), DESCRIPTION_LOGOUT },
+	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Home, spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-quit.sh restart"), DESCRIPTION_RESTART },
+	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_End,  spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-quit.sh shutdown"), DESCRIPTION_SHUTDOWN },
 
 #if PATCH_MOUSE_POINTER_WARPING
 	{ Mod4Mask,                     XK_Alt_L,  refocuspointer, {0}, DESCRIPTION_REFOCUS_POINTER },

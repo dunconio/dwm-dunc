@@ -105,6 +105,7 @@ static char *tabFontgroup = NULL;		// alt-tab switcher font group;
 #endif // PATCH_ALTTAB
 #endif // PATCH_FONT_GROUPS
 static cJSON *badprocs = NULL;
+static cJSON *procparents = NULL;
 
 static char **coloursbackup = NULL;
 static char **tagiconpathsbackup = NULL;
@@ -243,6 +244,7 @@ static const supported_json supported_layout_global[] = {
 	#endif // PATCH_MIRROR_LAYOUT
 	{ "monitors",					"array of monitor objects (see \"monitor sections\")" },
 	{ "process-no-sigterm",			"array of process names that don't respect SIGTERM conventions" },
+	{ "process-parents",			"array of objects with \"procname\" and \"parent\" string values" },
 	#if PATCH_CUSTOM_TAG_ICONS
 	{ "show-custom-tag-icons",		"true to show a custom icon in place of tag identifier (for each tag)" },
 	#endif // PATCH_CUSTOM_TAG_ICONS
@@ -1454,6 +1456,7 @@ static int getpanelpadding(Monitor *m, unsigned int *px, unsigned int *pw);
 #endif // PATCH_FLAG_PANEL
 static Client *getparentclient(Client *c);
 static pid_t getparentprocess(pid_t p);
+static pid_t getprocessid(const char *procname);
 static int getprocname(pid_t pid, char *buffer, size_t buffer_size, char **procname, char **parameters);
 #if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 static int getrelativeptr(Client *c, int *x, int *y);
@@ -8509,6 +8512,23 @@ getparentprocess(pid_t p)
 	return (pid_t)v;
 }
 
+pid_t
+getprocessid(const char *procname)
+{
+	unsigned int v = 0;
+#ifdef __linux__
+	FILE *fp;
+	char buf[256];
+	snprintf(buf, sizeof(buf) - 1, "pidof -s %s", procname);
+	if (!(fp = popen(buf, "r")))
+		return 0;
+	fgets(buf, sizeof(buf), fp);
+	pclose(fp);
+	v = strtol(buf, NULL, 10);
+#endif /* __linux__*/
+	return (pid_t)v;
+}
+
 int
 getprocname(pid_t pid, char *buffer, size_t buffer_size, char **procname, char **parameters)
 {
@@ -8914,7 +8934,7 @@ handlexevent(struct epoll_event *ev)
 		#if PATCH_MOUSE_POINTER_HIDING
 		XGenericEventCookie *cookie;
 		#endif // PATCH_MOUSE_POINTER_HIDING
-		while (running && XPending(dpy)) {
+		while (running == 1 && XPending(dpy)) {
 			#if PATCH_MOUSE_POINTER_HIDING
 			cookie = &ev.xcookie;
 			#endif // PATCH_MOUSE_POINTER_HIDING
@@ -9522,6 +9542,7 @@ killclientex(Client *c, int sigterm)
 		return;
 	char buffer[256];
 	char *params = NULL, *procname = NULL;
+	pid_t pid = c->pid;
 	int gotname = 0;
 	if (sigterm) {
 		if ((gotname = getprocname(c->pid, buffer, sizeof(buffer), &procname, &params))) {
@@ -9542,10 +9563,44 @@ killclientex(Client *c, int sigterm)
 					}
 				}
 			}
+			if (sigterm && procparents && (cnt = cJSON_GetArraySize(procparents))) {
+				for (int i = 0; i < cnt; ++i) {
+					cJSON *pp = cJSON_GetArrayItem(procparents, i);
+					cJSON *pp_name = cJSON_GetObjectItemCaseSensitive(pp, "procname");
+					cJSON *pp_parent = cJSON_GetObjectItemCaseSensitive(pp, "parent");
+					if (pp_name && cJSON_IsString(pp_name) && pp_parent && cJSON_IsString(pp_parent)) {
+						char *string = cJSON_GetStringValue(pp_name);
+						if (strcmp(string, buffer) == 0 || strcmp(string, procname) == 0 ||
+							(strchr(string, ' ') && params && strstr(string, buffer) == string && strstr(params, string + strlen(buffer) + 1))
+						) {
+							logdatetime(stderr);
+							fprintf(stderr, "dwm: found procname listed in process-parents: \"%s\"; ", buffer);
+							string = cJSON_GetStringValue(pp_parent);
+							pid = getprocessid(string);
+							if (pid) {
+								fprintf(stderr, "will send SIGTERM to replacement process \"%s\" (pid:%u)\n", string, pid);
+								break;
+							}
+							else
+								fprintf(stderr, "unable to find replacement pid for process \"%s\"\n", string);
+						}
+					}
+				}
+			}
 		}
 	}
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 	if (c->pauseinvisible == -1 && c->pid) {
+		if (sigterm && pid) {
+			// just kill a paused process
+			logdatetime(stderr);
+			if (gotname)
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %d (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
+			else
+				fprintf(stderr, "dwm: sending SIGTERM to paused process %d for client \"%s\"\n", c->pid, c->name);
+			kill (pid, SIGKILL);
+			return;
+		}
 		kill (c->pid, SIGCONT);
 		c->pauseinvisible = 1;
 		#if PATCH_PAUSE_PROCESS
@@ -9559,18 +9614,29 @@ killclientex(Client *c, int sigterm)
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
 	#if PATCH_PAUSE_PROCESS
 	if (c->paused) {
+		if (sigterm && pid) {
+			// just kill a paused process
+			logdatetime(stderr);
+			if (gotname)
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %d (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
+			else
+				fprintf(stderr, "dwm: sending SIGTERM to paused process %d for client \"%s\"\n", c->pid, c->name);
+			kill (pid, SIGKILL);
+			return;
+		}
 		kill (c->pid, SIGCONT);
 		c->paused = 0;
 	}
 	#endif // PATCH_PAUSE_PROCESS
 	if (sigterm) {
-		logdatetime(stderr);
-		if (gotname)
-			fprintf(stderr, "dwm: sending SIGTERM to process %d (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
-		else
-			fprintf(stderr, "dwm: sending SIGTERM to process %d for client \"%s\"\n", c->pid, c->name);
-
-		kill (c->pid, SIGTERM);
+		if (pid) {
+			logdatetime(stderr);
+			if (gotname)
+				fprintf(stderr, "dwm: sending SIGTERM to process %d (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
+			else
+				fprintf(stderr, "dwm: sending SIGTERM to process %d for client \"%s\"\n", c->pid, c->name);
+			kill (pid, SIGTERM);
+		}
 		return;
 	}
 	#if PATCH_CROP_WINDOWS
@@ -13316,6 +13382,13 @@ parselayoutjson(cJSON *layout)
 				}
 				cJSON_AddNumberToObject(unsupported, "\"process-no-sigterm\" must contain an array of strings", 0);
 			}
+			else if (strcmp(L->string, "process-parents")==0) {
+				if (cJSON_IsArray(L)) {
+					procparents = L;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"process-parents\" must contain an array of json objects", 0);
+			}
 
 		}
 	}
@@ -14424,7 +14497,7 @@ reloadrules(const Arg *arg)
 {
 	int success;
 	logdatetime(stderr);
-	fputs("dwm: received reloadrules() signal.\n", stderr);
+	fputs("dwm: reloading rules from json file...\n", stderr);
 	if (rules_json) {
 		#if PATCH_FLAG_TITLE || PATCH_SHOW_MASTER_CLIENT_ON_TAG || PATCH_ALTTAB || PATCH_WINDOW_ICONS_CUSTOM_ICONS || PATCH_FLAG_PARENT
 		logdatetime(stderr);
@@ -15805,7 +15878,7 @@ run(void)
 		event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
 
 		for (int i = 0; i < event_count; i++) {
-			if (!running)
+			if (running != 1)
 				break;
 			int event_fd = events[i].data.fd;
 			//DEBUG("Got event from fd %d\n", event_fd);
@@ -15837,6 +15910,7 @@ run(void)
 			}
 		}
 	}
+
 	#else // NO PATCH_IPC
 	XEvent ev;
 	//#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
