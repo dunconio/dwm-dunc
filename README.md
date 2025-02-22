@@ -64,6 +64,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_FOCUS_FOLLOWS_MOUSE` | Focus clients under the mouse pointer; |
 | `PATCH_FOCUS_PIXEL` | Put a filled rectangle in the bottom right corner of focused clients;<br />(mutually exclusive with `PATCH_FOCUS_BORDER`) |
 | `PATCH_FONT_GROUPS` | Add font-groups to enable different font groups for each bar element and alt-tab switcher; |
+| `PATCH_HANDLE_SIGNALS` | Add signal handling for: -<ul><li>`SIGTERM`: quit</li><li>`SIGHUP`: attempt to terminate all clients, and then quit;</li><li>`SIGRTMIN`+0: reload all config and rescan clients;</li><li>`SIGRTMIN`+1: reload rules config (applies to new clients);</li></ul> |
 | `PATCH_HIDE_VACANT_TAGS` | Hides vacant tags (except the current active tag); |
 | `PATCH_IPC` | Provides socket-based message handling; |
 | `PATCH_LOG_DIAGNOSTICS` | Diagnostic functions that log to `stderr`; |

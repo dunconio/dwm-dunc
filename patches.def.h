@@ -22,6 +22,7 @@
 #define PATCH_FOCUS_FOLLOWS_MOUSE			1
 #define PATCH_FOCUS_PIXEL					1
 #define PATCH_FONT_GROUPS					1
+#define PATCH_HANDLE_SIGNALS				1	// respond appropriately to signals
 #define PATCH_HIDE_VACANT_TAGS				1
 #define PATCH_IPC							1	// socket-based message handling
 #define PATCH_LOG_DIAGNOSTICS				1

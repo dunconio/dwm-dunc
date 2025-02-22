@@ -63,6 +63,10 @@
 #include "drw.h"
 #include "util.h"
 
+#if PATCH_HANDLE_SIGNALS
+#include <poll.h>
+#endif // PATCH_HANDLE_SIGNALS
+
 #if PATCH_BIDIRECTIONAL_TEXT
 #include <fribidi.h>
 #endif // PATCH_BIDIRECTIONAL_TEXT
@@ -421,6 +425,11 @@ static const supported_json supported_layout_tag[] = {
 	{ "set-tag-text",		"show this text instead of the default tag text" },
 	#endif // PATCH_ALT_TAGS
 };
+
+#if PATCH_HANDLE_SIGNALS
+#define SIGRELOAD_RESCAN	SIGRTMIN+0
+#define SIGRELOAD_RULES		SIGRTMIN+1
+#endif // PATCH_HANDLE_SIGNALS
 
 #define R_IGNORE	0		// Ignored
 #define R_A		(1 << 0)	// Array
@@ -1421,6 +1430,11 @@ static void focusstack(const Arg *arg);
 #if 0 // original fullscreen (monocle + hide bar);
 static void fullscreen(const Arg *arg);
 #endif
+#if PATCH_HANDLE_SIGNALS
+#if PATCH_MODAL_SUPPORT
+static Client *getfirstmodal(Monitor *m);
+#endif // PATCH_MODAL_SUPPORT
+#endif // PATCH_HANDLE_SIGNALS
 #if PATCH_IPC
 static int find_dwm_client(const char *name);
 static int get_dwm_client(Window win);
@@ -1687,6 +1701,12 @@ static void showcursor(void);
 #endif // PATCH_MOUSE_POINTER_HIDING
 static void showhide(Client *c, int client_only);
 static void showhidebar(Monitor *m);
+#if PATCH_HANDLE_SIGNALS
+static void sighup(int unused);
+static void sigreload(int unused);
+static void sigreloadrules(int unused);
+static void sigterm(int unused);
+#endif // PATCH_HANDLE_SIGNALS
 #if PATCH_STATUSCMD
 //static void sigchld(int unused);
 static void sigstatusbar(const Arg *arg);
@@ -1935,7 +1955,11 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[UnmapNotify] = unmapnotify
 };
 static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast];
+#if PATCH_HANDLE_SIGNALS
+static volatile sig_atomic_t running = 1;
+#else
 static int running = 1;
+#endif // PATCH_HANDLE_SIGNALS
 static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
@@ -1968,6 +1992,9 @@ static int altTabActive = 0;	// 1 for selection is highlighted, 0 is not highlig
 #if PATCH_EXTERNAL_WINDOW_ACTIVATION
 static volatile sig_atomic_t enable_switching = 0;
 #endif // PATCH_EXTERNAL_WINDOW_ACTIVATION
+#if PATCH_HANDLE_SIGNALS
+static volatile sig_atomic_t closing = 0;
+#endif // PATCH_HANDLE_SIGNALS
 
 #if PATCH_ALPHA_CHANNEL
 static int useargb = 0;
@@ -4254,6 +4281,9 @@ clientmessage(XEvent *e)
 		if (c != selmon->sel) {
 			#if PATCH_EXTERNAL_WINDOW_ACTIVATION || PATCH_FLAG_GAME || PATCH_SHOW_DESKTOP
 			if (
+				#if PATCH_HANDLE_SIGNALS
+				closing == 1 ||
+				#endif // PATCH_HANDLE_SIGNALS
 				#if PATCH_EXTERNAL_WINDOW_ACTIVATION
 				enable_switching ||
 				#endif // PATCH_EXTERNAL_WINDOW_ACTIVATION
@@ -7765,7 +7795,11 @@ focusstack(const Arg *arg)
 						#endif // PATCH_FLAG_FAKEFULLSCREEN
 					)
 				) {
-					if (s->pauseinvisible == 1) {
+					if (s->pauseinvisible == 1
+						#if PATCH_HANDLE_SIGNALS
+						&& !closing
+						#endif // PATCH_HANDLE_SIGNALS
+					) {
 						kill (s->pid, SIGSTOP);
 						s->pauseinvisible = -1;
 						#if PATCH_PAUSE_PROCESS
@@ -15578,7 +15612,11 @@ restack(Monitor *m)
 						DEBUG("client continued: \"%s\".\n", c->name);
 					}
 				}
-				else if (c->pauseinvisible == 1) {
+				else if (c->pauseinvisible == 1
+						#if PATCH_HANDLE_SIGNALS
+						&& !closing
+						#endif // PATCH_HANDLE_SIGNALS
+				) {
 					kill (c->pid, SIGSTOP);
 					c->pauseinvisible = -1;
 					#if PATCH_PAUSE_PROCESS
@@ -15911,6 +15949,26 @@ run(void)
 		}
 	}
 
+	#elif PATCH_HANDLE_SIGNALS
+	XEvent ev;
+	XSync(dpy, False);
+	/* main event loop */
+	while (running == 1) {
+		struct pollfd pfd = {
+			.fd = ConnectionNumber(dpy),
+			.events = POLLIN,
+		};
+		int pending = XPending(dpy) > 0 || poll(&pfd, 1, -1) > 0;
+
+		if (running != 1)
+			break;
+		if (!pending)
+			continue;
+
+		XNextEvent(dpy, &ev);
+		if (handler[ev.type])
+			handler[ev.type](&ev); /* call handler */
+	}
 	#else // NO PATCH_IPC
 	XEvent ev;
 	//#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
@@ -17305,6 +17363,14 @@ setup(void)
 	/* clean up any zombies (inherited from .xinitrc etc) immediately */
 	while (waitpid(-1, NULL, WNOHANG) > 0);
 
+	#if PATCH_HANDLE_SIGNALS
+	/* add signal handlers */
+	signal(SIGHUP, sighup);
+	signal(SIGTERM, sigterm);
+	signal(SIGRELOAD_RESCAN, sigreload);
+	signal(SIGRELOAD_RULES, sigreloadrules);
+	#endif // PATCH_HANDLE_SIGNALS
+
 	/* init screen */
 	screen = DefaultScreen(dpy);
 	sw = DisplayWidth(dpy, screen);
@@ -17885,6 +17951,124 @@ showhide(Client *c, int client_only)
 		#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 	}
 }
+
+#if PATCH_HANDLE_SIGNALS
+#if PATCH_MODAL_SUPPORT
+Client *
+getfirstmodal(Monitor *m)
+{
+	for (Client *c = m->stack; c; c = c->snext)
+		if (c->ismodal)
+			return c;
+	return NULL;
+}
+#endif // PATCH_MODAL_SUPPORT
+#endif // PATCH_HANDLE_SIGNALS
+
+#if PATCH_HANDLE_SIGNALS
+void
+sighup(int unused)
+{
+	logdatetime(stderr);
+	if (closing) {
+		closing = 0;
+		fputs("dwm: received second SIGHUP, cancelling.\n", stderr);
+		return;
+	}
+	else {
+		closing = 1;
+		fputs("dwm: received SIGHUP\n", stderr);
+	}
+
+	Monitor *m;
+	Client *c = NULL;
+	size_t cnt = 0;
+	#if PATCH_MODAL_SUPPORT
+	int modalchild = 0;
+	int focus = 1;
+
+	for (m = selmon; m; focus = 0) {
+		if ((c = getfirstmodal(m)))
+			activateclient(c, focus);
+		if (m->next == selmon)
+			break;
+		if (!m->next && selmon != mons)
+			m = mons;
+		else
+			m = m->next;
+	}
+	if (c)
+		return;
+	#endif // PATCH_MODAL_SUPPORT
+
+	for (m = mons; m; m = m->next)
+		for (c = m->stack; c; c = c->snext)
+		{
+			if (c->isterminal
+				#if PATCH_SHOW_DESKTOP
+				|| c->isdesktop || c->ondesktop
+				#endif // PATCH_SHOW_DESKTOP
+				#if PATCH_FLAG_PANEL
+				|| c->ispanel
+				#endif // PATCH_FLAG_PANEL
+				#if PATCH_FLAG_IGNORED
+				|| c->isignored
+				#endif // PATCH_FLAG_IGNORED
+			) continue;
+			++cnt;
+			#if PATCH_MODAL_SUPPORT
+			if (!c->ismodal)
+			#endif // PATCH_MODAL_SUPPORT
+			{
+				if (!c->ultparent || c->ultparent == c) {
+					#if PATCH_MODAL_SUPPORT
+					modalchild = 0;
+					for (Client *s = c->mon->stack; s; s = s->snext)
+						if (s->ultparent == c->ultparent && s->ismodal) {
+							modalchild = 1;
+							break;
+						}
+					if (!modalchild) {
+						killclientex(c, 1);
+					}
+					#else // NO PATCH_MODAL_SUPPORT
+					killclientex(c, 1);
+					#endif // PATCH_MODAL_SUPPORT
+				}
+			}
+		}
+
+	if (!cnt) {
+		running = 0;
+		return;
+	}
+}
+
+void
+sigreload(int unused)
+{
+	logdatetime(stderr);
+	fputs("dwm: received reload signal\n", stderr);
+	running = -1;
+}
+
+void
+sigreloadrules(int unused)
+{
+	logdatetime(stderr);
+	fputs("dwm: received reloadrules signal\n", stderr);
+	Arg a = {.i = 0};
+	reloadrules(&a);
+}
+
+void
+sigterm(int unused)
+{
+	logdatetime(stderr);
+	fputs("dwm: received SIGTERM\n", stderr);
+	running = 0;
+}
+#endif // PATCH_HANDLE_SIGNALS
 
 #if PATCH_STATUSCMD
 #if 0
@@ -20027,7 +20211,11 @@ togglepause(const Arg *arg)
 		return;
 
 	c->paused ^= 1;
-	if (c->paused)
+	if (c->paused
+		#if PATCH_HANDLE_SIGNALS
+		&& !closing
+		#endif // PATCH_HANDLE_SIGNALS
+	)
 		kill (c->pid, SIGSTOP);
 	else
 		kill (c->pid, SIGCONT);
@@ -20527,6 +20715,34 @@ unmanage(Client *c, int destroyed, int cleanup)
 
 	free(c);
 
+	#if PATCH_HANDLE_SIGNALS
+	if (closing) {
+		int cnt = 0;
+		for (Monitor *m = mons; m; m = m->next) {
+			for (c = m->stack; c; c = c->snext) {
+				if (0
+					#if PATCH_SHOW_DESKTOP
+					|| c->isdesktop || c->ondesktop
+					#endif // PATCH_SHOW_DESKTOP
+					#if PATCH_FLAG_PANEL
+					|| c->ispanel
+					#endif // PATCH_FLAG_PANEL
+					#if PATCH_FLAG_IGNORED
+					|| c->isignored
+					#endif // PATCH_FLAG_IGNORED
+				) continue;
+				++cnt;
+				break;
+			}
+			if (cnt)
+				break;
+		}
+		if (!cnt) {
+			closing = 0;
+			running = 0;
+		}
+	}
+	#endif // PATCH_HANDLE_SIGNALS
 }
 
 void
