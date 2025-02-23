@@ -9629,9 +9629,9 @@ killclientex(Client *c, int sigterm)
 			// just kill a paused process
 			logdatetime(stderr);
 			if (gotname)
-				fprintf(stderr, "dwm: sending SIGKILL to paused process %d (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %u (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
 			else
-				fprintf(stderr, "dwm: sending SIGTERM to paused process %d for client \"%s\"\n", c->pid, c->name);
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %u for client \"%s\"\n", c->pid, c->name);
 			kill (pid, SIGKILL);
 			return;
 		}
@@ -9652,9 +9652,9 @@ killclientex(Client *c, int sigterm)
 			// just kill a paused process
 			logdatetime(stderr);
 			if (gotname)
-				fprintf(stderr, "dwm: sending SIGKILL to paused process %d (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %u (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
 			else
-				fprintf(stderr, "dwm: sending SIGTERM to paused process %d for client \"%s\"\n", c->pid, c->name);
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %u for client \"%s\"\n", c->pid, c->name);
 			kill (pid, SIGKILL);
 			return;
 		}
@@ -18029,9 +18029,11 @@ sighup(int unused)
 							break;
 						}
 					if (!modalchild) {
+						fprintf(stderr, "dwm: attempting SIGTERM on client \"%s\" (pid:%u)\n", c->name, c->pid);
 						killclientex(c, 1);
 					}
 					#else // NO PATCH_MODAL_SUPPORT
+					fprintf(stderr, "dwm: attempting SIGTERM on client \"%s\" (pid:%u)\n", c->name, c->pid);
 					killclientex(c, 1);
 					#endif // PATCH_MODAL_SUPPORT
 				}
