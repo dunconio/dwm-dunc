@@ -18029,13 +18029,19 @@ sighup(int unused)
 							break;
 						}
 					if (!modalchild) {
+						logdatetime(stderr);
 						fprintf(stderr, "dwm: attempting SIGTERM on client \"%s\" (pid:%u)\n", c->name, c->pid);
 						killclientex(c, 1);
 					}
 					#else // NO PATCH_MODAL_SUPPORT
+					logdatetime(stderr);
 					fprintf(stderr, "dwm: attempting SIGTERM on client \"%s\" (pid:%u)\n", c->name, c->pid);
 					killclientex(c, 1);
 					#endif // PATCH_MODAL_SUPPORT
+				}
+				else {
+					logdatetime(stderr);
+					fprintf(stderr, "dwm: ignoring \"%s\" (pid:%u) (ultparent:\"%s\")\n", c->name, c->pid, c->ultparent->name);
 				}
 			}
 		}
