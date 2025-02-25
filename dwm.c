@@ -7417,7 +7417,11 @@ focus(Client *c, int force)
 		#endif // PATCH_ALTTAB
 	) {
 		for (Client *s = c->mon->stack; s; s = s->snext)
-			if (s->ultparent == c->ultparent && s->ismodal && s->index > c->index) {
+//			if (s->ultparent == c->ultparent && s->ismodal && s->index > c->index) {
+			if (s->ismodal &&
+				((s->ultparent == c->ultparent && s->index > c->index)
+				|| (s->ultparent == s && s->parent == c))
+			) {
 				if (!ISVISIBLE(s)
 					#if PATCH_FLAG_HIDDEN
 					|| s->ishidden
@@ -11400,7 +11404,8 @@ DEBUGENDIF
 				&& !selmon->sel->isdesktop
 				#endif // PATCH_SHOW_DESKTOP
 			) {
-				fprintf(stderr, "debug: prevent steal sel:%s c:%s\n", selmon->sel->name, c->name);
+				logdatetime(stderr);
+				fprintf(stderr, "debug: prevent steal from sel:\"%s\" to c:\"%s\"\n", selmon->sel->name, c->name);
 				unfocus(c->mon->sel, 0);
 				if (c->mon != selmon) {
 					c->mon->sel = c;
