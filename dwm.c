@@ -2790,7 +2790,7 @@ applyrules(Client *c, int deferred)
 				*/
 			}
 skip_parenting:
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-guess")) && json_isboolean(r_node)) {
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-guess")) && json_isboolean(r_node) && r_node->valueint) {
 				if (!(m = selmon))
 					for (m = mons; m && !m->stack; m = m->next);
 				if (m && (p = m->sel ? m->sel : m->stack)) {
@@ -18004,7 +18004,10 @@ sighup(int unused)
 	for (m = mons; m; m = m->next)
 		for (c = m->stack; c; c = c->snext)
 		{
-			if (c->isterminal
+			if (c->dormant
+				#if PATCH_TERMINAL_SWALLOWING
+				|| c->isterminal
+				#endif // PATCH_TERMINAL_SWALLOWING
 				#if PATCH_SHOW_DESKTOP
 				|| c->isdesktop || c->ondesktop
 				#endif // PATCH_SHOW_DESKTOP
@@ -20670,7 +20673,8 @@ unmanage(Client *c, int destroyed, int cleanup)
 		XUngrabServer(dpy);
 	}
 
-	if (!cleanup) {
+	while(!cleanup)
+	{
 		#if PATCH_SHOW_DESKTOP
 		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 		if (showdesktop && showdesktop_when_active && c->isdesktop && c->mon->showdesktop)
@@ -20679,13 +20683,61 @@ unmanage(Client *c, int destroyed, int cleanup)
 		#endif // PATCH_SHOW_DESKTOP
 		arrange(c->mon);
 
+		#if PATCH_HANDLE_SIGNALS
+		if (closing) {
+			Client *nc = c;
+			// was the client that closed visible?
+			if ((c->tags & c->mon->tagset[c->mon->seltags]) || c->issticky) {
+				// check if any other clients are visible on the tag selection;
+				for (nc = c->mon->clients; nc && (
+					!ISVISIBLEONTAG(nc, c->tags)
+					#if PATCH_FLAG_PANEL
+					|| nc->ispanel
+					#endif // PATCH_FLAG_PANEL
+					#if PATCH_SHOW_DESKTOP
+					|| nc->isdesktop || nc->ondesktop
+					#endif // PATCH_SHOW_DESKTOP
+				); nc = nc->next);
+			}
+			if (!nc) {
+				// nothing visible so switch to the most appropriate client;
+				#if PATCH_MODAL_SUPPORT
+				//viewmontag(c->mon, (1 << (c->mon->switchonempty - 1)), 0);
+				if ((nc = getfirstmodal(c->mon))) {
+					activateclient(nc, wasfocused);
+					break;
+				}
+				else
+				#endif // PATCH_MODAL_SUPPORT
+				for (nc = c->mon->stack; nc; nc = nc->snext) {
+					if (!nc->dormant
+						#if PATCH_FLAG_PANEL
+						&& !nc->ispanel
+						#endif // PATCH_FLAG_PANEL
+						#if PATCH_SHOW_DESKTOP
+						&& !nc->isdesktop && (!nc->ondesktop || nc->mon->showdesktop)
+						#endif // PATCH_SHOW_DESKTOP
+					) {
+						activateclient(nc, wasfocused);
+						break;
+					}
+				}
+				if (nc)
+					break;
+			}
+		}
+		#endif // PATCH_HANDLE_SIGNALS
+
 		#if PATCH_SWITCH_TAG_ON_EMPTY
 		Client *cc = c;
 		if (c->mon->switchonempty && ((c->tags & c->mon->tagset[c->mon->seltags]) || c->issticky)) {
 			for (cc = c->mon->clients; cc && (
 				!ISVISIBLEONTAG(cc, c->tags)
+				#if PATCH_FLAG_PANEL
+				|| cc->ispanel
+				#endif // PATCH_FLAG_PANEL
 				#if PATCH_SHOW_DESKTOP
-				|| cc->isdesktop
+				|| cc->isdesktop || (cc->ondesktop && !cc->mon->showdesktop)
 				#endif // PATCH_SHOW_DESKTOP
 			); cc = cc->next);
 			if (!cc)
@@ -20718,6 +20770,8 @@ unmanage(Client *c, int destroyed, int cleanup)
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		}
 		#endif // PATCH_MOUSE_POINTER_WARPING
+
+		break;
 	}
 	updateclientlist();
 
@@ -20728,9 +20782,12 @@ unmanage(Client *c, int destroyed, int cleanup)
 		int cnt = 0;
 		for (Monitor *m = mons; m; m = m->next) {
 			for (c = m->stack; c; c = c->snext) {
-				if (0
+				if (c->dormant
+					#if PATCH_TERMINAL_SWALLOWING
+					|| c->isterminal
+					#endif // PATCH_TERMINAL_SWALLOWING
 					#if PATCH_SHOW_DESKTOP
-					|| c->isdesktop || c->ondesktop
+					|| c->isdesktop || (c->ondesktop && !c->mon->showdesktop)
 					#endif // PATCH_SHOW_DESKTOP
 					#if PATCH_FLAG_PANEL
 					|| c->ispanel
