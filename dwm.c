@@ -11304,6 +11304,40 @@ manage(Window w, XWindowAttributes *wa)
 	#endif // PATCH_FLAG_IGNORED
 	XMoveResizeWindow(dpy, c->win, c->x + 2 * sw, c->y, c->w, c->h); /* some windows require this */
 
+	#if PATCH_HANDLE_SIGNALS
+	if (closing) {
+		if ((!c->ultparent || c->ultparent == c)
+			#if PATCH_MODAL_SUPPORT
+			&& !(c->ismodal && c->parent)
+			#endif // PATCH_MODAL_SUPPORT
+		) {
+			int related = 0;
+			for (Monitor *mm = c->mon; mm;) {
+				for (Client *cc = mm->stack; cc; cc = cc->snext) {
+					if (cc != c && cc->pid == c->pid) {
+						related = 1;
+						break;
+					}
+				}
+				if (related)
+					break;
+				if ((mm = mm->next))
+					continue;
+				if (c->mon != mons)
+					mm = mons;
+				else
+					break;
+			}
+			if (!related) {
+				logdatetime(stderr);
+				fprintf(stderr, "dwm: closing all clients, orphan client will be auto-closed: \"%s\"\n", c->name);
+				killclientex(c, 1);
+				return;
+			}
+		}
+	}
+	#endif // PATCH_HANDLE_SIGNALS
+
 	setclientstate(c, NormalState);
 	if (!nonstop) arrange(c->mon);
 	XMapWindow(dpy, c->win);
