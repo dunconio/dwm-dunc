@@ -1086,6 +1086,9 @@ struct Client {
 	int ruledefer; // reapply rules if/when the title changes;
 	pid_t pid;
 	int beingmoved;
+	#if PATCH_HANDLE_SIGNALS
+	int sigtermcount;
+	#endif // PATCH_HANDLE_SIGNALS
 	#if PATCH_WINDOW_ICONS
 	unsigned int icw, ich;
 	Picture icon;
@@ -9571,6 +9574,22 @@ killclient(const Arg *arg)
 		if (!(c = wintoclient(arg->ui)))
 			return;
 	}
+	#if PATCH_HANDLE_SIGNALS
+	if (arg->ui == 0) {
+		c->sigtermcount = 0;
+		if (procparents) {
+			int cnt = cJSON_GetArraySize(procparents);
+			for (int i = 0; i < cnt; ++i) {
+				cJSON *pp = cJSON_GetArrayItem(procparents, i);
+				if (!pp)
+					continue;
+				cJSON *pp_count = cJSON_GetObjectItemCaseSensitive(pp, "sigtermcount");
+				if (pp_count)
+					cJSON_SetIntValue(pp_count, 0L);
+			}
+		}
+	}
+	#endif // PATCH_HANDLE_SIGNALS
 	killclientex(c, (arg->ui == 0 ? 1 : 0));
 }
 void
@@ -9582,7 +9601,8 @@ killclientex(Client *c, int sigterm)
 	char *params = NULL, *procname = NULL;
 	pid_t pid = c->pid;
 	int gotname = 0;
-	if (sigterm) {
+	int do_sigterm = sigterm;
+	if (do_sigterm) {
 		if ((gotname = getprocname(c->pid, buffer, sizeof(buffer), &procname, &params))) {
 			int cnt = 0;
 			if (badprocs && (cnt = cJSON_GetArraySize(badprocs))) {
@@ -9596,16 +9616,23 @@ killclientex(Client *c, int sigterm)
 					) {
 						logdatetime(stderr);
 						fprintf(stderr, "dwm: found procname listed in process-no-sigterm: \"%s\"; will send WM_DELETE, not SIGTERM\n", buffer);
-						sigterm = 0;
+						do_sigterm = 0;
 						break;
 					}
 				}
 			}
-			if (sigterm && procparents && (cnt = cJSON_GetArraySize(procparents))) {
+			if (do_sigterm && procparents && (cnt = cJSON_GetArraySize(procparents))) {
 				for (int i = 0; i < cnt; ++i) {
 					cJSON *pp = cJSON_GetArrayItem(procparents, i);
+					if (!pp)
+						continue;
 					cJSON *pp_name = cJSON_GetObjectItemCaseSensitive(pp, "procname");
 					cJSON *pp_parent = cJSON_GetObjectItemCaseSensitive(pp, "parent");
+					#if PATCH_HANDLE_SIGNALS
+					cJSON *pp_count = cJSON_GetObjectItemCaseSensitive(pp, "sigtermcount");
+					if (!pp_count)
+						pp_count = cJSON_AddIntegerToObject(pp, "sigtermcount", 0L);
+					#endif // PATCH_HANDLE_SIGNALS
 					if (pp_name && cJSON_IsString(pp_name) && pp_parent && cJSON_IsString(pp_parent)) {
 						char *string = cJSON_GetStringValue(pp_name);
 						if (strcmp(string, buffer) == 0 || strcmp(string, procname) == 0 ||
@@ -9616,6 +9643,14 @@ killclientex(Client *c, int sigterm)
 							string = cJSON_GetStringValue(pp_parent);
 							pid = getprocessid(string);
 							if (pid) {
+								#if PATCH_HANDLE_SIGNALS
+								if (pp_count->valueint) {
+									fprintf(stderr, "skipping, already sent SIGTERM to replacement process \"%s\" (pid:%u)\n", string, pid);
+									return;
+								}
+								else
+									cJSON_SetIntValue(pp_count, 1);
+								#endif // PATCH_HANDLE_SIGNALS
 								fprintf(stderr, "will send SIGTERM to replacement process \"%s\" (pid:%u)\n", string, pid);
 								break;
 							}
@@ -9627,15 +9662,37 @@ killclientex(Client *c, int sigterm)
 			}
 		}
 	}
+	#if PATCH_HANDLE_SIGNALS
+	if (sigterm) {
+		if (do_sigterm && c->ultparent && c != c->ultparent) {
+			if (c->ultparent->sigtermcount) {
+				logdatetime(stderr);
+				fprintf(stderr, "dwm: skipping, ultimate parent \"%s\" already flagged in this pass\n", c->ultparent->name);
+				return;
+			}
+			else
+				c->ultparent->sigtermcount++;
+		}
+		else {
+			if (c->sigtermcount) {
+				logdatetime(stderr);
+				fprintf(stderr, "dwm: skipping, client \"%s\" already flagged in this pass\n", c->name);
+				return;
+			}
+			else
+				c->sigtermcount++;
+		}
+	}
+	#endif // PATCH_HANDLE_SIGNALS
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 	if (c->pauseinvisible == -1 && c->pid) {
-		if (sigterm && pid) {
+		if (do_sigterm && pid) {
 			// just kill a paused process
 			logdatetime(stderr);
 			if (gotname)
-				fprintf(stderr, "dwm: sending SIGKILL to paused process %u (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %u (procname: %s) for client \"%s\"\n", pid, procname, c->name);
 			else
-				fprintf(stderr, "dwm: sending SIGKILL to paused process %u for client \"%s\"\n", c->pid, c->name);
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %u for client \"%s\"\n", pid, c->name);
 			kill (pid, SIGKILL);
 			return;
 		}
@@ -9652,13 +9709,13 @@ killclientex(Client *c, int sigterm)
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
 	#if PATCH_PAUSE_PROCESS
 	if (c->paused) {
-		if (sigterm && pid) {
+		if (do_sigterm && pid) {
 			// just kill a paused process
 			logdatetime(stderr);
 			if (gotname)
-				fprintf(stderr, "dwm: sending SIGKILL to paused process %u (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %u (procname: %s) for client \"%s\"\n", pid, procname, c->name);
 			else
-				fprintf(stderr, "dwm: sending SIGKILL to paused process %u for client \"%s\"\n", c->pid, c->name);
+				fprintf(stderr, "dwm: sending SIGKILL to paused process %u for client \"%s\"\n", pid, c->name);
 			kill (pid, SIGKILL);
 			return;
 		}
@@ -9666,13 +9723,13 @@ killclientex(Client *c, int sigterm)
 		c->paused = 0;
 	}
 	#endif // PATCH_PAUSE_PROCESS
-	if (sigterm) {
+	if (do_sigterm) {
 		if (pid) {
 			logdatetime(stderr);
 			if (gotname)
-				fprintf(stderr, "dwm: sending SIGTERM to process %d (procname: %s) for client \"%s\"\n", c->pid, procname, c->name);
+				fprintf(stderr, "dwm: sending SIGTERM to process %d (procname: %s) for client \"%s\"\n", pid, procname, c->name);
 			else
-				fprintf(stderr, "dwm: sending SIGTERM to process %d for client \"%s\"\n", c->pid, c->name);
+				fprintf(stderr, "dwm: sending SIGTERM to process %d for client \"%s\"\n", pid, c->name);
 			kill (pid, SIGTERM);
 		}
 		return;
@@ -10698,6 +10755,10 @@ manage(Window w, XWindowAttributes *wa)
 	c->pid = winpid(w);
 	// set index accordingly
 	c->index = 0;
+
+	#if PATCH_HANDLE_SIGNALS
+	c->sigtermcount = 0;
+	#endif // PATCH_HANDLE_SIGNALS
 
 	#if PATCH_SHOW_DESKTOP
 	if (getatompropex(w, netatom[NetWMWindowType]) == netatom[NetWMWindowTypeDesktop])
@@ -18021,7 +18082,26 @@ sighup(int unused)
 
 	Monitor *m;
 	Client *c = NULL;
-	size_t cnt = 0;
+	int cnt = 0;
+
+	// reset sigtermcount;
+	for (m = mons; m; m = m->next)
+		for (c = m->clients; c; c = c->next)
+			c->sigtermcount = 0;
+
+	if (procparents) {
+		cnt = cJSON_GetArraySize(procparents);
+		for (int i = 0; i < cnt; ++i) {
+			cJSON *pp = cJSON_GetArrayItem(procparents, i);
+			if (!pp)
+				continue;
+			cJSON *pp_count = cJSON_GetObjectItemCaseSensitive(pp, "sigtermcount");
+			if (pp_count)
+				cJSON_SetIntValue(pp_count, 0L);
+		}
+	}
+	cnt = 0;
+
 	#if PATCH_MODAL_SUPPORT
 	int modalchild = 0;
 	int focus = 1;
@@ -18060,32 +18140,32 @@ sighup(int unused)
 			++cnt;
 			#if PATCH_MODAL_SUPPORT
 			if (!c->ismodal)
-			#endif // PATCH_MODAL_SUPPORT
 			{
+				modalchild = 0;
 				if (!c->ultparent || c->ultparent == c) {
-					#if PATCH_MODAL_SUPPORT
-					modalchild = 0;
 					for (Client *s = c->mon->stack; s; s = s->snext)
 						if (s->ultparent == c->ultparent && s->ismodal) {
 							modalchild = 1;
 							break;
 						}
-					if (!modalchild) {
-						logdatetime(stderr);
-						fprintf(stderr, "dwm: attempting SIGTERM on client \"%s\" (pid:%u)\n", c->name, c->pid);
-						killclientex(c, 1);
-					}
-					#else // NO PATCH_MODAL_SUPPORT
+				}
+				if (!modalchild) {
 					logdatetime(stderr);
 					fprintf(stderr, "dwm: attempting SIGTERM on client \"%s\" (pid:%u)\n", c->name, c->pid);
 					killclientex(c, 1);
-					#endif // PATCH_MODAL_SUPPORT
 				}
+				#if 0
 				else {
 					logdatetime(stderr);
 					fprintf(stderr, "dwm: ignoring \"%s\" (pid:%u) (ultparent:\"%s\")\n", c->name, c->pid, c->ultparent->name);
 				}
+				#endif
 			}
+			#else // NO PATCH_MODAL_SUPPORT
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: attempting SIGTERM on client \"%s\" (pid:%u)\n", c->name, c->pid);
+			killclientex(c, 1);
+			#endif // PATCH_MODAL_SUPPORT
 		}
 
 	if (!cnt) {
