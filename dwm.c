@@ -1960,6 +1960,7 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast];
 #if PATCH_HANDLE_SIGNALS
 static volatile sig_atomic_t running = 1;
+static volatile sig_atomic_t killable = 0;
 #else
 static int running = 1;
 #endif // PATCH_HANDLE_SIGNALS
@@ -18195,6 +18196,13 @@ sigterm(int unused)
 {
 	logdatetime(stderr);
 	fputs("dwm: received SIGTERM\n", stderr);
+	#if PATCH_HANDLE_SIGNALS
+	if (!running && killable) {
+		pid_t dwmpid = getpid();
+		kill(dwmpid, SIGKILL);
+	}
+	else
+	#endif // PATCH_HANDLE_SIGNALS
 	running = 0;
 }
 #endif // PATCH_HANDLE_SIGNALS
@@ -23195,6 +23203,8 @@ fprintf(stderr, "debug: after layout delete\n");
 fprintf(stderr, "debug: after rules delete\n");
 	if (rules_compost)
 		cJSON_Delete(rules_compost);
+
+	killable = 1;
 
 	//XGrabServer(dpy);
 	XCloseDisplay(dpy);
