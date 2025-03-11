@@ -3261,8 +3261,36 @@ arrangemon(Monitor *m)
 #pragma GCC diagnostic ignored "-Wstringop-truncation"
 	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof m->ltsymbol);
 #pragma GCC diagnostic pop
+
+	Client *c, *c2 = NULL;
+
+	// attempt cleanup of BadWindow clients;
+	// validate all client pids;
+	for (c = m->clients; c; c = c->next)
+		#if PATCH_FLAG_IGNORED
+		if (!validate_pid(c))
+			c->isignored = 1;
+		#else // NO PATCH_FLAG_IGNORED
+		validate_pid(c);
+		#endif // PATCH_FLAG_IGNORED
+
+	for (c = m->clients; c; ) {
+		c2 = c->next;
+		if (c->dormant == -1) {
+			detach(c);
+			detachstack(c);
+			removelinks(c);
+			#if PATCH_WINDOW_ICONS
+			freeicon(c);
+			#endif // PATCH_WINDOW_ICONS
+			logdatetime(stderr);
+			fprintf(stderr, "debug: freeing BadWindow client: \"%s\"\n", c->name);
+			free(c);
+		}
+		c = c2;
+	}
+
 	#if PATCH_CLASS_STACKING
-	Client *c, *c2;
 	XClassHint ch = { NULL, NULL };
 	XClassHint ch2 = { NULL, NULL };
 
@@ -15607,35 +15635,6 @@ restack(Monitor *m)
 	if (m->sel && (!validate_pid(m->sel) || m->sel->dormant))
 		m->sel = NULL;
 
-	// validate all client pids;
-	for (c = m->clients; c; c = c->next)
-		#if PATCH_FLAG_IGNORED
-		if (!validate_pid(c))
-			c->isignored = 1;
-		#else // NO PATCH_FLAG_IGNORED
-		validate_pid(c);
-		#endif // PATCH_FLAG_IGNORED
-
-	//#if 0
-	// this may cause "free(): double free detected in tcache 2" crash:
-	// remove dormant (BadWindow) clients;
-	for (c = m->clients; c; ) {
-		raised = c->next;
-		if (c->dormant == -1) {
-			detach(c);
-			detachstack(c);
-			removelinks(c);
-			#if PATCH_WINDOW_ICONS
-			freeicon(c);
-			#endif // PATCH_WINDOW_ICONS
-			logdatetime(stderr);
-			fprintf(stderr, "debug: freeing BadWindow client: \"%s\"\n", c->name);
-			free(c);
-		}
-		c = raised;
-	}
-	//#endif
-
 	raised = m->sel && ((m == selmon && (
 		focusedontoptiled
 		|| m->sel->isfloating
@@ -22669,8 +22668,10 @@ xerror(Display *dpy, XErrorEvent *ee)
 	{
 		if (ee->error_code == BadWindow) {
 			Client *c;
-			if ((c = wintoclient(ee->resourceid)))
+			if ((c = wintoclient(ee->resourceid))) {
 				c->dormant = -1;
+				c->isfloating = c->isfloating_override = 1;
+			}
 		}
 		return 0;
 	}
