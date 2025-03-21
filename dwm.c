@@ -625,6 +625,7 @@ static const supported_rules_json supported_rules[] = {
 #if PATCH_FLAG_HIDDEN
 	#define ALTTAB_HIDDEN			(1 << 14)
 #endif // PATCH_FLAG_HIDDEN
+	#define ALTTAB_OFFSET_MENU		(1 << 15)
 #endif // PATCH_ALTTAB
 
 #if PATCH_MOVE_FLOATING_WINDOWS
@@ -9326,10 +9327,15 @@ highlight(Client *c)
 	}
 
 	#if PATCH_ALTTAB_HIGHLIGHT
+	#if PATCH_MOUSE_POINTER_WARPING
+	warptoclient_stop_flag = 1;
+	#endif // PATCH_MOUSE_POINTER_WARPING
+	
 	XWindowChanges wc;
 	Client *h = altTabMon->highlight;
 	// unhighlight previous;
 	if (h && h != c) {
+		altTabMon->highlight = NULL;
 		XSetWindowBorder(dpy, h->win, scheme[SchemeNorm][ColBorder].pixel);
 		if (h->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
@@ -9351,6 +9357,7 @@ highlight(Client *c)
 		#if PATCH_CLIENT_OPACITY
 		opacity(h, 0);
 		#endif // PATCH_CLIENT_OPACITY
+
 
 		if ((!c || c->mon != h->mon) && ISVISIBLE(h)) {
 			Monitor *m = h->mon;
@@ -9432,10 +9439,6 @@ highlight(Client *c)
 
 		altTabMon->highlight = c;
 		drawbar(c->mon, 0);
-
-		#if PATCH_MOUSE_POINTER_WARPING
-		warptoclient_stop_flag = 1;
-		#endif // PATCH_MOUSE_POINTER_WARPING
 	}
 	else
 		altTabMon->highlight = NULL;
@@ -15078,7 +15081,9 @@ snapchildclients(Client *p, int quiet)
 		) return;
 
 	/* snap child windows */
-	for (m = mons; m; m = m->next)
+	m = p->mon;
+	//for (m = mons; m; m = m->next)
+	{
 		for (c = m->clients; c; c = c->next)
 		{
 			if (c->isfloating && (!c->isfullscreen
@@ -15116,6 +15121,7 @@ snapchildclients(Client *p, int quiet)
 				snapchildclients(c, quiet);
 			}
 		}
+	}
 }
 
 #if PATCH_FLAG_FOLLOW_PARENT
@@ -16582,6 +16588,12 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		return;
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 
+	float mfwo = 1.0f, mfho = 1.0f;
+	if (c->isfloating) {
+		mfwo = (float) (c->x - c->mon->mx + c->w / 2) / (c->mon->mw / 2);
+		mfho = (float) (c->y - c->mon->my + c->h / 2) / (c->mon->mh / 2);
+	}
+
 	#if PATCH_SHOW_DESKTOP
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	Monitor *mon = c->mon;
@@ -16662,6 +16674,28 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 			attach(c);
 			attachstack(c);
 		}
+		// move the client if it is floating;
+		if (c->isfloating) {
+			if (!c->parent || c->parent->mon != c->mon) {
+				c->x = ((mfwo * m->mw / 2) + m->mx - c->w / 2);
+				c->y = ((mfho * m->mh / 2) + m->my - c->h / 2);
+				if (c->w + c->bw*2 < m->mw) {
+					if (c->x + c->w + c->bw*2 > m->mx + m->mw)
+						c->x = m->mx + m->mw - c->w - c->bw*2;
+					else if (c->x < m->mx)
+						c->x = m->mx;
+				}
+				if (c->h + c->bw*2 < m->mh) {
+					if (c->y + c->h + c->bw*2 > m->my + m->mh)
+						c->y = m->my + m->mh - c->h - c->bw*2;
+					else if (c->y < m->my)
+						c->y = m->my;
+				}
+				resizeclient(c, c->x, c->y, c->w, c->h, 0);
+			}
+			else if (c->parent)
+				snapchildclients(c->parent, 0);
+		}
 		#if PATCH_PERSISTENT_METADATA
 		setclienttagprop(c);
 		#endif // PATCH_PERSISTENT_METADATA
@@ -16702,9 +16736,11 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		focus(sel ? leader : NULL, 0);
 
 		#if PATCH_FOCUS_FOLLOWS_MOUSE
-		sfw = ((float) leader->w / cw);
-		sfh = ((float) leader->h / ch);
-		XWarpPointer(dpy, None, leader->win, 0, 0, 0, 0, px*sfw, py*sfh);
+		if (cw != 0 && ch != 0) {
+			sfw = ((float) leader->w / cw);
+			sfh = ((float) leader->h / ch);
+			XWarpPointer(dpy, None, leader->win, 0, 0, 0, 0, px*sfw, py*sfh);
+		}
 		#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	}
 
@@ -18849,6 +18885,10 @@ altTab(int direction, int first)
 {
 	Client *next = NULL;
 	// move to next window;
+	if (!altTabActive && direction) {
+		altTabActive = 1;
+		direction = 0;
+	}
 	altTabMon->altTabN += direction;
 	if (altTabMon->altTabN < 0)
 		altTabMon->altTabN = altTabMon->nTabs - 1;
@@ -19109,9 +19149,11 @@ drawTab(Monitor *m, int active, int first)
 			m->maxHTab = (m->tih * m->nTabs) + 2*bw;
 
 			if (!m->topbar) {
-				posY += m->mh - m->maxHTab - 1;
+				posY += m->mh - m->maxHTab - (m->isAlt & ALTTAB_OFFSET_MENU ? bh : 0);
 				m->isAlt |= ALTTAB_BOTTOMBAR;
 			}
+			else if (m->isAlt & ALTTAB_OFFSET_MENU)
+				posY += bh;
 			m->tx = posX+bw;
 			m->ty = posY+bw;
 		}
@@ -19660,9 +19702,7 @@ altTabStart(const Arg *arg)
 				altTabEnd();
 				return;
 			}
-
-			drawTab(altTabMon, 1, 1);
-
+			drawTab(altTabMon, (altTabMon->isAlt & ALTTAB_OFFSET_MENU) ? 0 : 1, 1);
 			int x, y;
 			int grabbed;
 			if ((altTabMon->isAlt & ALTTAB_MOUSE)) {
@@ -19689,11 +19729,13 @@ altTabStart(const Arg *arg)
 					drawfocusborder(1);
 				#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
-				#if PATCH_ALTTAB_HIGHLIGHT
-				if (tabHighlight)
-					altTabMon->highlight = altTabMon->sel;
-				#endif // PATCH_ALTTAB_HIGHLIGHT
-				altTab(direction, 1);
+				if (!(altTabMon->isAlt & ALTTAB_MOUSE) || !(altTabMon->isAlt & ALTTAB_OFFSET_MENU)) {
+					#if PATCH_ALTTAB_HIGHLIGHT
+					if (tabHighlight)
+						altTabMon->highlight = altTabMon->sel;
+					#endif // PATCH_ALTTAB_HIGHLIGHT
+					altTab(direction, 1);
+				}
 
 				Time lasttime = 0;
 				#if PATCH_MOUSE_POINTER_WARPING
@@ -19772,8 +19814,8 @@ altTabStart(const Arg *arg)
 									#endif // PATCH_MOUSE_POINTER_WARPING
 									break;
 								}
-								else if (kev.keycode == 116 && altTabMon->altTabN < (altTabMon->nTabs - 1)) altTab(+1, 0);
-								else if (kev.keycode == 111 && altTabMon->altTabN > 0) altTab(-1, 0);
+								else if (kev.keycode == 116 && (altTabMon->altTabN < (altTabMon->nTabs - 1) || !altTabActive)) altTab(+1, 0);
+								else if (kev.keycode == 111 && (altTabMon->altTabN > 0 || !altTabActive)) altTab(-1, 0);
 								else if (kev.keycode == 104 || kev.keycode == 36) {
 									if (altTabMon->highlight == altTabMon->altTabSel || !altTabActive)
 										highlight(NULL);
@@ -19785,6 +19827,7 @@ altTabStart(const Arg *arg)
 							}
 
 						} else {
+							kev = event.xkey;
 							if (event.type == KeyRelease && event.xkey.keycode == tabModKey) { // if modifier key is released break cycle;
 								break;
 							} else if (event.xkey.keycode == tabModBackKey) {
@@ -19816,7 +19859,7 @@ altTabStart(const Arg *arg)
 				// to prevent the release event passing through the active client;
 				if (event.type == ButtonPress)
 					same = 1;
-				else if (event.type == KeyPress) {
+				else if (event.type == KeyPress && kev.keycode) {
 					same = 2;
 				}
 				else
@@ -22233,6 +22276,10 @@ warptoclient(Client *c, int force)
 	int px, py;			// starting pointer coords;
 	int tx, ty, tw, th; // target area coords;
 	int tpx, tpy;		// target pointer coords;
+	Monitor *pm = NULL;	// starting pointer bounding monitor;
+
+	if (getrootptr(&px, &py))
+		pm = recttomon(px, py, 1, 1);
 
 	#if DEBUGGING
 	if (c && c->dispclass && strcmp(c->dispclass, "NMS Editor")==0) {
@@ -22258,12 +22305,8 @@ warptoclient(Client *c, int force)
 			return;
 	}
 	#if PATCH_CONSTRAIN_MOUSE
-	if (constrained && c) {
-		if (getrootptr(&px, &py)) {
-			if (recttomon(px, py, 1, 1) != c->mon)
-				return;
-		}
-	}
+	if (constrained && c && pm != c->mon)
+		return;
 	#endif // PATCH_CONSTRAIN_MOUSE
 
 	// get target zone;
@@ -22304,7 +22347,7 @@ warptoclient(Client *c, int force)
 	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	// can't go smoothly if we can't find mouse pointer coords;
 	// and no warp required if already over the client;
-	else if (!getrootptr(&px, &py) || (nonstop & 1))
+	else if (!pm || (nonstop & 1))
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		smoothly = 0
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
@@ -22315,8 +22358,8 @@ warptoclient(Client *c, int force)
 		return;
 	}
 
-	// no warping if current view is monocle;
-	if ((c && !c->isfloating && c->mon->lt[c->mon->sellt]->arrange == monocle)
+	// no warping if current view is monocle AND pointer is already within the bounds of the monitor;
+	if ((c && !c->isfloating && c->mon->lt[c->mon->sellt]->arrange == monocle && pm == c->mon)
 		|| (c && c->mon->showbar && pointoverbar(c->mon, px, py, force == -1 ? 0 : 1))
 	) {
 		if (selmon->sel != c)
