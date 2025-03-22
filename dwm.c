@@ -14679,10 +14679,10 @@ reloadrules(const Arg *arg)
 				if (c->grpclass)
 					compost((void **)&c->grpclass, NULL, NULL, c->grpclass);
 				#endif // PATCH_ALTTAB
-				#if PATCH_WINDOW_ICONS_CUSTOM_ICONS
+				#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_CUSTOM_ICONS
 				if (c->icon_file)
 					compost((void **)&c->icon_file, NULL, NULL, c->icon_file);
-				#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS
+				#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_CUSTOM_ICONS
 				#if PATCH_FLAG_PARENT
 				if (c->parent_condition_node) {
 					if (c->parent_is)
@@ -20743,10 +20743,10 @@ unmanage(Client *c, int destroyed, int cleanup)
 	if (c->grpclass)
 		uncompost(NULL, c->grpclass);
 	#endif // PATCH_ALTTAB
-	#if PATCH_WINDOW_ICONS_CUSTOM_ICONS
+	#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_CUSTOM_ICONS
 	if (c->icon_file)
 		uncompost(NULL, c->icon_file);
-	#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS
+	#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_CUSTOM_ICONS
 	#if PATCH_FLAG_PARENT
 	if (!c->parent_condition_node) {
 		if (c->parent_is)
