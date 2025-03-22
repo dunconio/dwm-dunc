@@ -626,6 +626,7 @@ static const supported_rules_json supported_rules[] = {
 	#define ALTTAB_HIDDEN			(1 << 14)
 #endif // PATCH_FLAG_HIDDEN
 	#define ALTTAB_OFFSET_MENU		(1 << 15)
+	#define ALTTAB_SYSTEM_RESERVED	(1 << 31)
 #endif // PATCH_ALTTAB
 
 #if PATCH_MOVE_FLOATING_WINDOWS
@@ -3229,17 +3230,6 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact)
 			*h = MIN(*h, c->maxh);
 	}
 	return *x != c->x || *y != c->y || *w != c->w || *h != c->h;
-}
-
-void
-do_arrange(const Arg *arg)
-{
-	fprintf(stderr, "debug: do arrange(mon:1)\n");
-	for (Monitor *m = mons; m; m = m->next)
-		if (m->num == 1) {
-			arrange(m);
-			break;
-		}
 }
 
 void
@@ -6782,6 +6772,9 @@ drawbar(Monitor *m, int skiptags)
 
 	if (drawbar_elementvisible(m, WinTitle) && (w = m->bar[StatusText].x - x - customwidth) > 0) {
 
+		#if PATCH_ALTTAB
+		#define alttab_override (altTabMon && altTabMon->isAlt && !(altTabMon->isAlt & ALTTAB_SYSTEM_RESERVED))
+		#endif // PATCH_ALTTAB
 		Client *active = NULL;
 		if ((m->sel && !m->sel->dormant
 			#if PATCH_FLAG_PANEL
@@ -6792,12 +6785,12 @@ drawbar(Monitor *m, int skiptags)
 			#endif // PATCH_FLAG_IGNORED
 		)
 		#if PATCH_ALTTAB
-		|| (altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m)
+		|| alttab_override
 		#endif // PATCH_ALTTAB
 		) {
 			active =
 				#if PATCH_ALTTAB
-				(altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) ? altTabMon->highlight :
+				alttab_override ? (altTabMon->highlight && altTabMon->highlight->mon == m ? altTabMon->highlight : NULL) :
 				#endif // PATCH_ALTTAB
 				m->sel
 			;
@@ -6805,7 +6798,7 @@ drawbar(Monitor *m, int skiptags)
 		#if PATCH_TWO_TONE_TITLE
 		if ((
 			#if PATCH_ALTTAB
-			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
+			alttab_override && altTabMon->highlight && altTabMon->highlight->mon == m) || (!alttab_override &&
 			#endif // PATCH_ALTTAB
 			m == selmon
 		)) {
@@ -6832,7 +6825,7 @@ drawbar(Monitor *m, int skiptags)
 		#else // NO PATCH_TWO_TONE_TITLE
 		drw_setscheme(drw, scheme[(
 			#if PATCH_ALTTAB
-			altTabMon && altTabMon->isAlt && altTabMon->highlight && altTabMon->highlight->mon == m) || (!altTabMon &&
+			alttab_override && altTabMon->highlight && altTabMon->highlight->mon == m) || (!alttab_override &&
 			#endif // PATCH_ALTTAB
 			m == selmon) ?
 				#if PATCH_COLOUR_BAR
@@ -6983,7 +6976,11 @@ drawbar(Monitor *m, int skiptags)
 					SchemeNorm
 					#endif // PATCH_COLOUR_BAR
 				]);
-				if (m == selmon) {
+				if (m == selmon
+					#if PATCH_ALTTAB
+					&& !alttab_override
+					#endif // PATCH_ALTTAB
+				) {
 					if (titleborderpx < bh)
 						drw_rect(drw, x, (m->topbar ? 0 : titleborderpx), w, bh - titleborderpx, 1, 1);
 						//drw_rect(drw, x+titleborderpx, titleborderpx, w-2*titleborderpx, bh-2*titleborderpx, 1, 1);
@@ -19859,6 +19856,7 @@ altTabStart(const Arg *arg)
 				// make the alt-tab window disappear;
 				quietunmap(altTabMon->tabwin);
 
+				altTabMon->isAlt |= ALTTAB_SYSTEM_RESERVED;
 				// redraw the bar;
 				drawbar(altTabMon, False);
 
@@ -23241,20 +23239,18 @@ finish:
 
 	cleanup();
 
-fprintf(stderr, "debug: after cleanup\n");
 	fonts_json = NULL;
 	monitors_json = NULL;
 	if (layout_json)
 		cJSON_Delete(layout_json);
-fprintf(stderr, "debug: after layout delete\n");
 	if (rules_json)
 		cJSON_Delete(rules_json);
-fprintf(stderr, "debug: after rules delete\n");
 	if (rules_compost)
 		cJSON_Delete(rules_compost);
 
 	killable = 1;
 
+fprintf(stderr, "debug: pre XCloseDisplay()\n");
 	//XGrabServer(dpy);
 	XCloseDisplay(dpy);
 	//XUngrabServer(dpy);
