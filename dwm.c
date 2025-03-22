@@ -112,7 +112,9 @@ static cJSON *badprocs = NULL;
 static cJSON *procparents = NULL;
 
 static char **coloursbackup = NULL;
+#if PATCH_CUSTOM_TAG_ICONS
 static char **tagiconpathsbackup = NULL;
+#endif // PATCH_CUSTOM_TAG_ICONS
 
 typedef struct {
 	const char *name;
@@ -22947,8 +22949,10 @@ main(int argc, char *argv[], char *envp[])
 
 	coloursbackup = malloc(sizeof(colours));
 	memcpy(coloursbackup, colours, sizeof(colours));
+	#if PATCH_CUSTOM_TAG_ICONS
 	tagiconpathsbackup = malloc(sizeof(tagiconpaths));
 	memcpy(tagiconpathsbackup, tagiconpaths, sizeof(tagiconpaths));
+	#endif // PATCH_CUSTOM_TAG_ICONS
 
 reload:
 	for (int i = 0; i < LENGTH(colourflags); i++) {
@@ -23265,7 +23269,9 @@ fputs("dwm: finished.\n", stderr);
 
 	// reload;
 	if (running == -1) {
+		#if PATCH_CUSTOM_TAG_ICONS
 		memcpy(tagiconpaths, tagiconpathsbackup, sizeof(tagiconpaths));
+		#endif // PATCH_CUSTOM_TAG_ICONS
 		memcpy(colours, coloursbackup, sizeof(colours));
 		running = 1;
 		logdatetime(stderr);
