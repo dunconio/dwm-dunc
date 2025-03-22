@@ -19144,7 +19144,8 @@ drawTab(Monitor *m, int active, int first)
 				default:
 				case 0:
 					posX += m->bar[WinTitle].x;
-					if (posX + m->maxWTab > m->mw)
+					// is the following check necessary?;
+					if (posX + m->maxWTab - m->mx > m->mw)
 						lpad = tab_lrpad / 2;
 			}
 			if (posX < m->mx)
@@ -19774,7 +19775,7 @@ altTabStart(const Arg *arg)
 										if (yy != altTabMon->altTabIndex || !altTabActive)
 											altTab(yy - altTabMon->altTabIndex, 0);
 								}
-								else {
+								else if (altTabActive) {
 									// not highlighted;
 									drawTab(altTabMon, 0, 0);
 								}
