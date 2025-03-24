@@ -19570,7 +19570,7 @@ altTabStart(const Arg *arg)
 				}
 			}
 
-		if (altTabMon->nTabs >
+		if (altTabMon->nTabs <=
 			(
 				(altTabMon->isAlt & ALTTAB_MOUSE) &&
 				!(altTabMon->isAlt & ALTTAB_ALL_MONITORS || altTabMon->isAlt & ALTTAB_ALL_TAGS)
@@ -19580,456 +19580,9 @@ altTabStart(const Arg *arg)
 				? 1 : 0
 			)
 			#if PATCH_FLAG_HIDDEN
-			|| (hidden && (altTabMon->isAlt & ALTTAB_HIDDEN))
+			&& !(hidden && (altTabMon->isAlt & ALTTAB_HIDDEN))
 			#endif // PATCH_FLAG_HIDDEN
 		) {
-
-			altTabMon->altsnext = (Client **) malloc(altTabMon->nTabs * sizeof(Client *));
-
-			int listIndex = 0;
-			int same;
-			const char *sel_class;
-			XClassHint sel_ch = { NULL, NULL };
-			if (altTabMon->altTabSel) {
-				if (!(sel_class = altTabMon->altTabSel->grpclass)) {
-					XGetClassHint(dpy, altTabMon->altTabSel->win, &sel_ch);
-					sel_class = sel_ch.res_class ? sel_ch.res_class : broken;
-				}
-			}
-			else sel_class = broken;
-
-			m = altTabMon;
-			while (m) {
-				// add clients to the list;
-				int first = 1;
-				for(c = (m == altTabMon && m->sel) ? m->sel : m->stack; ; c = c->snext) {
-
-					if (m == altTabMon && m->sel && m->sel != m->stack) {
-						if (!c)
-							c = m->stack;
-						else if (c == m->sel && !first)
-							break;
-					}
-					else if (!c)
-						break;
-					first = 0;
-
-					if (c->neverfocus || c->dormant
-						#if PATCH_FLAG_HIDDEN
-						|| (c->ishidden && !(altTabMon->isAlt & ALTTAB_HIDDEN))
-						#endif // PATCH_FLAG_HIDDEN
-						#if PATCH_FLAG_IGNORED
-						|| c->isignored
-						#endif // PATCH_FLAG_IGNORED
-						#if PATCH_FLAG_PANEL
-						|| c->ispanel
-						#endif // PATCH_FLAG_PANEL
-						#if PATCH_SHOW_DESKTOP
-						|| (c->isdesktop && (!(altTabMon->isAlt & ALTTAB_MOUSE) || !showdesktop
-							#if PATCH_SHOW_DESKTOP_BUTTON
-							|| (!m->showdesktop && drawbar_elementvisible(m, ShowDesktop))
-							#endif // PATCH_SHOW_DESKTOP_BUTTON
-						))
-						#endif // PATCH_SHOW_DESKTOP
-					) continue;
-					if (
-						#if PATCH_SHOW_DESKTOP
-						(
-							!showdesktop ? !ISVISIBLE(c) :
-							(
-								m->showdesktop ?
-								!desktopvalidex(c, m->tagset[m->seltags], -1) :
-								(
-									(!ISVISIBLE(c) && !c->isdesktop)
-									#if PATCH_SHOW_DESKTOP_BUTTON
-									|| (c->isdesktop && drawbar_elementvisible(m, ShowDesktop))
-									#endif // PATCH_SHOW_DESKTOP_BUTTON
-								)
-							)
-						)
-						#else // NO PATCH_SHOW_DESKTOP
-						!ISVISIBLE(c)
-						#endif // PATCH_SHOW_DESKTOP
-						&& !(altTabMon->isAlt & ALTTAB_ALL_TAGS)) continue;
-
-					if (altTabMon->isAlt & ALTTAB_SAME_CLASS) {
-
-						if (c->grpclass)
-							same = (strcmp(sel_class,c->grpclass)==0 ? 1 : 0);
-						else {
-							const char *class;
-							XClassHint ch = { NULL, NULL };
-							XGetClassHint(dpy, c->win, &ch);
-							class = ch.res_class ? ch.res_class : broken;
-							same = (strcmp(sel_class,class)==0 ? 1 : 0);
-
-							if (ch.res_class)
-								XFree(ch.res_class);
-							if (ch.res_name)
-								XFree(ch.res_name);
-						}
-
-						if (!same) {
-							--altTabMon->nTabs;
-							continue;
-						}
-					}
-					altTabMon->altsnext[listIndex++] = c;
-
-					// clear highlighted borders for later;
-					//if (!solitary(c))
-					XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
-				}
-				if (altTabMon->isAlt & ALTTAB_ALL_MONITORS) {
-					if (!(m = m->next))
-						m = mons;
-					if (m == altTabMon)
-						break;
-				}
-				else break;
-			}
-
-			if (sel_ch.res_class)
-				XFree(sel_ch.res_class);
-			if (sel_ch.res_name)
-				XFree(sel_ch.res_name);
-
-			if (listIndex <=
-				(
-					(altTabMon->isAlt & ALTTAB_MOUSE)
-					&& !(altTabMon->isAlt & ALTTAB_ALL_MONITORS || altTabMon->isAlt & ALTTAB_ALL_TAGS)
-					#if PATCH_SHOW_DESKTOP
-					&& !(showdesktop && altTabMon->showdesktop)
-					#endif // PATCH_SHOW_DESKTOP
-					? 1 : 0
-				)
-				#if PATCH_FLAG_HIDDEN
-				&& (!hidden || !(altTabMon->isAlt & ALTTAB_HIDDEN))
-				#endif // PATCH_FLAG_HIDDEN
-			) {
-				altTabEnd();
-				return;
-			}
-			drawTab(altTabMon, (altTabMon->isAlt & ALTTAB_OFFSET_MENU) ? 0 : 1, 1);
-			int x, y;
-			int grabbed;
-			if ((altTabMon->isAlt & ALTTAB_MOUSE)) {
-				grabbed = grabinputs(1, 1, cursor[(altTabMon->vTabs < altTabMon->nTabs) ? CurScroll : CurNormal]->cursor);
-				if (grabbed) {
-					getrootptr(&x, &y);
-					direction = 0;
-				}
-			}
-			else grabbed = grabinputs(1, 1, cursor[CurBusy]->cursor);
-
-			XEvent event;
-			if (grabbed == 0) {
-				altTabEnd();
-			} else {
-				#if PATCH_SHOW_DESKTOP
-				for (m = mons; m; m = m->next)
-					if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) || m == altTabMon)
-						m->altTabDesktop = m->showdesktop;
-				#endif // PATCH_SHOW_DESKTOP
-
-				#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-				if (focuswin && (altTabMon->isAlt & ALTTAB_SELMON_MASK) && selmon->sel)
-					drawfocusborder(1);
-				#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-
-				if (!(altTabMon->isAlt & ALTTAB_MOUSE) || !(altTabMon->isAlt & ALTTAB_OFFSET_MENU)) {
-					#if PATCH_ALTTAB_HIGHLIGHT
-					if (tabHighlight)
-						altTabMon->highlight = altTabMon->sel;
-					#endif // PATCH_ALTTAB_HIGHLIGHT
-					altTab(direction, 1);
-				}
-
-				Time lasttime = 0;
-				#if PATCH_MOUSE_POINTER_WARPING
-				int isAltMouse = (altTabMon->isAlt & ALTTAB_MOUSE);
-				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				int smoothwarp = isAltMouse;
-				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				#endif // PATCH_MOUSE_POINTER_WARPING
-
-				XButtonPressedEvent bev = { 0 };
-				XKeyEvent kev = { 0 };
-				while (grabbed) {
-					XNextEvent(dpy, &event);
-					if (event.type == KeyPress || event.type == KeyRelease || event.type == MotionNotify || event.type == ButtonPress) {
-						if (altTabMon->isAlt & ALTTAB_MOUSE) {
-							if (event.type == MotionNotify) {
-								if ((event.xmotion.time - lasttime) <= (1000 / 60))
-									continue;
-								lasttime = event.xmotion.time;
-
-								if (event.xmotion.x >= altTabMon->tx && event.xmotion.x <= (altTabMon->tx + altTabMon->maxWTab) &&
-									event.xmotion.y >= altTabMon->ty && event.xmotion.y <= (altTabMon->ty + altTabMon->maxHTab)) {
-
-										int yy = (event.xmotion.y - altTabMon->ty - 1) / altTabMon->tih;
-										if (yy > altTabMon->nTabs - 1)
-											yy = altTabMon->nTabs - 1;
-										if (altTabMon->isAlt & ALTTAB_BOTTOMBAR)
-											yy = (altTabMon->nTabs - 1 - yy);
-										if (yy != altTabMon->altTabIndex || !altTabActive)
-											altTab(yy - altTabMon->altTabIndex, 0);
-								}
-								else if (altTabActive) {
-									// not highlighted;
-									drawTab(altTabMon, 0, 0);
-								}
-							}
-							else if (event.type == ButtonPress) {
-								bev = event.xbutton;
-								#if PATCH_MOUSE_POINTER_WARPING
-								if (bev.button == 1 || bev.button == 3) {
-								#else // NO PATCH_MOUSE_POINTER_WARPING
-								if (bev.button == 1) {
-								#endif // PATCH_MOUSE_POINTER_WARPING
-
-									if (bev.x < altTabMon->tx || bev.x > (altTabMon->tx + altTabMon->maxWTab) ||
-										bev.y < altTabMon->ty || bev.y > (altTabMon->ty + altTabMon->maxHTab)) {
-										highlight(NULL);
-										break;
-									}
-									else {
-										#if PATCH_MOUSE_POINTER_WARPING
-										#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-										smoothwarp = (bev.button == 3) ? 1 : 0;
-										#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-										#endif // PATCH_MOUSE_POINTER_WARPING
-										break;
-									}
-								}
-								else if (
-									(bev.button == 4 || bev.button == 5) &&
-									(bev.x >= altTabMon->tx && bev.x <= (altTabMon->tx + altTabMon->maxWTab) &&
-									 bev.y >= altTabMon->ty && bev.y <= (altTabMon->ty + altTabMon->maxHTab))
-								) {
-									if (bev.button == 5 && altTabMon->altTabN < (altTabMon->nTabs - 1)) altTab(+1, 0);
-									if (bev.button == 4 && altTabMon->altTabN > 0) altTab(-1, 0);
-								}
-							}
-							else if (event.type == KeyPress) {
-								kev = event.xkey;
-								if (kev.keycode == tabEndKey) {
-									highlight(NULL);
-									#if PATCH_MOUSE_POINTER_WARPING
-									#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-									smoothwarp = 0;
-									#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-									#endif // PATCH_MOUSE_POINTER_WARPING
-									break;
-								}
-								else if (kev.keycode == 116 && (altTabMon->altTabN < (altTabMon->nTabs - 1) || !altTabActive)) altTab(+1, 0);
-								else if (kev.keycode == 111 && (altTabMon->altTabN > 0 || !altTabActive)) altTab(-1, 0);
-								else if (kev.keycode == 104 || kev.keycode == 36) {
-									if (altTabMon->highlight == altTabMon->altTabSel || !altTabActive)
-										highlight(NULL);
-									break;
-								}
-								else {
-									DEBUG("kev.keycode == %i\n", kev.keycode);
-								}
-							}
-
-						} else {
-							kev = event.xkey;
-							if (event.type == KeyRelease && event.xkey.keycode == tabModKey) { // if modifier key is released break cycle;
-								break;
-							} else if (event.xkey.keycode == tabModBackKey) {
-								direction = (event.type == KeyPress) ? -1 : 1;
-							} else if (event.type == KeyPress) {
-								if (event.xkey.keycode == tabEndKey) {
-									highlight(NULL);
-									break;
-								}
-								else if (altTabMon->nTabs > 1) {
-									if ((event.xkey.keycode == tabCycleKey && !(altTabMon->isAlt & ALTTAB_SAME_CLASS))
-									||	(event.xkey.keycode == tabCycleClassKey && (altTabMon->isAlt & ALTTAB_SAME_CLASS))) { // if XK_s is pressed move to the next window;
-										altTab(direction, 0);
-									}
-								}
-							}
-						}
-					}
-				}
-
-				// make the alt-tab window disappear;
-				quietunmap(altTabMon->tabwin);
-
-				altTabMon->isAlt |= ALTTAB_SYSTEM_RESERVED;
-				// redraw the bar;
-				drawbar(altTabMon, False);
-
-				// if the triggering event was a button or key press
-				// we want to wait for the following button or key release
-				// to prevent the release event passing through the active client;
-				if (event.type == ButtonPress)
-					same = 1;
-				else if (event.type == KeyPress && kev.keycode) {
-					same = 2;
-				}
-				else
-					same = 0;
-
-				// quit waiting for the button or key release event
-				// prematurely if we get a critical event;
-				while (same) {
-					XNextEvent(dpy, &event);
-					switch (event.type) {
-						case ButtonRelease:
-							if (same == 1 && event.xbutton.button == bev.button)
-								same = 0;
-							break;
-						case KeyRelease:
-							if (same == 2 && event.xkey.keycode == kev.keycode)
-								same = 0;
-							break;
-						case CreateNotify:
-						case MapNotify:
-						case UnmapNotify:
-						case DestroyNotify:
-							XPutBackEvent(dpy, &event);
-							same = 0;
-							break;
-					}
-				}
-
-				if (!(c = altTabMon->highlight))
-					c = altTabMon->sel;
-				same = (altTabMon->sel == c);
-
-				#if PATCH_SHOW_DESKTOP
-				if (showdesktop)
-					for (m = mons; m; m = m->next)
-						if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) || m == altTabMon)
-						{
-							if (c && c->mon == m
-								#if PATCH_SHOW_DESKTOP_WITH_FLOATING
-								&& (!showdesktop_floating
-									|| !c->isfloating
-									#if PATCH_MODAL_SUPPORT
-									|| (c->ismodal && c->parent && !c->parent->isfloating)
-									#endif // PATCH_MODAL_SUPPORT
-								)
-								#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
-							)
-								m->altTabDesktop = (c->isdesktop || c->ondesktop);
-							else {
-								m->showdesktop = m->altTabDesktop;
-								if (m == altTabMon)
-									focus(NULL, 0);
-							}
-						}
-				#endif // PATCH_SHOW_DESKTOP
-
-				// if current client is fullscreen, check if we should un-fullscreen it
-				// before activating the newly selected client;
-				if (altTabMon->isAlt & ALTTAB_SELMON_MASK
-					&& c
-					&& c->mon->sel
-					&& c->mon->sel != c
-					&& c->mon->sel->isfullscreen
-					#if PATCH_FLAG_FAKEFULLSCREEN
-					&& c->mon->sel->fakefullscreen != 1
-					#endif // PATCH_FLAG_FAKEFULLSCREEN
-					&& !c->isfloating
-					&& (
-						!c->isfullscreen
-						#if PATCH_FLAG_FAKEFULLSCREEN
-						|| c->fakefullscreen == 1
-						#endif // PATCH_FLAG_FAKEFULLSCREEN
-						)
-					) {
-					#if PATCH_FLAG_GAME
-					if (c->mon->sel->isgame) {
-						#if PATCH_FLAG_GAME_STRICT
-						unfocus(c->mon->sel, 1 | (c->mon != selm ? (1 << 1) : 0));
-						#else // NO PATCH_FLAG_GAME_STRICT
-						unfocus(c->mon->sel, 1);
-						#endif // PATCH_FLAG_GAME_STRICT
-					}
-					else
-					#endif // PATCH_FLAG_GAME
-					setfullscreen(c->mon->sel, 0);
-				}
-
-				if (altTabMon->isAlt & ALTTAB_MOUSE) {
-					if (c) {
-						if (altTabMon->isAlt & ALTTAB_SELMON_MASK)
-							selmon = c->mon;
-						if (!ISVISIBLE(c)
-							#if PATCH_SHOW_DESKTOP
-							&& !(c->isdesktop || c->ondesktop)
-							#endif // PATCH_SHOW_DESKTOP
-						)
-							viewmontag(c->mon, c->tags, 0);
-					}
-					else
-						selmon = selm;
-					selmon->altTabSelTags = 0;
-				}
-				else {
-					for (m = (altTabMon->isAlt & ALTTAB_ALL_MONITORS) ? mons : altTabMon; m; m = (altTabMon->isAlt & ALTTAB_ALL_MONITORS) ? m->next : NULL) {
-						if (m->altTabSelTags) {
-							if (c && c->mon == m && !ISVISIBLEONTAG(c, m->altTabSelTags))
-								viewmontag(m, c->tags, 1);
-							else
-								viewmontag(m, m->altTabSelTags, 1);
-						}
-						else if (c && c->mon == m) {
-							if (!ISVISIBLE(c))
-								viewmontag(m, c->tags, 1);
-						}
-						else
-							restack(m);
-						m->altTabSelTags = 0;
-					}
-					selmon = (c && (altTabMon->isAlt & ALTTAB_SELMON_MASK) ? c->mon : selm);
-
-					#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
-					// if the client to be selected is the same as before the alt-tab,
-					// then restore the mouse pointer to its starting position;
-					if (same && px && (altTabMon->isAlt & ALTTAB_SELMON_MASK))
-						XWarpPointer(dpy, None, root, 0, 0, 0, 0, px, py);
-					#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
-				}
-				altTabEnd(); // end the alt-tab functionality;
-
-				XUngrabKeyboard(dpy, CurrentTime); // stop taking all input from keyboard;
-
-				if (c) {
-					#if PATCH_FLAG_HIDDEN
-					if (c->ishidden) {
-						sethidden(c, False, False);
-						#if PATCH_PERSISTENT_METADATA
-						setclienttagprop(c);
-						#endif // PATCH_PERSISTENT_METADATA
-						arrangemon(c->mon);
-					}
-					#endif // PATCH_FLAG_HIDDEN
-					if (mon_mask)
-						focus(c, 1);
-					else {
-						c->mon->sel = c;
-						detachstackex(c);
-						attachstack(c);
-						arrange(c->mon);
-					}
-				}
-				#if PATCH_MOUSE_POINTER_WARPING
-				if ((!isAltMouse || !same) && mon_mask)
-					#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-					warptoclient(c, smoothwarp, 0);
-					#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-					warptoclient(c, 0);
-					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				#endif // PATCH_MOUSE_POINTER_WARPING
-				XUngrabPointer(dpy, CurrentTime);
-			}
-		} else {
 			#if PATCH_FLAG_GAME
 			if (s && s->isgame && s->isfullscreen && MINIMIZED(s) && altTabMon->nTabs == 1
 				&& (altTabMon->isAlt & (ALTTAB_SELMON_MASK | ALTTAB_MOUSE))
@@ -20039,7 +19592,471 @@ altTabStart(const Arg *arg)
 				focus(s, 0);
 			}
 			#endif // PATCH_FLAG_GAME
-			altTabEnd(); /* end the alt-tab functionality */
+			altTabEnd(); // end the alt-tab functionality;
+			return;
+		}
+
+		altTabMon->altsnext = (Client **) malloc(altTabMon->nTabs * sizeof(Client *));
+
+		int listIndex = 0;
+		int same;
+		const char *sel_class;
+		XClassHint sel_ch = { NULL, NULL };
+		if (altTabMon->altTabSel) {
+			if (!(sel_class = altTabMon->altTabSel->grpclass)) {
+				XGetClassHint(dpy, altTabMon->altTabSel->win, &sel_ch);
+				sel_class = sel_ch.res_class ? sel_ch.res_class : broken;
+			}
+		}
+		else sel_class = broken;
+
+		m = altTabMon;
+		while (m) {
+			// add clients to the list;
+			int first = 1;
+			for(c = (m == altTabMon && m->sel) ? m->sel : m->stack; ; c = c->snext) {
+
+				if (m == altTabMon && m->sel && m->sel != m->stack) {
+					if (!c)
+						c = m->stack;
+					else if (c == m->sel && !first)
+						break;
+				}
+				else if (!c)
+					break;
+				first = 0;
+
+				if (c->neverfocus || c->dormant
+					#if PATCH_FLAG_HIDDEN
+					|| (c->ishidden && !(altTabMon->isAlt & ALTTAB_HIDDEN))
+					#endif // PATCH_FLAG_HIDDEN
+					#if PATCH_FLAG_IGNORED
+					|| c->isignored
+					#endif // PATCH_FLAG_IGNORED
+					#if PATCH_FLAG_PANEL
+					|| c->ispanel
+					#endif // PATCH_FLAG_PANEL
+					#if PATCH_SHOW_DESKTOP
+					|| (c->isdesktop && (!(altTabMon->isAlt & ALTTAB_MOUSE) || !showdesktop
+						#if PATCH_SHOW_DESKTOP_BUTTON
+						|| (!m->showdesktop && drawbar_elementvisible(m, ShowDesktop))
+						#endif // PATCH_SHOW_DESKTOP_BUTTON
+					))
+					#endif // PATCH_SHOW_DESKTOP
+				) continue;
+				if (
+					#if PATCH_SHOW_DESKTOP
+					(
+						!showdesktop ? !ISVISIBLE(c) :
+						(
+							m->showdesktop ?
+							!desktopvalidex(c, m->tagset[m->seltags], -1) :
+							(
+								(!ISVISIBLE(c) && !c->isdesktop)
+								#if PATCH_SHOW_DESKTOP_BUTTON
+								|| (c->isdesktop && drawbar_elementvisible(m, ShowDesktop))
+								#endif // PATCH_SHOW_DESKTOP_BUTTON
+							)
+						)
+					)
+					#else // NO PATCH_SHOW_DESKTOP
+					!ISVISIBLE(c)
+					#endif // PATCH_SHOW_DESKTOP
+					&& !(altTabMon->isAlt & ALTTAB_ALL_TAGS)) continue;
+
+				if (altTabMon->isAlt & ALTTAB_SAME_CLASS) {
+
+					if (c->grpclass)
+						same = (strcmp(sel_class,c->grpclass)==0 ? 1 : 0);
+					else {
+						const char *class;
+						XClassHint ch = { NULL, NULL };
+						XGetClassHint(dpy, c->win, &ch);
+						class = ch.res_class ? ch.res_class : broken;
+						same = (strcmp(sel_class,class)==0 ? 1 : 0);
+
+						if (ch.res_class)
+							XFree(ch.res_class);
+						if (ch.res_name)
+							XFree(ch.res_name);
+					}
+
+					if (!same) {
+						--altTabMon->nTabs;
+						continue;
+					}
+				}
+				altTabMon->altsnext[listIndex++] = c;
+
+				// clear highlighted borders for later;
+				//if (!solitary(c))
+				XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
+			}
+			if (altTabMon->isAlt & ALTTAB_ALL_MONITORS) {
+				if (!(m = m->next))
+					m = mons;
+				if (m == altTabMon)
+					break;
+			}
+			else break;
+		}
+
+		if (sel_ch.res_class)
+			XFree(sel_ch.res_class);
+		if (sel_ch.res_name)
+			XFree(sel_ch.res_name);
+
+		if (listIndex <=
+			(
+				(altTabMon->isAlt & ALTTAB_MOUSE)
+				&& !(altTabMon->isAlt & ALTTAB_ALL_MONITORS || altTabMon->isAlt & ALTTAB_ALL_TAGS)
+				#if PATCH_SHOW_DESKTOP
+				&& !(showdesktop && altTabMon->showdesktop)
+				#endif // PATCH_SHOW_DESKTOP
+				? 1 : 0
+			)
+			#if PATCH_FLAG_HIDDEN
+			&& (!hidden || !(altTabMon->isAlt & ALTTAB_HIDDEN))
+			#endif // PATCH_FLAG_HIDDEN
+		) {
+			altTabEnd();
+			return;
+		}
+		drawTab(altTabMon, (altTabMon->isAlt & ALTTAB_OFFSET_MENU) ? 0 : 1, 1);
+		int x, y;
+		int grabbed;
+		if ((altTabMon->isAlt & ALTTAB_MOUSE)) {
+			grabbed = grabinputs(1, 1, cursor[(altTabMon->vTabs < altTabMon->nTabs) ? CurScroll : CurNormal]->cursor);
+			if (grabbed) {
+				getrootptr(&x, &y);
+				direction = 0;
+			}
+		}
+		else grabbed = grabinputs(1, 1, cursor[CurBusy]->cursor);
+
+		XEvent event;
+		if (grabbed == 0) {
+			altTabEnd();
+		} else {
+
+			struct timespec starttime;
+			if (altTabMon->isAlt & ALTTAB_MOUSE) {
+				// record point in time for button release test;
+				clock_gettime(CLOCK_REALTIME, &starttime);
+			}
+
+			#if PATCH_SHOW_DESKTOP
+			for (m = mons; m; m = m->next)
+				if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) || m == altTabMon)
+					m->altTabDesktop = m->showdesktop;
+			#endif // PATCH_SHOW_DESKTOP
+
+			#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+			if (focuswin && (altTabMon->isAlt & ALTTAB_SELMON_MASK) && selmon->sel)
+				drawfocusborder(1);
+			#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+
+			if (!(altTabMon->isAlt & ALTTAB_MOUSE) || !(altTabMon->isAlt & ALTTAB_OFFSET_MENU)) {
+				#if PATCH_ALTTAB_HIGHLIGHT
+				if (tabHighlight)
+					altTabMon->highlight = altTabMon->sel;
+				#endif // PATCH_ALTTAB_HIGHLIGHT
+				altTab(direction, 1);
+			}
+
+			Time lasttime = 0;
+			#if PATCH_MOUSE_POINTER_WARPING
+			int isAltMouse = (altTabMon->isAlt & ALTTAB_MOUSE);
+			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+			int smoothwarp = isAltMouse;
+			#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+			#endif // PATCH_MOUSE_POINTER_WARPING
+
+			XButtonPressedEvent bev = { 0 };
+			XKeyEvent kev = { 0 };
+			while (grabbed) {
+				XNextEvent(dpy, &event);
+				if (event.type == KeyPress || event.type == KeyRelease || event.type == MotionNotify || event.type == ButtonPress || event.type == ButtonRelease) {
+					if (altTabMon->isAlt & ALTTAB_MOUSE) {
+						if (event.type == MotionNotify) {
+							if ((event.xmotion.time - lasttime) <= (1000 / 60))
+								continue;
+							lasttime = event.xmotion.time;
+
+							if (event.xmotion.x >= altTabMon->tx && event.xmotion.x <= (altTabMon->tx + altTabMon->maxWTab) &&
+								event.xmotion.y >= altTabMon->ty && event.xmotion.y <= (altTabMon->ty + altTabMon->maxHTab)) {
+
+									int yy = (event.xmotion.y - altTabMon->ty - 1) / altTabMon->tih;
+									if (yy > altTabMon->nTabs - 1)
+										yy = altTabMon->nTabs - 1;
+									if (altTabMon->isAlt & ALTTAB_BOTTOMBAR)
+										yy = (altTabMon->nTabs - 1 - yy);
+									if (yy != altTabMon->altTabIndex || !altTabActive)
+										altTab(yy - altTabMon->altTabIndex, 0);
+							}
+							else if (altTabActive) {
+								// not highlighted;
+								drawTab(altTabMon, 0, 0);
+							}
+						}
+						else if (event.type == ButtonPress || event.type == ButtonRelease) {
+							if (event.type == ButtonRelease) {
+								struct timespec reltime;
+								clock_gettime(CLOCK_REALTIME, &reltime);
+								double result = (reltime.tv_sec - starttime.tv_sec) * 1e6 + (reltime.tv_nsec - starttime.tv_nsec) / 1e3;
+								// only consider button release as functional when it's been held for a period;
+								if (result < 500000)
+									continue;
+							}
+							bev = event.xbutton;
+							#if PATCH_MOUSE_POINTER_WARPING
+							if (bev.button == 1 || bev.button == 3) {
+							#else // NO PATCH_MOUSE_POINTER_WARPING
+							if (bev.button == 1) {
+							#endif // PATCH_MOUSE_POINTER_WARPING
+
+								if (bev.x < altTabMon->tx || bev.x > (altTabMon->tx + altTabMon->maxWTab) ||
+									bev.y < altTabMon->ty || bev.y > (altTabMon->ty + altTabMon->maxHTab)) {
+									if (event.type == ButtonRelease)
+										continue;
+									highlight(NULL);
+									break;
+								}
+								else {
+									#if PATCH_MOUSE_POINTER_WARPING
+									#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+									smoothwarp = (bev.button == 3) ? 1 : 0;
+									#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+									#endif // PATCH_MOUSE_POINTER_WARPING
+									break;
+								}
+							}
+							else if (
+								(bev.button == 4 || bev.button == 5) &&
+								(bev.x >= altTabMon->tx && bev.x <= (altTabMon->tx + altTabMon->maxWTab) &&
+									bev.y >= altTabMon->ty && bev.y <= (altTabMon->ty + altTabMon->maxHTab))
+							) {
+								if (bev.button == 5 && altTabMon->altTabN < (altTabMon->nTabs - 1)) altTab(+1, 0);
+								if (bev.button == 4 && altTabMon->altTabN > 0) altTab(-1, 0);
+							}
+						}
+						else if (event.type == KeyPress) {
+							kev = event.xkey;
+							if (kev.keycode == tabEndKey) {
+								highlight(NULL);
+								#if PATCH_MOUSE_POINTER_WARPING
+								#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+								smoothwarp = 0;
+								#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+								#endif // PATCH_MOUSE_POINTER_WARPING
+								break;
+							}
+							else if (kev.keycode == 116 && (altTabMon->altTabN < (altTabMon->nTabs - 1) || !altTabActive)) altTab(+1, 0);
+							else if (kev.keycode == 111 && (altTabMon->altTabN > 0 || !altTabActive)) altTab(-1, 0);
+							else if (kev.keycode == 104 || kev.keycode == 36) {
+								if (altTabMon->highlight == altTabMon->altTabSel || !altTabActive)
+									highlight(NULL);
+								break;
+							}
+							else {
+								DEBUG("kev.keycode == %i\n", kev.keycode);
+							}
+						}
+
+					} else {
+						kev = event.xkey;
+						if (event.type == KeyRelease && event.xkey.keycode == tabModKey) { // if modifier key is released break cycle;
+							break;
+						} else if (event.xkey.keycode == tabModBackKey) {
+							direction = (event.type == KeyPress) ? -1 : 1;
+						} else if (event.type == KeyPress) {
+							if (event.xkey.keycode == tabEndKey) {
+								highlight(NULL);
+								break;
+							}
+							else if (altTabMon->nTabs > 1) {
+								if ((event.xkey.keycode == tabCycleKey && !(altTabMon->isAlt & ALTTAB_SAME_CLASS))
+								||	(event.xkey.keycode == tabCycleClassKey && (altTabMon->isAlt & ALTTAB_SAME_CLASS))) { // if XK_s is pressed move to the next window;
+									altTab(direction, 0);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// make the alt-tab window disappear;
+			quietunmap(altTabMon->tabwin);
+
+			altTabMon->isAlt |= ALTTAB_SYSTEM_RESERVED;
+			// redraw the bar;
+			drawbar(altTabMon, False);
+
+			// if the triggering event was a button or key press
+			// we want to wait for the following button or key release
+			// to prevent the release event passing through the active client;
+			if (event.type == ButtonPress)
+				same = 1;
+			else if (event.type == KeyPress && kev.keycode) {
+				same = 2;
+			}
+			else
+				same = 0;
+
+			// quit waiting for the button or key release event
+			// prematurely if we get a critical event;
+			while (same) {
+				XNextEvent(dpy, &event);
+				switch (event.type) {
+					case ButtonRelease:
+						if (same == 1 && event.xbutton.button == bev.button)
+							same = 0;
+						break;
+					case KeyRelease:
+						if (same == 2 && event.xkey.keycode == kev.keycode)
+							same = 0;
+						break;
+					case CreateNotify:
+					case MapNotify:
+					case UnmapNotify:
+					case DestroyNotify:
+						XPutBackEvent(dpy, &event);
+						same = 0;
+						break;
+				}
+			}
+
+			if (!(c = altTabMon->highlight))
+				c = altTabMon->sel;
+			same = (altTabMon->sel == c);
+
+			#if PATCH_SHOW_DESKTOP
+			if (showdesktop)
+				for (m = mons; m; m = m->next)
+					if ((altTabMon->isAlt & ALTTAB_ALL_MONITORS) || m == altTabMon)
+					{
+						if (c && c->mon == m
+							#if PATCH_SHOW_DESKTOP_WITH_FLOATING
+							&& (!showdesktop_floating
+								|| !c->isfloating
+								#if PATCH_MODAL_SUPPORT
+								|| (c->ismodal && c->parent && !c->parent->isfloating)
+								#endif // PATCH_MODAL_SUPPORT
+							)
+							#endif // PATCH_SHOW_DESKTOP_WITH_FLOATING
+						)
+							m->altTabDesktop = (c->isdesktop || c->ondesktop);
+						else {
+							m->showdesktop = m->altTabDesktop;
+							if (m == altTabMon)
+								focus(NULL, 0);
+						}
+					}
+			#endif // PATCH_SHOW_DESKTOP
+
+			// if current client is fullscreen, check if we should un-fullscreen it
+			// before activating the newly selected client;
+			if (altTabMon->isAlt & ALTTAB_SELMON_MASK
+				&& c
+				&& c->mon->sel
+				&& c->mon->sel != c
+				&& c->mon->sel->isfullscreen
+				#if PATCH_FLAG_FAKEFULLSCREEN
+				&& c->mon->sel->fakefullscreen != 1
+				#endif // PATCH_FLAG_FAKEFULLSCREEN
+				&& !c->isfloating
+				&& (
+					!c->isfullscreen
+					#if PATCH_FLAG_FAKEFULLSCREEN
+					|| c->fakefullscreen == 1
+					#endif // PATCH_FLAG_FAKEFULLSCREEN
+					)
+				) {
+				#if PATCH_FLAG_GAME
+				if (c->mon->sel->isgame) {
+					#if PATCH_FLAG_GAME_STRICT
+					unfocus(c->mon->sel, 1 | (c->mon != selm ? (1 << 1) : 0));
+					#else // NO PATCH_FLAG_GAME_STRICT
+					unfocus(c->mon->sel, 1);
+					#endif // PATCH_FLAG_GAME_STRICT
+				}
+				else
+				#endif // PATCH_FLAG_GAME
+				setfullscreen(c->mon->sel, 0);
+			}
+
+			if (altTabMon->isAlt & ALTTAB_MOUSE) {
+				if (c) {
+					if (altTabMon->isAlt & ALTTAB_SELMON_MASK)
+						selmon = c->mon;
+					if (!ISVISIBLE(c)
+						#if PATCH_SHOW_DESKTOP
+						&& !(c->isdesktop || c->ondesktop)
+						#endif // PATCH_SHOW_DESKTOP
+					)
+						viewmontag(c->mon, c->tags, 0);
+				}
+				else
+					selmon = selm;
+				selmon->altTabSelTags = 0;
+			}
+			else {
+				for (m = (altTabMon->isAlt & ALTTAB_ALL_MONITORS) ? mons : altTabMon; m; m = (altTabMon->isAlt & ALTTAB_ALL_MONITORS) ? m->next : NULL) {
+					if (m->altTabSelTags) {
+						if (c && c->mon == m && !ISVISIBLEONTAG(c, m->altTabSelTags))
+							viewmontag(m, c->tags, 1);
+						else
+							viewmontag(m, m->altTabSelTags, 1);
+					}
+					else if (c && c->mon == m) {
+						if (!ISVISIBLE(c))
+							viewmontag(m, c->tags, 1);
+					}
+					else
+						restack(m);
+					m->altTabSelTags = 0;
+				}
+				selmon = (c && (altTabMon->isAlt & ALTTAB_SELMON_MASK) ? c->mon : selm);
+
+				#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
+				// if the client to be selected is the same as before the alt-tab,
+				// then restore the mouse pointer to its starting position;
+				if (same && px && (altTabMon->isAlt & ALTTAB_SELMON_MASK))
+					XWarpPointer(dpy, None, root, 0, 0, 0, 0, px, py);
+				#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
+			}
+			altTabEnd(); // end the alt-tab functionality;
+
+			XUngrabKeyboard(dpy, CurrentTime); // stop taking all input from keyboard;
+
+			if (c) {
+				#if PATCH_FLAG_HIDDEN
+				if (c->ishidden) {
+					sethidden(c, False, False);
+					#if PATCH_PERSISTENT_METADATA
+					setclienttagprop(c);
+					#endif // PATCH_PERSISTENT_METADATA
+					arrangemon(c->mon);
+				}
+				#endif // PATCH_FLAG_HIDDEN
+				if (mon_mask)
+					focus(c, 1);
+				else {
+					c->mon->sel = c;
+					detachstackex(c);
+					attachstack(c);
+					arrange(c->mon);
+				}
+			}
+			#if PATCH_MOUSE_POINTER_WARPING
+			if ((!isAltMouse || !same) && mon_mask)
+				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+				warptoclient(c, smoothwarp, 0);
+				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+				warptoclient(c, 0);
+				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+			#endif // PATCH_MOUSE_POINTER_WARPING
+			XUngrabPointer(dpy, CurrentTime);
 		}
 	}
 }
