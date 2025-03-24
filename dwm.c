@@ -628,6 +628,8 @@ static const supported_rules_json supported_rules[] = {
 	#define ALTTAB_HIDDEN			(1 << 14)
 #endif // PATCH_FLAG_HIDDEN
 	#define ALTTAB_OFFSET_MENU		(1 << 15)
+	#define ALTTAB_SORTED			(1 << 24)
+	#define ALTTAB_SORTED_BY_MONITOR (1 << 25)
 	#define ALTTAB_SYSTEM_RESERVED	(1 << 31)
 #endif // PATCH_ALTTAB
 
@@ -1729,6 +1731,9 @@ static int solitary(Client *c);
 static void spawn(const Arg *arg);
 static pid_t spawnex(const void *v, int keyhelp);
 static void spawnhelp(const Arg *arg);
+#if PATCH_ALTTAB
+static int strcmpbynum(const char *s1, const char *s2);
+#endif // PATCH_ALTTAB
 #if PATCH_IPC
 static int subscribe(const char *event);
 #endif // PATCH_IPC
@@ -18743,6 +18748,34 @@ spawnhelp(const Arg *arg)
 	spawnex(arg->v, True);
 }
 
+#if PATCH_ALTTAB
+int
+strcmpbynum(const char *s1, const char *s2) {
+	for (;;) {
+		if (*s2 == '\0')
+			return *s1 != '\0';
+		else if (*s1 == '\0')
+			return -1;
+		else if (!(isdigit(*s1) && isdigit(*s2))) {
+			if (*s1 != *s2)
+				return (int)tolower(*s1) - (int)tolower(*s2);
+			else
+				(++s1, ++s2);
+		} else {
+			char *lim1, *lim2;
+			unsigned long n1 = strtoul(s1, &lim1, 10);
+			unsigned long n2 = strtoul(s2, &lim2, 10);
+			if (n1 > n2)
+					return 1;
+			else if (n1 < n2)
+					return -1;
+			s1 = lim1;
+			s2 = lim2;
+		}
+	}
+}
+#endif // PATCH_ALTTAB
+
 #if PATCH_IPC
 int
 subscribe(const char *event)
@@ -19109,7 +19142,7 @@ drawTab(Monitor *m, int active, int first)
 				else
 				#endif // PATCH_FLAG_HIDDEN
 				w = drw_fontset_getwidth(drw, c->name) + rpad + lpad;
-				if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m)
+				if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && (c->mon != m || altTabMon->isAlt & ALTTAB_SORTED))
 					w += drw_fontset_getwidth(drw, c->mon->numstr) + tab_lrpad / 2;
 				if (w > tw)
 					tw = w;
@@ -19296,7 +19329,7 @@ drawTab(Monitor *m, int active, int first)
 			else
 			#endif // PATCH_FLAG_HIDDEN
 				fw = tw = drw_fontset_getwidth(drw, c->name) + rpad + lpad;
-			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m)
+			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && (c->mon != m || altTabMon->isAlt & ALTTAB_SORTED))
 				tw_mon = drw_fontset_getwidth(drw, c->mon->numstr) + tab_lrpad / 2;
 			fw += tw_mon;
 			ow = rpad;
@@ -19333,7 +19366,7 @@ drawTab(Monitor *m, int active, int first)
 				;
 			ox += lpad;
 
-			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && c->mon != m) {
+			if ((m->isAlt & ALTTAB_ALL_MONITORS) && mons->next && (c->mon != m || altTabMon->isAlt & ALTTAB_SORTED)) {
 				x = ox;
 				if (align == 2)
 					x += tw - lpad;
@@ -19715,6 +19748,43 @@ altTabStart(const Arg *arg)
 			altTabEnd();
 			return;
 		}
+
+		if (altTabMon->isAlt & ALTTAB_SORTED) {
+			// sort the list before display;
+			int done = 0;
+			while (!done) {
+				done = 1;
+				for (int i = 0; i < listIndex - 1; i++)
+					if (strcmpbynum(altTabMon->altsnext[i]->name, altTabMon->altsnext[i + 1]->name) > 0) {
+						done = 0;
+						c = altTabMon->altsnext[i];
+						altTabMon->altsnext[i] = altTabMon->altsnext[i + 1];
+						altTabMon->altsnext[i + 1] = c;
+					}
+			}
+		}
+		else if (altTabMon->isAlt & ALTTAB_SORTED_BY_MONITOR) {
+			// sort the list before display;
+			int done = 0;
+			while (!done) {
+				done = 1;
+				for (int i = 0; i < listIndex - 1; i++) {
+					if (
+						(altTabMon->altsnext[i]->mon->num > altTabMon->altsnext[i + 1]->mon->num) ||
+						(
+							altTabMon->altsnext[i]->mon == altTabMon->altsnext[i + 1]->mon &&
+							strcmpbynum(altTabMon->altsnext[i]->name, altTabMon->altsnext[i + 1]->name) > 0
+						)
+					) {
+						done = 0;
+						c = altTabMon->altsnext[i];
+						altTabMon->altsnext[i] = altTabMon->altsnext[i + 1];
+						altTabMon->altsnext[i + 1] = c;
+					}
+				}
+			}
+		}
+
 		drawTab(altTabMon, (altTabMon->isAlt & ALTTAB_OFFSET_MENU) ? 0 : 1, 1);
 		int x, y;
 		int grabbed;
@@ -19754,7 +19824,16 @@ altTabStart(const Arg *arg)
 				if (tabHighlight)
 					altTabMon->highlight = altTabMon->sel;
 				#endif // PATCH_ALTTAB_HIGHLIGHT
-				altTab(direction, 1);
+				if (altTabMon->isAlt & (ALTTAB_SORTED | ALTTAB_SORTED_BY_MONITOR)) {
+					for (int i = 0; i < listIndex; i++)
+						if (altTabMon->altsnext[i] == selmon->sel) {
+							altTabMon->altTabN = i;
+							drawTab(altTabMon, 1, 0);
+							break;
+						}
+				}
+				else
+					altTab(direction, 1);
 			}
 
 			Time lasttime = 0;
