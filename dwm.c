@@ -19133,20 +19133,13 @@ drawTab(Monitor *m, int active, int first)
 			switch (m->title_align) {
 				case 2:
 					posX += (m->bar[WinTitle].x + m->bar[WinTitle].w - m->maxWTab);
-					if ((posX + m->maxWTab) > (m->bar[WinTitle].x + m->bar[WinTitle].w))
-						lpad = tab_lrpad / 2;
 					break;
 				case 1:
 					posX += m->bar[WinTitle].x + ((int)m->bar[WinTitle].w - (int)m->maxWTab) / 2;
-					if (posX != m->bar[WinTitle].x)
-						lpad = tab_lrpad / 2;
 					break;
 				default:
 				case 0:
 					posX += m->bar[WinTitle].x;
-					// is the following check necessary?;
-					if (posX + m->maxWTab - m->mx > m->mw)
-						lpad = tab_lrpad / 2;
 			}
 			if (posX < m->mx)
 				posX = m->mx;
