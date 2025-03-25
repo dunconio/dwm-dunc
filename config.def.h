@@ -355,6 +355,9 @@ static IPCCommand ipccommands[] = {
 	#if PATCH_LOG_DIAGNOSTICS
 	IPCCOMMAND(  logdiagnostics,      1,      {ARG_TYPE_UINT}   ),
 	#endif // PATCH_LOG_DIAGNOSTICS
+	#if PATCH_MOUSE_POINTER_WARPING
+	IPCCOMMAND(  enablemousewarp,     1,      {ARG_TYPE_UINT}   ),
+	#endif // PATCH_MOUSE_POINTER_WARPING
 	IPCCOMMAND(  reload,              1,      {ARG_TYPE_NONE}   ),
 	IPCCOMMAND(  reloadrules,         1,      {ARG_TYPE_NONE}   ),
 //	IPCCOMMAND(  setlayoutsafe,       1,      {ARG_TYPE_PTR}    ),

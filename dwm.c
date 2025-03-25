@@ -1425,6 +1425,9 @@ static void drawfocusborder(int remove);
 static void drawTab(Monitor *m, int active, int first);
 #endif // PATCH_ALTTAB
 #if PATCH_IPC
+#if PATCH_MOUSE_POINTER_WARPING
+static void enablemousewarp(const Arg *arg);
+#endif // PATCH_MOUSE_POINTER_WARPING
 #if PATCH_TERMINAL_SWALLOWING
 static void enabletermswallow(const Arg *arg);
 #endif // PATCH_TERMINAL_SWALLOWING
@@ -7249,6 +7252,13 @@ void drawfocusborder(int remove)
 #endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
 #if PATCH_IPC
+#if PATCH_MOUSE_POINTER_WARPING
+void
+enablemousewarp(const Arg *arg)
+{
+	mousewarp_disable = (arg->ui == 0 ? True : False);
+}
+#endif // PATCH_MOUSE_POINTER_WARPING
 #if PATCH_TERMINAL_SWALLOWING
 void
 enabletermswallow(const Arg *arg)
