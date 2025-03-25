@@ -249,6 +249,12 @@ static const supported_json supported_layout_global[] = {
 	{ "mirror-layout",				"switch master area and stack area" },
 	#endif // PATCH_MIRROR_LAYOUT
 	{ "monitors",					"array of monitor objects (see \"monitor sections\")" },
+	#if PATCH_MOUSE_POINTER_WARPING
+	{ "mouse-warping-enabled",		"true to enable warping of the mouse pointer" },
+	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	{ "mouse-warping-smoothly",		"true to enable smooth warping of the mouse pointer when mouse-warping-enabled is true" },
+	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	#endif // PATCH_MOUSE_POINTER_WARPING
 	{ "process-no-sigterm",			"array of process names that don't respect SIGTERM conventions" },
 	{ "process-parents",			"array of objects with \"procname\" and \"parent\" string values" },
 	#if PATCH_CUSTOM_TAG_ICONS
@@ -13368,6 +13374,25 @@ parselayoutjson(cJSON *layout)
 				cJSON_AddNumberToObject(unsupported, "\"view-on-tag\" must contain a boolean value", 0);
 			}
 
+			#if PATCH_MOUSE_POINTER_WARPING
+			else if (strcmp(L->string, "mouse-warping-enabled")==0) {
+				if (json_isboolean(L)) {
+					mousewarp_disable = !L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"mouse-warping-enabled\" must contain a boolean value", 0);
+			}
+			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+			else if (strcmp(L->string, "mouse-warping-smoothly")==0) {
+				if (json_isboolean(L)) {
+					mousewarp_smoothly = L->valueint;
+					continue;
+				}
+				cJSON_AddNumberToObject(unsupported, "\"mouse-warping-smoothly\" must contain a boolean value", 0);
+			}
+			#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+			#endif // PATCH_MOUSE_POINTER_WARPING
+
 			else if (strcmp(L->string, "monitors")==0) {
 				if (!(cJSON_IsArray(L))) {
 					cJSON_AddNumberToObject(unsupported, "\"monitors\" must contain an array of monitor objects", 0);
@@ -22368,6 +22393,8 @@ void
 warptoclient(Client *c, int force)
 #endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 {
+	if (mousewarp_disable)
+		return;
 
 	int px, py;			// starting pointer coords;
 	int tx, ty, tw, th; // target area coords;
@@ -22435,8 +22462,6 @@ warptoclient(Client *c, int force)
 	}
 	#endif // DEBUGGING
 
-	if (mousewarp_disable)
-		return;
 	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	if (!mousewarp_smoothly)
 		smoothly = 0;
