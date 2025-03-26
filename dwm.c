@@ -19749,9 +19749,11 @@ altTabStart(const Arg *arg)
 				}
 				altTabMon->altsnext[listIndex++] = c;
 
+				#if PATCH_ALTTAB_HIGHLIGHT
 				// clear highlighted borders for later;
-				//if (!solitary(c))
-				XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
+				if (tabHighlight && !(altTabMon->isAlt & ALTTAB_MOUSE) && !ISVISIBLE(c))
+					XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
+				#endif // PATCH_ALTTAB_HIGHLIGHT
 			}
 			if (altTabMon->isAlt & ALTTAB_ALL_MONITORS) {
 				if (!(m = m->next))
@@ -19855,13 +19857,10 @@ altTabStart(const Arg *arg)
 			#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
 			if (!(altTabMon->isAlt & ALTTAB_MOUSE) || !(altTabMon->isAlt & ALTTAB_OFFSET_MENU)) {
-				#if PATCH_ALTTAB_HIGHLIGHT
-				if (tabHighlight)
-					altTabMon->highlight = altTabMon->sel;
-				#endif // PATCH_ALTTAB_HIGHLIGHT
+				altTabMon->highlight = altTabMon->sel;
 				if (altTabMon->isAlt & (ALTTAB_SORTED | ALTTAB_SORTED_BY_MONITOR)) {
 					for (int i = 0; i < listIndex; i++)
-						if (altTabMon->altsnext[i] == selmon->sel) {
+						if (altTabMon->altsnext[i] == altTabMon->sel || altTabMon->altsnext[i] == selmon->sel) {
 							altTabMon->altTabN = i;
 							drawTab(altTabMon, 1, 0);
 							break;
