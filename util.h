@@ -9,6 +9,7 @@
 #else
 #define DEBUG(...)
 #endif
+#define DEBUGFORCE(...) { logdatetime(stderr); fprintf(stderr, "debug: "); fprintf(stderr, __VA_ARGS__); }
 
 void logdatetime(FILE *fd);
 
