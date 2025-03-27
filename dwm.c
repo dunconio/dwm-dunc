@@ -487,6 +487,7 @@ static const supported_rules_json supported_rules[] = {
 	{ R_A|R_S,	"if-title-contains",			"substring matching on title" },
 	{ R_A|R_S,	"if-title-ends",				"substring matching from the end of title" },
 	{ R_A|R_S,	"if-title-is",					"exact full string matching on title" },
+	{ R_A|R_S,	"if-title-was",					"for deferred rule matching, the exact title prior to changing" },
 	{ R_BOOL,	"log-rule",						"log when a client matches the rule" },
 	#if PATCH_FLAG_ALWAYSONTOP
 	{ R_BOOL,	"set-alwaysontop",				"this client will appear above others; if tiled: only while focused" },
@@ -1345,8 +1346,8 @@ int apply_barelement_fontgroup(int BarElementType);
 #if PATCH_BIDIRECTIONAL_TEXT
 static void apply_fribidi(char *str);
 #endif // PATCH_BIDIRECTIONAL_TEXT
-static int applyrules(Client *c, int deferred);
-static void applyrulesdeferred(Client *c);
+static int applyrules(Client *c, int deferred, char *oldtitle);
+static void applyrulesdeferred(Client *c, char *oldtitle);
 static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact);
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
@@ -2301,7 +2302,7 @@ apply_fribidi(char *str)
 #endif // PATCH_BIDIRECTIONAL_TEXT
 
 void
-applyrulesdeferred(Client *c)
+applyrulesdeferred(Client *c, char *oldtitle)
 {
 	if (!c || !c->ruledefer) return;
 
@@ -2309,7 +2310,7 @@ applyrulesdeferred(Client *c)
 	int sel = (m->sel == c);
 	unsigned int tags = c->tags;
 	unsigned int floating = c->isfloating_override;
-	if (applyrules(c, 1)) {
+	if (applyrules(c, 1, oldtitle)) {
 		if (!c->tags && tags)
 			c->tags = tags;
 		Monitor *mm = c->mon;
@@ -2461,7 +2462,7 @@ appendhidden(Monitor *m, const char *text, char *buffer, size_t len_buffer)
 #endif // PATCH_FLAG_HIDDEN && PATCH_ALTTAB
 
 int
-applyrules(Client *c, int deferred)
+applyrules(Client *c, int deferred, char *oldtitle)
 {
 	#if DEBUGGING
 	if (skip_rules)
@@ -2635,7 +2636,8 @@ applyrules(Client *c, int deferred)
 				#if PATCH_SHOW_DESKTOP
 				|| is_desktop == 1
 				#endif // PATCH_SHOW_DESKTOP
-		)) continue;
+			) && (!deferred || !(STRINGMATCHABLE(r_json, "if-title-was")))
+		) continue;
 
 		if (STRINGMATCH(r_json, class, sz_class, "if-class") &&
 			STRINGMATCH(r_json, instance, sz_instance, "if-instance") &&
@@ -2651,8 +2653,15 @@ applyrules(Client *c, int deferred)
 			#endif // PATCH_SHOW_DESKTOP
 		) {
 			match = STRINGMATCH(r_json, c->name, sz_title, "if-title");
-			if (defer && !match && !deferred)
+
+			if ((defer && !match && !deferred) ||
+				(defer && match && !deferred && cJSON_HasObjectItem(r_json, "if-title-was"))
+			) {
 				c->ruledefer = 1;
+				match = 0;
+			}
+			else if (match && defer && cJSON_HasObjectItem(r_json, "if-title-was"))
+				match = (deferred && oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
 
 			if (!match)
 				continue;
@@ -10883,7 +10892,7 @@ manage(Window w, XWindowAttributes *wa)
 		if (c->parent)
 			c->followparent = c->parent->followparent;
 		#endif // PATCH_FLAG_FOLLOW_PARENT
-		if (applyrules(c, 0) == -1) {
+		if (applyrules(c, 0, NULL) == -1) {
 			free(c);
 			return;
 		}
@@ -10906,7 +10915,7 @@ manage(Window w, XWindowAttributes *wa)
 		if (c->parent)
 			c->followparent = c->parent->followparent;
 		#endif // PATCH_FLAG_FOLLOW_PARENT
-		if (applyrules(c, 0) == -1) {
+		if (applyrules(c, 0, NULL) == -1) {
 			free(c);
 			return;
 		}
@@ -14338,11 +14347,21 @@ propertynotify(XEvent *e)
 				break;
 		}
 		if (ev->atom == XA_WM_NAME || ev->atom == netatom[NetWMName]) {
-			updatetitle(c, 1);
-			if (c == c->mon->sel)
-				drawbar(c->mon, 0);
-			if (c->ruledefer)
-				applyrulesdeferred(c);
+			if (c->ruledefer) {
+				char oldtitle[256];
+				strncpy(oldtitle, c->name, sizeof oldtitle);
+				updatetitle(c, 1);
+				if (strcmp(c->name, oldtitle) == 0)
+					return;
+				if (c == c->mon->sel)
+					drawbar(c->mon, 0);
+				applyrulesdeferred(c, oldtitle);
+			}
+			else {
+				updatetitle(c, 1);
+				if (c == c->mon->sel)
+					drawbar(c->mon, 0);
+			}
 		}
 		#if PATCH_WINDOW_ICONS
 		else if (ev->atom == netatom[NetWMIcon]) {
