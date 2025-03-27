@@ -11212,9 +11212,15 @@ manage(Window w, XWindowAttributes *wa)
 					c->sfw = w;
 					c->sfh = h;
 					if (x >= c->mon->mx && x <= (c->mon->mx + c->mon->mw))
-						c->x = x;
+						c->sfx = x;
 					if (y >= c->mon->my && y <= (c->mon->my + c->mon->mh))
-						c->y = y;
+						c->sfy = y;
+					if (c->isfloating) {
+						c->w = w;
+						c->h = h;
+						c->x = c->sfx;
+						c->y = c->sfy;
+					}
 				case 2:
 					if (*(data + 1) == (*(data + 1) & TAGMASK))
 						c->tags = *(data + 1);
@@ -11237,10 +11243,6 @@ manage(Window w, XWindowAttributes *wa)
 		c->ultparent = c;
 	#endif // PATCH_SHOW_DESKTOP
 
-	c->sfx = c->x;
-	c->sfy = c->y;
-	if (c->sfw == -1) c->sfw = c->w;
-	if (c->sfh == -1) c->sfh = c->h;
 	#if PATCH_FLAG_GAME
 	if (c->isgame)
 		XSelectInput(dpy, w, FocusChangeMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
@@ -16990,6 +16992,8 @@ setdefaultvalues(Client *c)
 	#endif // PATCH_FLAG_NEVER_RESIZE
 	c->sfxo = 0;
 	c->sfyo = 0;
+	c->sfx = -1;
+	c->sfy = -1;
 	c->sfw = -1;
 	c->sfh = -1;
 	#if PATCH_FLAG_PARENT
@@ -20424,10 +20428,44 @@ togglefloatingex(Client *c)
 	c->isfloating = !c->isfloating;
 	vis = ISVISIBLE(c);
 	if (c->isfloating) {
-		c->x = c->sfx;
-		c->y = c->sfy;
-		c->w = c->sfw;
-		c->h = c->sfh;
+		if (c->sfx == -1 && c->sfy == -1 && c->sfw == -1 && c->sfh == -1) {
+			if (solitary(c) || c->mon->lt[c->mon->sellt]->arrange == monocle ) {
+				c->w -= c->bw*2;
+				c->h -= c->bw*2;
+			}
+		}
+		else {
+			if (c->sfw != -1)
+				c->w = c->sfw;
+			if (c->sfh != -1)
+				c->h = c->sfh;
+			if (c->sfx != -1) {
+				c->x = c->sfx;
+				if (c->x < c->mon->wx)
+					c->x = c->mon->wx;
+				else if (c->x > c->mon->wx + c->mon->ww)
+					c->x = c->mon->wx + c->mon->ww - MIN(c->w, c->mon->ww);
+			}
+			else if (c->x + c->w > c->mon->ww) {
+				if (c->w == c->sfw)
+					c->x = c->mon->wx + c->mon->ww - c->w - c->bw*2;
+				else
+					c->w = c->mon->wx + c->mon->ww - c->x - c->bw*2;
+			}
+			if (c->sfy != -1) {
+				c->y = c->sfy;
+				if (c->y < c->mon->wy)
+					c->y = c->mon->wy;
+				else if (c->y > c->mon->wy + c->mon->wh)
+					c->y = c->mon->wy + c->mon->wh - MIN(c->h, c->mon->wh);
+			}
+			else if (c->y + c->h > c->mon->wh) {
+				if (c->w == c->sfw)
+					c->y = c->mon->wy + c->mon->wh - c->h - c->bw*2;
+				else
+					c->h = c->mon->wy + c->mon->wh - c->y - c->bw*2;
+			}
+		}
 		if (vis)
 			resize(c, c->x, c->y, c->w, c->h, False);	// restore last known float dimensions
 	}
