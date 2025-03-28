@@ -508,6 +508,9 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_ALTTAB
 	{ R_S,		"set-class-group",				"use this string as class for alttab class switcher" },
 	#endif // PATCH_ALTTAB
+	#if PATCH_CLASS_STACKING
+	{ R_S,		"set-class-stack",				"use this string as class for class stacking" },
+	#endif // PATCH_CLASS_STACKING
 	#if PATCH_CLIENT_OPACITY
 	{ R_N|R_I,	"set-opacity-active",			"level of opacity for client when active" },
 	{ R_N|R_I,	"set-opacity-inactive",			"level of opacity for client when inactive" },
@@ -990,6 +993,10 @@ struct Client {
 	#if PATCH_ALTTAB
 	char *grpclass;
 	#endif // PATCH_ALTTAB
+	#if PATCH_CLASS_STACKING
+	char *stackclass;
+	#endif // PATCH_CLASS_STACKING
+
 	#if PATCH_MOUSE_POINTER_HIDING
 	int cursorautohide;
 	int cursorhideonkeys;
@@ -2836,6 +2843,10 @@ skip_parenting:
 			#if PATCH_ALTTAB
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-class-group")) && cJSON_IsString(r_node)) c->grpclass = r_node->valuestring;
 			#endif // PATCH_ALTTAB
+			#if PATCH_CLASS_STACKING
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-class-stack")) && cJSON_IsString(r_node)) c->stackclass = r_node->valuestring;
+			#endif // PATCH_CLASS_STACKING
+
 			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-class-display")) && cJSON_IsString(r_node)) c->dispclass = r_node->valuestring;
 			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
@@ -3331,12 +3342,13 @@ arrangemon(Monitor *m)
 				|| c->isdesktop || c->ondesktop
 				#endif // PATCH_SHOW_DESKTOP
 			) continue;
-			XGetClassHint(dpy, c->win, &ch);
-			if (ch.res_name)
-				XFree(ch.res_name);
-			if (!ch.res_class)
-				continue;
-
+			if (!c->stackclass) {
+				XGetClassHint(dpy, c->win, &ch);
+				if (ch.res_name)
+					XFree(ch.res_name);
+				if (!ch.res_class)
+					continue;
+			}
 			for (c2 = c->snext; c2; c2 = c2->snext)
 			{
 				if (c2->isfloating || !ISVISIBLE(c2) || c2->isstacked
@@ -3348,17 +3360,32 @@ arrangemon(Monitor *m)
 					#endif // PATCH_FLAG_IGNORED
 				)
 					continue;
-				XGetClassHint(dpy, c2->win, &ch2);
-				if (ch2.res_name)
-					XFree(ch2.res_name);
-				if (!ch2.res_class)
-					continue;
-				if (strcmp(ch.res_class, ch2.res_class) == 0)
+				if (!c2->stackclass) {
+					XGetClassHint(dpy, c2->win, &ch2);
+					if (ch2.res_name)
+						XFree(ch2.res_name);
+					if (!ch2.res_class)
+						continue;
+					if (
+						(c->stackclass && strcmp(ch2.res_class, c->stackclass) == 0) ||
+						(!c->stackclass && strcmp(ch.res_class, ch2.res_class) == 0)
+						)
+						c2->isstacked = c;
+				}
+				else if (
+					(c->stackclass && strcmp(c->stackclass, c2->stackclass) == 0) ||
+					(!c->stackclass && strcmp(ch.res_class, c2->stackclass) == 0)
+					)
 					c2->isstacked = c;
-				XFree(ch2.res_class);
+				if (ch2.res_class) {
+					XFree(ch2.res_class);
+					ch2.res_class = NULL;
+				}
 			}
-
-			XFree(ch.res_class);
+			if (ch.res_class) {
+				XFree(ch.res_class);
+				ch.res_class = NULL;
+			}
 		}
 
 		if (m->lt[m->sellt]->arrange)
@@ -16941,6 +16968,9 @@ setdefaultvalues(Client *c)
 	#if PATCH_ALTTAB
 	c->grpclass = NULL;
 	#endif // PATCH_ALTTAB
+	#if PATCH_CLASS_STACKING
+	c->stackclass = NULL;
+	#endif // PATCH_CLASS_STACKING
 	c->tags = 0;
 	#if PATCH_FLAG_CENTRED
 	c->iscentred = 0;

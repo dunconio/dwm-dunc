@@ -175,9 +175,9 @@ like this in your .xinitrc:
 
 The configuration of dwm is done by: -
 <ol>
-<li>Creating a custom config.h
-and (re)compiling the source code;</li>
+<li>Creating a custom config.h and (re)compiling the source code;</li>
 <li>Passing JSON configuration files as parameters at run-time;</li>
+<li>Using IPC commands to change parameters at run-time;</li>
 </ol>
 
 
@@ -228,6 +228,8 @@ layout-file.json supported names:
         border-width                 - window border width in pixels
         borderless-solitary          - true to hide window borders for solitary
                                        tiled clients
+        class-stacking               - true for visible tiled clients of the
+                                       same class to occupy the same tile
         client-indicators            - true to show indicators blobs on the edge
                                        of each tag to represent the number of
                                        clients present
@@ -312,6 +314,15 @@ layout-file.json supported names:
         mirror-layout                - switch master area and stack area
         monitors                     - array of monitor objects (see "monitor
                                        sections")
+        mouse-warping-enabled        - true to enable warping of the mouse
+                                       pointer
+        mouse-warping-smoothly       - true to enable smooth warping of the
+                                       mouse pointer when mouse-warping-enabled
+                                       is true
+        process-no-sigterm           - array of process names that don't respect
+                                       SIGTERM conventions
+        process-parents              - array of objects with "procname" and
+                                       "parent" string values
         show-custom-tag-icons        - true to show a custom icon in place of
                                        tag identifier (for each tag)
         show-desktop                 - true to enable management of desktop
@@ -400,6 +411,9 @@ layout-file.json supported names:
                                     0:top, 1:middle, 2:bottom
         set-bar-layout            - array of bar elements in order of appearance
                                     (TagBar, LtSymbol, WinTitle, StatusText)
+        set-class-stacking        - true for visible tiled clients of the same
+                                    class to occupy the same tile on this
+                                    monitor
         set-cursor-autohide       - true to hide cursor when stationary on this
                                     monitor
         set-cursor-hide-on-keys   - true to hide cursor when keys are pressed on
@@ -467,6 +481,8 @@ layout-file.json supported names:
     ----------------------------
         comment                 - ignored
         index                   - tag index number, usually between 1 and 9
+        set-class-stacking      - true for visible tiled clients of the same
+                                  class to occupy the same tile on this tag
         set-cursor-autohide     - true to hide cursor when stationary on this
                                   tag
         set-cursor-hide-on-keys - true to hide cursor when keys are pressed on
@@ -537,6 +553,8 @@ rules-file.json supported names:
     if-title-contains           - substring matching on title
     if-title-ends               - substring matching from the end of title
     if-title-is                 - exact full string matching on title
+    if-title-was                - for deferred rule matching, the exact title
+                                  prior to changing
     log-rule                    - log when a client matches the rule
     set-alwaysontop             - this client will appear above others; if
                                   tiled: only while focused
@@ -551,6 +569,7 @@ rules-file.json supported names:
                                   tag bar
     set-class-group             - use this string as class for alttab class
                                   switcher
+    set-class-stack             - use this string as class for class stacking
     set-opacity-active          - level of opacity for client when active
     set-opacity-inactive        - level of opacity for client when inactive
     set-cursor-autohide         - true to hide cursor when stationary while this
@@ -647,7 +666,7 @@ rules-file.json supported names:
 
 
 usage: dwm [-h] [-v] [-r <rules-file.json>] [-l <layout-file.json>] [-u] [-n]
-           [-s <verb> [command [args]]]
+           [-p <socket-path>] [-s <verb> [command [args]]]
 
     -h    display usage and accepted configuration paramters
     -v    display version information
@@ -655,6 +674,7 @@ usage: dwm [-h] [-v] [-r <rules-file.json>] [-l <layout-file.json>] [-u] [-n]
     -r    use the rules defined in the specified JSON rules file
     -l    use the layout configuration defined in the specified JSON layout file
     -u    disable client urgency hinting
+    -p    path to unix socket
     -s    send request to running instance via socket
 
 IPC verbs:
@@ -687,7 +707,9 @@ IPC commands:
     incnmaster
     killclient
     logdiagnostics
+    enablemousewarp
     reload
+    reloadrules
     setmfact
     tag
     tagmon
