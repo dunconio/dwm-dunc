@@ -11453,6 +11453,14 @@ manage(Window w, XWindowAttributes *wa)
 		XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
 	else
 	#endif // PATCH_FLAG_IGNORED
+	if (!ISVISIBLE(c) && !c->isfixed && !c->isfloating
+		#if PATCH_SHOW_DESKTOP
+		&& !c->isdesktop && !c->ondesktop
+		#endif // PATCH_SHOW_DESKTOP
+	) {
+		c->w = c->mon->ww;
+		c->h = c->mon->wh;
+	}
 	XMoveResizeWindow(dpy, c->win, c->x + 2 * sw, c->y, c->w, c->h); /* some windows require this */
 
 	#if PATCH_HANDLE_SIGNALS
