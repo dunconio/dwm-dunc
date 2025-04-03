@@ -11444,6 +11444,21 @@ manage(Window w, XWindowAttributes *wa)
 	}
 	#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN
 
+	if (!nonstop && !ISVISIBLE(c) && !c->isfixed && !c->isfloating
+		#if PATCH_FLAG_IGNORED
+		&& !c->isignored
+		#endif // PATCH_FLAG_IGNORED
+		#if PATCH_SHOW_DESKTOP
+		&& !c->isdesktop && !c->ondesktop
+		#endif // PATCH_SHOW_DESKTOP
+	) {
+		logdatetime(stderr);
+		fprintf(stderr, "c:\"%s\" x:%i y:%i old w:%i h:%i ", c->name, c->x, c->y, c->w, c->h);
+		c->w = c->mon->ww;
+		c->h = c->mon->wh;
+		fprintf(stderr, "new w:%i h:%i\n", c->w, c->h);
+	}
+
 	#if PATCH_FLAG_IGNORED
 	if (c->isignored
 		#if PATCH_FLAG_HIDDEN
