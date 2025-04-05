@@ -1017,6 +1017,7 @@ struct Client {
 	int isfixed, isfloating, isurgent;
 	#if PATCH_CLASS_STACKING
 	Client *isstacked;		// tiled window whose position is to be matched;
+	int isstackhead;
 	#endif // PATCH_CLASS_STACKING
 	#if PATCH_SHOW_DESKTOP
 	int wasdesktop;		// started with NetWMWindowTypeDesktop;
@@ -1358,6 +1359,9 @@ static void applyrulesdeferred(Client *c, char *oldtitle);
 static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact);
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
+#if PATCH_CLASS_STACKING
+static void arrangemon_process_classstack(Client *c);
+#endif // PATCH_CLASS_STACKING
 static void attach(Client *c);
 #if PATCH_ATTACH_BELOW_AND_NEWMASTER
 static void attachBelow(Client *c);
@@ -3319,73 +3323,41 @@ arrangemon(Monitor *m)
 	}
 
 	#if PATCH_CLASS_STACKING
-	XClassHint ch = { NULL, NULL };
-	XClassHint ch2 = { NULL, NULL };
+	if (m == selmon && !m->class_stacking && m->sel && m->sel->isstackhead && ISVISIBLE(m->sel)
+		#if PATCH_FLAG_HIDDEN
+		&& !m->sel->ishidden
+		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_FLAG_IGNORED
+		&& !m->sel->isignored
+		#endif // PATCH_FLAG_IGNORED
+		#if PATCH_FLAG_PANEL
+		&& !m->sel->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		&& !m->sel->isdesktop && !m->sel->ondesktop
+		#endif // PATCH_SHOW_DESKTOP
+		)
+		XSetWindowBorder(dpy, m->sel->win, scheme[SchemeSel][ColBorder].pixel);
 
-	for (c = m->clients; c; c = c->next)
+	for (c = m->clients; c; c = c->next) {
 		c->isstacked = NULL;
+		c->isstackhead = 0;
+	}
 	if (m->class_stacking)
 	{
+		#if PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
+		if (tabHighlight && altTabMon && altTabMon->isAlt && !(altTabMon->isAlt & ALTTAB_MOUSE) && altTabMon->highlight && altTabMon->highlight->mon == m)
+			arrangemon_process_classstack(altTabMon->highlight);
+		#endif // PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
 		for (c = m->stack; c; c = c->snext)
 		{
-			if (c->isfloating || !ISVISIBLE(c) || c->isstacked || !c->snext
-				#if PATCH_FLAG_HIDDEN
-				|| c->ishidden
-				#endif // PATCH_FLAG_HIDDEN
-				#if PATCH_FLAG_IGNORED
-				|| c->isignored
-				#endif // PATCH_FLAG_IGNORED
-				#if PATCH_FLAG_PANEL
-				|| c->ispanel
-				#endif // PATCH_FLAG_PANEL
-				#if PATCH_SHOW_DESKTOP
-				|| c->isdesktop || c->ondesktop
-				#endif // PATCH_SHOW_DESKTOP
-			) continue;
-			if (!c->stackclass) {
-				XGetClassHint(dpy, c->win, &ch);
-				if (ch.res_name)
-					XFree(ch.res_name);
-				if (!ch.res_class)
-					continue;
-			}
-			for (c2 = c->snext; c2; c2 = c2->snext)
-			{
-				if (c2->isfloating || !ISVISIBLE(c2) || c2->isstacked
-					#if PATCH_FLAG_HIDDEN
-					|| c2->ishidden
-					#endif // PATCH_FLAG_HIDDEN
-					#if PATCH_FLAG_IGNORED
-					|| c2->isignored
-					#endif // PATCH_FLAG_IGNORED
+			if (!c->snext
+				#if PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
+				|| (tabHighlight && altTabMon && altTabMon->isAlt && !(altTabMon->isAlt & ALTTAB_MOUSE) && altTabMon->highlight == c)
+				#endif // PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
 				)
-					continue;
-				if (!c2->stackclass) {
-					XGetClassHint(dpy, c2->win, &ch2);
-					if (ch2.res_name)
-						XFree(ch2.res_name);
-					if (!ch2.res_class)
-						continue;
-					if (
-						(c->stackclass && strcmp(ch2.res_class, c->stackclass) == 0) ||
-						(!c->stackclass && strcmp(ch.res_class, ch2.res_class) == 0)
-						)
-						c2->isstacked = c;
-				}
-				else if (
-					(c->stackclass && strcmp(c->stackclass, c2->stackclass) == 0) ||
-					(!c->stackclass && strcmp(ch.res_class, c2->stackclass) == 0)
-					)
-					c2->isstacked = c;
-				if (ch2.res_class) {
-					XFree(ch2.res_class);
-					ch2.res_class = NULL;
-				}
-			}
-			if (ch.res_class) {
-				XFree(ch.res_class);
-				ch.res_class = NULL;
-			}
+				continue;
+			arrangemon_process_classstack(c);
 		}
 
 		if (m->lt[m->sellt]->arrange)
@@ -3413,6 +3385,98 @@ arrangemon(Monitor *m)
 		XSetWindowBorder(dpy, m->sel->win, scheme[SchemeSel][ColBorder].pixel);
 	*/
 }
+
+#if PATCH_CLASS_STACKING
+void
+arrangemon_process_classstack(Client *c)
+{
+	XClassHint ch = { NULL, NULL };
+	XClassHint ch2 = { NULL, NULL };
+
+	if (!c->snext || c->isfloating || !ISVISIBLE(c) || c->isstacked
+		#if PATCH_FLAG_HIDDEN
+		|| c->ishidden
+		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_FLAG_IGNORED
+		|| c->isignored
+		#endif // PATCH_FLAG_IGNORED
+		#if PATCH_FLAG_PANEL
+		|| c->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		|| c->isdesktop || c->ondesktop
+		#endif // PATCH_SHOW_DESKTOP
+	) return;
+	if (!c->stackclass) {
+		XGetClassHint(dpy, c->win, &ch);
+		if (ch.res_name)
+			XFree(ch.res_name);
+		if (!ch.res_class)
+			return;
+	}
+	for (Client *c2 = c->snext; c2; c2 = c2->snext)
+	{
+		if (c2->isfloating || !ISVISIBLE(c2) || c2->isstacked
+			#if PATCH_FLAG_HIDDEN
+			|| c2->ishidden
+			#endif // PATCH_FLAG_HIDDEN
+			#if PATCH_FLAG_IGNORED
+			|| c2->isignored
+			#endif // PATCH_FLAG_IGNORED
+		)
+			continue;
+		if (!c2->stackclass) {
+			XGetClassHint(dpy, c2->win, &ch2);
+			if (ch2.res_name)
+				XFree(ch2.res_name);
+			if (!ch2.res_class)
+				continue;
+			if (
+				(c->stackclass && strcmp(ch2.res_class, c->stackclass) == 0) ||
+				(!c->stackclass && strcmp(ch.res_class, ch2.res_class) == 0)
+				)
+				c2->isstacked = c;
+		}
+		else if (
+			(c->stackclass && strcmp(c->stackclass, c2->stackclass) == 0) ||
+			(!c->stackclass && strcmp(ch.res_class, c2->stackclass) == 0)
+			)
+			c2->isstacked = c;
+		if (ch2.res_class) {
+			XFree(ch2.res_class);
+			ch2.res_class = NULL;
+		}
+		if (c2->isstacked)
+			c->isstackhead = 1;
+	}
+	if (ch.res_class) {
+		XFree(ch.res_class);
+		ch.res_class = NULL;
+	}
+	if (ISVISIBLE(c) &&
+		(
+			(c->mon == selmon && c->isstackhead && c->mon->sel == c)
+			#if PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
+			|| (tabHighlight && altTabMon && altTabMon->isAlt && !(altTabMon->isAlt & ALTTAB_MOUSE) && altTabMon->highlight == c)
+			#endif // PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
+		)
+		#if PATCH_FLAG_HIDDEN
+		&& !c->ishidden
+		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_FLAG_IGNORED
+		&& !c->isignored
+		#endif // PATCH_FLAG_IGNORED
+		#if PATCH_FLAG_PANEL
+		&& !c->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		&& !c->isdesktop && !c->ondesktop
+		#endif // PATCH_SHOW_DESKTOP
+		)
+		XSetWindowBorder(dpy, c->win, scheme[SchemeUrg][ColBorder].pixel);
+	
+}
+#endif // PATCH_CLASS_STACKING
 
 void
 attach(Client *c)
@@ -7551,10 +7615,13 @@ focus(Client *c, int force)
 		if (c->isstacked)
 		{
 			for (Client *cc = c->mon->clients; cc; cc = cc->next)
-				if (cc->isstacked == c->isstacked && cc != c)
+				if (cc->isstacked == c->isstacked && cc != c) {
 					cc->isstacked = c;
+					cc->isstackhead = 0;
+				}
 			c->isstacked->isstacked = c;
 			c->isstacked = NULL;
+			c->isstackhead = 1;
 		}
 		#endif // PATCH_CLASS_STACKING
 
@@ -7589,6 +7656,11 @@ focus(Client *c, int force)
 		/* Avoid flickering when another client appears and the border
 		* is restored */
 		//if (!solitary(c))
+		#if PATCH_CLASS_STACKING
+		if (c->isstackhead)
+			XSetWindowBorder(dpy, c->win, scheme[SchemeUrg][ColBorder].pixel);
+		else
+		#endif // PATCH_CLASS_STACKING
 		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 
 		#if PATCH_ALTTAB
@@ -9336,10 +9408,7 @@ hidewin(const Arg *arg) {
 		#endif // PATCH_PERSISTENT_METADATA
 		if (!c->isfloating) {
 			#if PATCH_CLASS_STACKING
-			if (c->isstacked)
-				c->isstacked = NULL;
-			else
-				arrangemon(c->mon);
+			arrangemon(c->mon);
 			#endif // PATCH_CLASS_STACKING
 			if (!(h = nexttiled(c)))
 				h = prevtiled(c);
@@ -9435,10 +9504,16 @@ highlight(Client *c)
 		#endif // PATCH_FLAG_HIDDEN
 		)
 	{
-		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
-
 		if (!ISVISIBLE(c))
 			viewmontag(c->mon, c->tags, 1);
+		#if PATCH_CLASS_STACKING
+		else if (c->mon != selmon)
+			arrangemon(c->mon);
+		if (c->mon->class_stacking && (c->isstackhead || c->isstacked))
+			XSetWindowBorder(dpy, c->win, scheme[SchemeUrg][ColBorder].pixel);
+		else
+		#endif // PATCH_CLASS_STACKING
+		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 
 		#if PATCH_SHOW_DESKTOP
 		if (showdesktop) {
@@ -9473,6 +9548,9 @@ highlight(Client *c)
 			#endif // PATCH_FLAG_GAME
 		}
 
+		altTabMon->highlight = c;
+		drawbar(c->mon, 0);
+
 		#if PATCH_SHOW_DESKTOP
 		if (!showdesktop || !c->isdesktop)
 		#endif // PATCH_SHOW_DESKTOP
@@ -9490,11 +9568,15 @@ highlight(Client *c)
 				raisewin(c->mon, c->mon->barwin, True);
 				wc.sibling = c->mon->barwin;
 				XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc);
+
+				#if PATCH_CLASS_STACKING
+				// without the restack() class-stacked clients' z-order doesn't get readjusted properly;
+				if (altTabMon && altTabMon->highlight && (altTabMon->highlight->isstacked || altTabMon->highlight->isstackhead)) {
+					restack(c->mon);
+				}
+				#endif // PATCH_CLASS_STACKING
 			}
 		}
-
-		altTabMon->highlight = c;
-		drawbar(c->mon, 0);
 	}
 	else
 		altTabMon->highlight = NULL;
@@ -15778,7 +15860,17 @@ restack(Monitor *m)
 
 	#if PATCH_ALTTAB
 	#if PATCH_ALTTAB_HIGHLIGHT
-	if (tabHighlight && altTabMon && altTabMon->isAlt) {
+	if (tabHighlight && altTabMon && altTabMon->isAlt && !(altTabMon->isAlt & ALTTAB_MOUSE)) {
+
+		#if PATCH_CLASS_STACKING
+		if (altTabMon->highlight && altTabMon->highlight->isstacked
+			#if PATCH_SHOW_DESKTOP
+			&& !altTabMon->highlight->isdesktop
+			#endif // PATCH_SHOW_DESKTOP
+		)
+			raised = altTabMon->highlight;
+		else
+		#endif // PATCH_CLASS_STACKING
 		if (altTabMon->highlight && altTabMon->highlight->mon == m
 			#if PATCH_SHOW_DESKTOP
 			&& !altTabMon->highlight->isdesktop
@@ -19054,6 +19146,7 @@ altTab(int direction, int first)
 		#endif // PATCH_MOUSE_POINTER_WARPING
 	}
 	#endif // PATCH_ALTTAB_HIGHLIGHT
+
 	drawTab(altTabMon, 1, 0);
 }
 
@@ -21149,7 +21242,17 @@ unmanage(Client *c, int destroyed, int cleanup)
 		{
 			Client *sel;
 			if (wasfocused) {
-				if (!(sel = guessnextfocus(c, c->mon)))
+				#if PATCH_FOCUS_FOLLOWS_MOUSE
+				if (c->mon == selmon) {
+					Monitor *pm = NULL;
+					int px, py;
+					if (getrootptr(&px, &py))
+						pm = recttomon(px, py, 1, 1);
+					if (pm && pm != selmon)
+						selmon = pm;
+				}
+				#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+				if ((c->mon != selmon && (sel = selmon->sel)) || !(sel = guessnextfocus(c, c->mon)))
 					focus(NULL, 0);
 				else {
 					if (sel->mon != selmon) {
