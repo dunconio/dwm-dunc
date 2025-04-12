@@ -406,6 +406,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 }, DESCRIPTION_FOCUSSTACK_BACKWARD },
 	{ Mod1Mask,                     XK_Escape, focusstack,     {.i = +1 }, DESCRIPTION_FOCUSSTACK_FORWARD },
 	{ Mod1Mask|ShiftMask,           XK_Escape, focusstack,     {.i = -1 }, DESCRIPTION_FOCUSSTACK_BACKWARD },
+#if PATCH_VIRTUAL_MONITORS
+	{ MODKEY,                       XK_Home,   togglesplit,    {.ui = 0 }, DESCRIPTION_TOGGLE_MONITOR_SPLIT },
+#endif // PATCH_VIRTUAL_MONITORS
 #if PATCH_FLAG_HIDDEN
 	{ MODKEY,                      XK_Scroll_Lock,hidewin,     {.ui = 0 }, DESCRIPTION_HIDE_CLIENT },
 	{ MODKEY|ShiftMask,            XK_Scroll_Lock,hidewin,     {.ui = 1 }, DESCRIPTION_HIDE_CLIENT_OTHERS },

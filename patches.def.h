@@ -56,6 +56,7 @@
 #define PATCH_TORCH							1
 #define PATCH_TWO_TONE_TITLE				1
 #define PATCH_VANITY_GAPS					1
+#define PATCH_VIRTUAL_MONITORS				1
 #define PATCH_WINDOW_ICONS					1
 #define PATCH_WINDOW_ICONS_CUSTOM_ICONS		1	// Enable per-client a user-specified icon;
 #define PATCH_WINDOW_ICONS_DEFAULT_ICON		1	// Set a default icon for clients without;

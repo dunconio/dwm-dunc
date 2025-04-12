@@ -98,6 +98,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_TORCH` | Turn all of your monitors to one of two colours (like a big torch); |
 | `PATCH_TWO_TONE_TITLE` | Support a second colour for the WinTitle bar element background, to create a gradient effect (like classic Windows 98/2000) |
 | `PATCH_VANITY_GAPS` | Optional gaps between clients and monitor edges |
+| `PATCH_VIRTUAL_MONITORS` | Enable splitting physical monitors in half horizontally or vertically;<br />Monitor number for the virtual monitor will be increased by 1000. |
 | `PATCH_WINDOW_ICONS` | Show client icon on the WinTitle bar element;<ul><li>Supports showing icons in `PATCH_ALTTAB` alt-tab switchers</li></ul> |
 | <ul>`PATCH_WINDOW_ICONS_CUSTOM_ICONS`</ul> | Enable per-client a user-specified icon; |
 | <ul>`PATCH_WINDOW_ICONS_DEFAULT_ICON`</ul> | Set a default icon for clients without; |
@@ -461,6 +462,11 @@ layout-file.json supported names:
         set-showstatus            - set to 1 if the status text should be
                                     displayed, -1 to ignore root window name
                                     changes
+        set-split-enabled         - set to 1 to enable splitting the physical
+                                    monitor into virtual monitors (no effect
+                                    when set-split-type is 0)
+        set-split-type            - set to 1 to split the screen horizontally, 2
+                                    to split vertically
         set-start-tag             - default tag to activate on startup
         set-switch-on-empty       - switch to the specified tag when no more
                                     clients are visible under the active tag

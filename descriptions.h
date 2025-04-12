@@ -240,3 +240,7 @@
 #define DESCRIPTION_XKILL							"Kill a GUI program via xkill"
 
 #define DESCRIPTION_ZOOM							"Swap the focused client with the first master client"
+
+#if PATCH_VIRTUAL_MONITORS
+#define DESCRIPTION_TOGGLE_MONITOR_SPLIT			"Toggle splitting the current monitor"
+#endif // PATCH_VIRTUAL_MONITORS

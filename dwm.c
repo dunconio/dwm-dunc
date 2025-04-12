@@ -394,6 +394,10 @@ static const supported_json supported_layout_mon[] = {
 	{ "set-showmaster", 		"set to true if the master client class should be shown on each tag on the bar" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	{ "set-showstatus",			"set to 1 if the status text should be displayed, -1 to ignore root window name changes" },
+	#if PATCH_VIRTUAL_MONITORS
+	{ "set-split-enabled",		"set to 1 to enable splitting the physical monitor into virtual monitors (no effect when set-split-type is 0)" },
+	{ "set-split-type",			"set to 1 to split the screen horizontally, 2 to split vertically" },
+	#endif // PATCH_VIRTUAL_MONITORS
 	{ "set-start-tag",			"default tag to activate on startup" },
 	#if PATCH_SWITCH_TAG_ON_EMPTY
 	{ "set-switch-on-empty",	"switch to the specified tag when no more clients are visible under the active tag" },
@@ -1187,7 +1191,25 @@ typedef struct {
 typedef struct Pertag Pertag;
 #endif // PATCH_PERTAG
 
+#if PATCH_VIRTUAL_MONITORS
+// physical monitor;
+typedef struct PMonitor PMonitor;
+struct PMonitor {
+	int mx, my, mw, mh;		// physical geometry;
+	int disappeared;		// 1 if the physical monitor has been removed;
+	Monitor *mon1;			// first (virtual) monitor;
+	Monitor *mon2;			// second (virtual) monitor;
+	PMonitor *next;			// next physical monitor;
+};
+
+// virtual monitor;
+#endif // PATCH_VIRTUAL_MONITORS
 struct Monitor {
+	#if PATCH_VIRTUAL_MONITORS
+	int enablesplit;
+	int split;				// 1 for horizontal, 2 for vertical;
+	PMonitor *pmon;			// the physical monitor;
+	#endif // PATCH_VIRTUAL_MONITORS
 	char ltsymbol[16];
 	#if PATCH_ALTTAB
 	char numstr[16];		// buffer for number formatted e.g. "[%#2d] "
@@ -1398,7 +1420,12 @@ static void createbarrier(Client *c);
 #if PATCH_CONSTRAIN_MOUSE
 static void createbarriermon(Monitor *m);
 #endif // PATCH_CONSTRAIN_MOUSE
+#if PATCH_VIRTUAL_MONITORS
+static Monitor *createmon(int index);
+static PMonitor *createpmon(void);
+#else // NO PATCH_VIRTUAL_MONITORS
 static Monitor *createmon(void);
+#endif // PATCH_VIRTUAL_MONITORS
 #if PATCH_CROP_WINDOWS
 static Client *cropwintoclient(Window w);
 static void cropwindow(Client *c);
@@ -1824,6 +1851,9 @@ static void togglepause(const Arg *arg);
 #if DEBUGGING
 static void toggleskiprules(const Arg *arg);
 #endif // DEBUGGING
+#if PATCH_VIRTUAL_MONITORS
+static void togglesplit(const Arg *arg);
+#endif // PATCH_VIRTUAL_MONITORS
 #if PATCH_CLASS_STACKING
 static void togglestacking(const Arg *arg);
 #endif // PATCH_CLASS_STACKING
@@ -1872,6 +1902,9 @@ static void updatetitle(Client *c, int fixempty);
 #if PATCH_WINDOW_ICONS
 static void updateicon(Client *c);
 #endif // PATCH_WINDOW_ICONS
+#if PATCH_VIRTUAL_MONITORS
+static int updatevirtualmonitors(void);
+#endif // PATCH_VIRTUAL_MONITORS
 static int updatewindowstate(Client *c);
 static void updatewindowtype(Client *c);
 static void updatewmhints(Client *c);
@@ -2007,6 +2040,9 @@ static Drw *drw;
 #if PATCH_SCAN_OVERRIDE_REDIRECTS
 static Client *orlist;
 #endif // PATCH_SCAN_OVERRIDE_REDIRECTS
+#if PATCH_VIRTUAL_MONITORS
+static PMonitor *pmons = NULL;
+#endif // PATCH_VIRTUAL_MONITORS
 static Monitor *mons = NULL, *selmon = NULL;
 static Window root, wmcheckwin;
 #if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
@@ -3067,6 +3103,13 @@ skip_parenting:
 				for (m = mons; m && m->num != c->monindex; m = m->next);
 				if (m)
 					c->mon = m;
+				#if PATCH_VIRTUAL_MONITORS
+				else if (c->monindex >= 1000) {
+					for (m = mons; m && m->num != c->monindex % 1000; m = m->next);
+					if (m)
+						c->mon = m;
+				}
+				#endif // PATCH_VIRTUAL_MONITORS
 			}
 
 			#if PATCH_FLAG_FLOAT_ALIGNMENT
@@ -4768,12 +4811,28 @@ createbarriermon(Monitor *m)
 #endif // PATCH_CONSTRAIN_MOUSE
 
 Monitor *
-createmon(void)
+createmon(
+	#if PATCH_VIRTUAL_MONITORS
+	int index
+	#else // NO PATCH_VIRTUAL_MONITORS
+	void
+	#endif // PATCH_VIRTUAL_MONITORS
+)
 {
+	#if PATCH_VIRTUAL_MONITORS
+	Monitor *m;
+	unsigned int i;
+	#else // NO PATCH_VIRTUAL_MONITORS
 	Monitor *m, *mon;
 	unsigned int mi, i;
+	#endif // PATCH_VIRTUAL_MONITORS
 
 	m = ecalloc(1, sizeof(Monitor));
+	#if PATCH_VIRTUAL_MONITORS
+	m->num = index;
+	m->enablesplit = 0;
+	m->split = 0;
+	#endif // PATCH_VIRTUAL_MONITORS
 	m->tagset[0] = m->tagset[1] = 1;
 
 	for (i = 0; i < LENGTH(tags); i++)
@@ -4907,13 +4966,33 @@ createmon(void)
 		#endif // PATCH_CLASS_STACKING
 	}
 	#endif // PATCH_PERTAG
+	#if PATCH_VIRTUAL_MONITORS
+	parsemon(m, index, 1);
+	#else // NO PATCH_VIRTUAL_MONITORS
 	// identify monitor index;
 	for (mi = 0, mon = mons; mon; mon = mon->next, mi++);
-
 	parsemon(m, mi, 1);
+	#endif // PATCH_VIRTUAL_MONITORS
 
 	return m;
 }
+
+#if PATCH_VIRTUAL_MONITORS
+PMonitor *
+createpmon(void)
+{
+	PMonitor *pm;
+	pm = ecalloc(1, sizeof(PMonitor));
+	pm->mon1 = NULL;
+	pm->mon2 = NULL;
+	pm->mx = 0;
+	pm->my = 0;
+	pm->mw = 0;
+	pm->mh = 0;
+	pm->disappeared = 0;
+	return pm;
+}
+#endif // PATCH_VIRTUAL_MONITORS
 
 #if PATCH_CROP_WINDOWS
 Client *
@@ -5220,6 +5299,28 @@ dirtomon(int dir)
 {
 	Monitor *m = NULL;
 
+	#if PATCH_VIRTUAL_MONITORS
+	PMonitor *pm = NULL;
+	if (dir > 0) {
+		if (selmon->pmon->mon1 == selmon && selmon->pmon->mon2)
+			m = selmon->pmon->mon2;
+		else if ((pm = selmon->pmon->next))
+			m = pm->mon1;
+		else
+			m = pmons->mon1;
+	}
+	else {
+		if (selmon->pmon->mon2 == selmon && selmon->pmon->mon1)
+			m = selmon->pmon->mon1;
+		else {
+			for (pm = pmons; pm && pm->next && pm->next != selmon->pmon; pm = pm->next);
+			if (pm->mon2)
+				m = pm->mon2;
+			else
+				m = pm->mon1;
+		}
+	}
+	#else // NO PATCH_VIRTUAL_MONITORS
 	if (dir > 0) {
 		if (!(m = selmon->next))
 			m = mons;
@@ -5227,6 +5328,7 @@ dirtomon(int dir)
 		for (m = mons; m->next; m = m->next);
 	else
 		for (m = mons; m->next != selmon; m = m->next);
+	#endif // PATCH_VIRTUAL_MONITORS
 	return m;
 }
 
@@ -10286,6 +10388,25 @@ logdiagnostics(const Arg *arg)
 	#endif // PATCH_WINDOW_ICONS_ON_TAGS
 	#endif // PATCH_WINDOW_ICONS
 
+	#if PATCH_VIRTUAL_MONITORS
+	fputs("\nPhysical monitors:\n", stderr);
+	unsigned int pi = 0;
+	for (PMonitor *pm = pmons; pm; pm = pm->next, pi++) {
+		fprintf(stderr, "    %i: %i x %i + %i x %i: ", pi, pm->mw, pm->mh, pm->mx, pm->my);
+		if (pm->mon2)
+			fprintf(stderr, "contains virtual monitors %i: %i x %i + %i x %i and %i: %i x %i + %i x %i\n",
+				pm->mon1->num, pm->mon1->mw, pm->mon1->mh, pm->mon1->mx, pm->mon1->my,
+				pm->mon2->num, pm->mon2->mw, pm->mon2->mh, pm->mon2->mx, pm->mon2->my
+			);
+		else if (pm->mon1)
+			fprintf(stderr, "contains virtual monitor %i: %i x %i + %i x %i\n",
+				pm->mon1->num, pm->mon1->mw, pm->mon1->mh, pm->mon1->mx, pm->mon1->my);
+		else
+			fputs("<NO VIRTUAL MONITORS>\n", stderr);
+	}
+	fputs("\n", stderr);
+	#endif // PATCH_VIRTUAL_MONITORS
+
 	fprintf(stderr, "Client flags:\n");
 	for (int i = 0; i < LENGTH(flags); i++)
 		fprintf(stderr, "    %s\n", flags[i]);
@@ -11109,6 +11230,15 @@ manage(Window w, XWindowAttributes *wa)
 							break;
 						}
 					}
+					#if PATCH_VIRTUAL_MONITORS
+					for (m = mons; m; m = m->next) {
+						if (m->num == *(data+2) % 1000) {
+							c->mon = m;
+							c->monindex = m->num;
+							break;
+						}
+					}
+					#endif // PATCH_VIRTUAL_MONITORS
 					if (w > c->mon->mw)
 						w = c->mon->mw;
 					if (h > c->mon->mh)
@@ -13459,6 +13589,15 @@ parselayoutjson(cJSON *layout)
 								cJSON_AddNumberToObject(unsupported_mon, "\"set-showstatus\" must contain an integer value", 0);
 							}
 
+							#if PATCH_VIRTUAL_MONITORS
+							else if (strcmp(c->string, "set-split-enabled")==0 && !json_isboolean(c)) {
+								cJSON_AddNumberToObject(unsupported_mon, "\"set-split-enabled\" must contain a boolean value", 0);
+							}
+							else if (strcmp(c->string, "set-split-type")==0 && !cJSON_IsInteger(c)) {
+								cJSON_AddNumberToObject(unsupported_mon, "\"set-split-type\" must contain an integer value", 0);
+							}
+							#endif // PATCH_VIRTUAL_MONITORS
+
 							else if (strcmp(c->string, "set-start-tag")==0 && !cJSON_IsInteger(c)) {
 								cJSON_AddNumberToObject(unsupported_mon, "\"set-start-tag\" must contain an integer value", 0);
 							}
@@ -13667,6 +13806,10 @@ parsemon(Monitor *m, int index, int first)
 			m->showiconsontags = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-show-icons-on-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->showiconsontags;
 			#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 			m->showstatus = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-showstatus")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->showstatus;
+			#if PATCH_VIRTUAL_MONITORS
+			if (m->num < 1000)
+				m->split = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-split-type")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->split;
+			#endif // PATCH_VIRTUAL_MONITORS
 			#if PATCH_SWITCH_TAG_ON_EMPTY
 			m->switchonempty = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-switch-on-empty")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->switchonempty;
 			if (m->switchonempty > LENGTH(tags))
@@ -13696,6 +13839,10 @@ parsemon(Monitor *m, int index, int first)
 				#endif // PATCH_MIRROR_LAYOUT
 				m->nmaster = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-nmaster")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->nmaster;
 				m->showbar = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-showbar")) && json_isboolean(l_node)) ? l_node->valueint : m->showbar;
+				#if PATCH_VIRTUAL_MONITORS
+				if (m->num < 1000)
+					m->enablesplit = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-split-enabled")) && json_isboolean(l_node)) ? l_node->valueint : m->enablesplit;
+				#endif // PATCH_VIRTUAL_MONITORS
 
 				m->lt[0] = &layouts[0];
 				l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-layout");
@@ -13757,7 +13904,7 @@ parsemon(Monitor *m, int index, int first)
 							if (m->pertag->switchonempty[i] > LENGTH(tags))
 								m->pertag->switchonempty[i] = 0;
 							#endif // PATCH_SWITCH_TAG_ON_EMPTY
-
+							
 							if (first) {
 								#if PATCH_CLASS_STACKING
 								m->pertag->class_stacking[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-class-stacking")) && json_isboolean(l_node)) ? l_node->valueint : m->class_stacking;
@@ -13766,7 +13913,7 @@ parsemon(Monitor *m, int index, int first)
 								m->pertag->mfacts_def[i] = m->pertag->mfacts[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-mfact")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->mfact;
 								m->pertag->nmasters[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-nmaster")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->nmaster;
 								m->pertag->showbars[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-showbar")) && json_isboolean(l_node)) ? l_node->valueint : m->showbar;
-
+								
 								l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-layout");
 								if (l_node) {
 									if (cJSON_IsString(l_node))
@@ -19912,10 +20059,25 @@ altTabStart(const Arg *arg)
 			#endif // PATCH_CONSTRAIN_MOUSE && PATCH_FOCUS_FOLLOWS_MOUSE
 			if (mons->next) {
 				int mcount = 0;
+				#if PATCH_VIRTUAL_MONITORS
+				char monnum[5];
+				#else // NO PATCH_VIRTUAL_MONITORS
 				char monnum[3];
+				#endif // PATCH_VIRTUAL_MONITORS
 				for (Monitor *m = mons; m && ++mcount; m = m->next);
 				for (Monitor *m = mons; m; m = m->next) {
+					#if PATCH_VIRTUAL_MONITORS
+					snprintf(monnum, sizeof monnum, (mcount > 10) ? "%02d" : "%01d", m->num % 1000);
+					if (m->num >= 1000) {
+						int i;
+						for (i = 0; monnum[i] != '\0' && i < (sizeof monnum) - 2; i++);
+						monnum[i++] = '.';
+						monnum[i++] = '2';
+						monnum[i] = '\0';
+					}
+					#else // NO PATCH_VIRTUAL_MONITORS
 					snprintf(monnum, sizeof monnum, (mcount > 10) ? "%02d" : "%01d", m->num);
+					#endif // PATCH_VIRTUAL_MONITORS
 					snprintf(m->numstr, sizeof m->numstr, monnumf, monnum);
 				}
 			}
@@ -20931,6 +21093,50 @@ toggleskiprules(const Arg *arg)
 }
 #endif // DEBUGGING
 
+#if PATCH_VIRTUAL_MONITORS
+void
+togglesplit(const Arg *arg)
+{
+	Monitor *m;
+	if (!selmon || !(m = selmon->pmon->mon1) || !m->split)
+		return;
+	m->enablesplit ^= 1;
+	if (!updatevirtualmonitors())
+		return;
+	updatebars();
+	updateclientmonitors();
+	for (m = mons; m; m = m->next) {
+		for (Client *c = m->clients; c; c = c->next)
+			if (c->isfullscreen
+				#if PATCH_FLAG_FAKEFULLSCREEN
+				&& c->fakefullscreen != 1
+				#endif // PATCH_FLAG_FAKEFULLSCREEN
+				)
+				resizeclient(c, m->mx, m->my, m->mw, m->mh, 0);
+		resizebarwin(m);
+	}
+	focus(NULL, 0);
+	arrange(NULL);
+
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	if (!selmon->sel)
+		XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->wx + (selmon->ww / 2), selmon->wy + (selmon->wh / 2));
+	else {
+		#if PATCH_MOUSE_POINTER_WARPING
+		if (selmon->sel)
+			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+			warptoclient(selmon->sel, 1, 0);
+			#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+			warptoclient(selmon->sel, 0);
+			#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		else
+		#endif // PATCH_MOUSE_POINTER_WARPING
+		XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->sel->x + (selmon->sel->w / 2), selmon->sel->y + (selmon->sel->h / 2));
+	}
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+}
+#endif // PATCH_VIRTUAL_MONITORS
+
 #if PATCH_CLASS_STACKING
 void
 togglestacking(const Arg *arg)
@@ -21787,10 +21993,19 @@ updategeom(void)
 #ifdef XINERAMA
 	if (XineramaIsActive(dpy)) {
 		int i, j, n, nn;
+		#if PATCH_VIRTUAL_MONITORS
+		int index = 0;
+		PMonitor *pm;
+		#else // NO PATCH_VIRTUAL_MONITORS
+		#endif // PATCH_VIRTUAL_MONITORS
 		XineramaScreenInfo *info = XineramaQueryScreens(dpy, &nn);
 		XineramaScreenInfo *unique = NULL;
 
+		#if PATCH_VIRTUAL_MONITORS
+		for (n = 0, pm = pmons; pm; pm = pm->next, n++);
+		#else // NO PATCH_VIRTUAL_MONITORS
 		for (n = 0, m = mons; m; m = m->next, n++);
+		#endif // PATCH_VIRTUAL_MONITORS
 		/* only consider unique geometries as separate screens */
 		unique = ecalloc(nn, sizeof(XineramaScreenInfo));
 		for (i = 0, j = 0; i < nn; i++)
@@ -21799,6 +22014,45 @@ updategeom(void)
 		XFree(info);
 		nn = j;
 
+		#if PATCH_VIRTUAL_MONITORS
+		for (pm = pmons; pm; pm = pm->next) {
+			if (pm->mon1) index++;
+		}
+		for (m = mons; m && m->next; m = m->next);
+		for (pm = pmons; pm && pm->next; pm = pm->next);
+		/* new monitors if nn > n */
+		for (i = 0, pm = NULL; i < nn; i++) {
+			if (i >= n) {
+				dirty = 1;
+				if (pm)
+					pm = pm->next = createpmon();
+				else
+					pm = pmons = createpmon();
+			} else {
+				if (!pm)
+					pm = pmons;
+				else
+					pm = pm->next;
+			}
+			if (unique[i].x_org != pm->mx || unique[i].y_org != pm->my
+			|| unique[i].width != pm->mw || unique[i].height != pm->mh)
+			{
+				dirty = 1;
+				pm->mx = unique[i].x_org;
+				pm->my = unique[i].y_org;
+				pm->mw = unique[i].width;
+				pm->mh = unique[i].height;
+			}
+		}
+		/* removed monitors if n > nn */
+		for (i = 0, pm = pmons; pm && i < nn; pm = pm->next, i++);
+		for (; pm && i < n; pm = pm->next, i++)
+			if (pm != pmons)
+				pm->disappeared = 1;
+
+		dirty |= updatevirtualmonitors();
+
+		#else // NO PATCH_VIRTUAL_MONITORS
 		for (i = n; i < nn; i++) {
 			for (m = mons; m && m->next; m = m->next);
 			if (m)
@@ -21842,12 +22096,25 @@ updategeom(void)
 				selmon = mons;
 			cleanupmon(m);
 		}
+		#endif // PATCH_VIRTUAL_MONITORS
 		free(unique);
 		updateclientmonitors();
 
 	} else
 #endif /* XINERAMA */
 	{ /* default monitor setup */
+
+		#if PATCH_VIRTUAL_MONITORS
+		if (!pmons)
+			pmons = createpmon();
+		if (pmons->mw != sw || pmons->mh != sh) {
+			pmons->mw = sw;
+			pmons->mh = sh;
+			dirty = 1;
+		}
+		dirty |= updatevirtualmonitors();
+
+		#else // NO PATCH_VIRTUAL_MONITORS
 		if (!mons)
 			mons = createmon();
 		if (mons->mw != sw || mons->mh != sh) {
@@ -21856,7 +22123,9 @@ updategeom(void)
 			mons->mh = mons->wh = sh;
 			updatebarpos(mons);
 		}
+		#endif // PATCH_VIRTUAL_MONITORS
 		updateclientmonitors();
+
 	}
 	if (dirty) {
 		selmon = mons;
@@ -22150,6 +22419,158 @@ updateicon(Client *c)
 	);
 }
 #endif // PATCH_WINDOW_ICONS
+
+#if PATCH_VIRTUAL_MONITORS
+int
+updatevirtualmonitors(void)
+{
+	int dirty = 0, index = 0, update1 = 0, update2 = 0;
+	PMonitor *pm, *pp;
+	Monitor *m;
+	Client *c;
+
+	for (m = mons; m && m->next; m = m->next);
+	for (pm = pmons; pm; pm = pm->next, index++)
+	{
+		update1 = update2 = 0;
+
+		if (pm->disappeared) {
+			index--;
+			continue;
+		}
+
+		// create mon1 if it doesn't exist, else re-parse its config;
+		if (!pm->mon1) {
+			if (m)
+				m = m->next = createmon(index);
+			else
+				m = mons = createmon(index);
+			pm->mon1 = m;
+			m->pmon = pm;
+			dirty = 1;
+		}
+		else
+			parsemon(pm->mon1, index, 0);
+
+		if (pm->mon2 && (!pm->mon1->split || !pm->mon1->enablesplit || index > 999)) {
+			// mon2 exists but should be removed;
+			dirty = 1;
+			update1 = 1;
+			// remove pm->mod2;
+			while ((c = pm->mon2->clients)) {
+				dirty = 1;
+				pm->mon2->clients = c->next;
+				if (c->monindex == -1)
+					c->monindex = c->mon->num;
+				detachstack(c);
+				c->mon = pm->mon1;
+				#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+				attachBelow(c);
+				//attachstack(c);
+				attachstackBelow(c);
+				#else // NO PATCH_ATTACH_BELOW_AND_NEWMASTER
+				attach(c);
+				attachstack(c);
+				#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+			}
+			if (pm->mon2 == selmon)
+				selmon = pm->mon1;
+			cleanupmon(pm->mon2);
+			pm->mon2 = NULL;
+		}
+		else if (index > 999)
+			update1 = 1;
+		else if (pm->mon2) {
+			// mon2 exists legitimately, so re-parse its config;
+			update2 = 1;
+			parsemon(pm->mon2, pm->mon2->num, 0);
+		}
+		else if (pm->mon1->split && pm->mon1->enablesplit) {
+			dirty = 1;
+			update2 = 1;
+			if (m)
+				m = m->next = createmon(index + 1000);
+			else
+				m = mons = createmon(index + 1000);
+			pm->mon2 = m;
+			m->pmon = pm;
+		}
+		else
+			update1 = 1;
+
+		if (update1) {
+			// update pm->mon1 geometry;
+			pm->mon1->mx = pm->mon1->wx = pm->mx;
+			pm->mon1->my = pm->mon1->wy = pm->my;
+			pm->mon1->mw = pm->mon1->ww = pm->mw;
+			pm->mon1->mh = pm->mon1->wh = pm->mh;
+			updatebarpos(pm->mon1);
+		}
+		else if (update2) {
+			// update pm->mon1 and pm->mon2 geometry;
+			if (pm->mon1->split == 1) {
+				pm->mon2->mw = pm->mon2->ww = pm->mw / 2;
+				pm->mon2->mx = pm->mon2->wx = pm->mx + pm->mon2->mw;
+				pm->mon2->my = pm->mon2->wy = pm->my;
+				pm->mon2->mh = pm->mon2->wh = pm->mh;
+				pm->mon1->mx = pm->mon1->wx = pm->mx;
+				pm->mon1->my = pm->mon1->wy = pm->my;
+				pm->mon1->mw = pm->mon1->ww = pm->mon2->mw;
+				pm->mon1->mh = pm->mon1->wh = pm->mh;
+			}
+			else if (pm->mon1->split == 2) {
+				pm->mon2->mw = pm->mon2->ww = pm->mw;
+				pm->mon2->mx = pm->mon2->wx = pm->mx;
+				pm->mon2->mh = pm->mon2->wh = pm->mh / 2;
+				pm->mon2->my = pm->mon2->wy = pm->my + pm->mon2->mh;
+				pm->mon1->mx = pm->mon1->wx = pm->mx;
+				pm->mon1->my = pm->mon1->wy = pm->my;
+				pm->mon1->mw = pm->mon1->ww = pm->mw;
+				pm->mon1->mh = pm->mon1->wh = pm->mon2->mh;
+			}
+			updatebarpos(pm->mon1);
+			updatebarpos(pm->mon2);
+		}
+	}
+
+	// deal with removed physical monitors;
+	for (pp = NULL, pm = pmons; pm; pp = pm, pm = pm->next) {
+
+		if (!pm->disappeared)
+			continue;
+
+		if (!pp)
+			pp = pmons = pm->next;
+		else
+			pp->next = pm->next;
+
+		for (m = pm->mon2 ? pm->mon2 : pm->mon1; m; m = (m == pm->mon1 ? NULL : pm->mon1)) {
+			while ((c = m->clients)) {
+				dirty = 1;
+				m->clients = c->next;
+				if (c->monindex == -1)
+					c->monindex = c->mon->num;
+				detachstack(c);
+				c->mon = pp->mon1;
+				#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+				attachBelow(c);
+				//attachstack(c);
+				attachstackBelow(c);
+				#else // NO PATCH_ATTACH_BELOW_AND_NEWMASTER
+				attach(c);
+				attachstack(c);
+				#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+			}
+			if (m == selmon)
+				selmon = pp->mon1;
+			cleanupmon(m);
+		}
+		free(pm);
+	}
+
+	return dirty;
+}
+#endif // PATCH_VIRTUAL_MONITORS
 
 int
 updatewindowstate(Client *c)
