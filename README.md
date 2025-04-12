@@ -665,11 +665,13 @@ rules-file.json supported names:
                                   switching tag view if necessary
 
 
-usage: dwm [-h] [-v] [-r <rules-file.json>] [-l <layout-file.json>] [-u] [-n]
+usage: dwm [-h] [-v] [-w] [-r <rules-file.json>] [-l <layout-file.json>] [-u]
+           [-n]
            [-p <socket-path>] [-s <verb> [command [args]]]
 
     -h    display usage and accepted configuration paramters
     -v    display version information
+    -w    toggle display of JSON config warnings
     -n    disable dwm system tray functionality
     -r    use the rules defined in the specified JSON rules file
     -l    use the layout configuration defined in the specified JSON layout file

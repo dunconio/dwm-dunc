@@ -6,6 +6,8 @@
 
 #define WRAP_LENGTH		80		//	Wrap lines when printing supported json parameter details;
 
+static unsigned int config_warnings = 0;		// Show warnings relating to json config file;
+
 #if PATCH_LOG_DIAGNOSTICS
 static const unsigned int log_ev_no_root	= 1;		// ignore root events in logdiagnostics_event();
 #endif // PATCH_LOG_DIAGNOSTICS

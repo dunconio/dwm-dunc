@@ -668,6 +668,8 @@ static const supported_rules_json supported_rules[] = {
 #define	FLOAT_ALIGNED_Y			(1 << 1)
 #endif // PATCH_FLAG_FLOAT_ALIGNMENT
 
+static int rc = EXIT_SUCCESS;
+
 //#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
 #if PATCH_MOUSE_POINTER_HIDING
 static int motion_type = -1;
@@ -1564,7 +1566,9 @@ static int layoutstringtoindex(const char *layout);
 static int line_to_buffer(const char *text, char *buffer, size_t buffer_size, size_t line_length, size_t *index);
 #if PATCH_LOG_DIAGNOSTICS
 static void logdiagnostics(const Arg *arg);
+#if PATCH_IPC
 static int logdiagnostics_event(XEvent ev);
+#endif // PATCH_IPC
 static void logdiagnostics_stack(Monitor *m, const char *title, const char *indent);
 static void logdiagnostics_stackfloating(Monitor *m, const char *title, const char *indent);
 static void logdiagnostics_stacktiled(Monitor *m, const char *title, const char *indent);
@@ -1606,6 +1610,7 @@ static void opacity(Client *c, int focused);
 #endif // PATCH_CLIENT_OPACITY
 static cJSON *parsejsonfile(const char *filename, const char *filetype);
 static int parselayoutjson(cJSON *layout);
+static void parsemon(Monitor *m, int index, int first);
 static int parserulesjson(cJSON *json);
 static void placemouse(const Arg *arg);
 #if PATCH_MOUSE_POINTER_WARPING
@@ -1850,6 +1855,7 @@ static void unminimize(Client *c);
 static int updatebarpos(Monitor *m);
 static void updatebars(void);
 static void updateclientlist(void);
+static void updateclientmonitors(void);
 #if PATCH_EWMH_TAGS
 static void updatecurrentdesktop(void);
 #endif // PATCH_EWMH_TAGS
@@ -2001,7 +2007,7 @@ static Drw *drw;
 #if PATCH_SCAN_OVERRIDE_REDIRECTS
 static Client *orlist;
 #endif // PATCH_SCAN_OVERRIDE_REDIRECTS
-static Monitor *mons, *selmon;
+static Monitor *mons = NULL, *selmon = NULL;
 static Window root, wmcheckwin;
 #if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 static Window focuswin = None;
@@ -2328,8 +2334,10 @@ applyrulesdeferred(Client *c, char *oldtitle)
 		c->mon = m;
 		if (floating != c->isfloating_override && c->isurgent && c->isfloating)
 			focus(c, 0);
-		if (m == mm && (c->tags == tags || ISVISIBLE(c)))
-			c->monindex = mm->num;
+		if (m == mm && (c->tags == tags || ISVISIBLE(c))) {
+			if (c->monindex == -1)
+				c->monindex = mm->num;
+		}
 		else {
 			#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 			unfocus(c, 1 | (1 << 1));
@@ -2341,7 +2349,8 @@ applyrulesdeferred(Client *c, char *oldtitle)
 			arrange(m);
 
 			c->mon = mm;
-			c->monindex = mm->num;
+			if (c->monindex == -1)
+				c->monindex = mm->num;
 			#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 			attachBelow(c);
 			//	attachstack(c);
@@ -2863,16 +2872,20 @@ skip_parenting:
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-active")) && cJSON_IsNumeric(r_node)) {
 				c->opacity = r_node->valuedouble;
 				if (c->opacity <= 0 || c->opacity > 1.0f) {
-					logdatetime(stderr);
-					fprintf(stderr, "dwm: warning: set-opacity-active value must be greater than 0 and less than or equal to 1.\n");
+					if (config_warnings) {
+						logdatetime(stderr);
+						fprintf(stderr, "dwm: warning: set-opacity-active value must be greater than 0 and less than or equal to 1.\n");
+					}
 					c->opacity = -1;
 				}
 			}
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-inactive")) && cJSON_IsNumeric(r_node)) {
 				c->unfocusopacity = r_node->valuedouble;
 				if (c->unfocusopacity <= 0 || c->unfocusopacity > 1.0f) {
-					logdatetime(stderr);
-					fprintf(stderr, "dwm: warning: set-opacity-inactive value must be greater than 0 and less than or equal to 1.\n");
+					if (config_warnings) {
+						logdatetime(stderr);
+						fprintf(stderr, "dwm: warning: set-opacity-inactive value must be greater than 0 and less than or equal to 1.\n");
+					}
 					c->unfocusopacity = -1;
 				}
 			}
@@ -2911,16 +2924,20 @@ skip_parenting:
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dx")) && cJSON_IsNumber(r_node)) {
 				c->focusdx = r_node->valuedouble;
 				if (c->focusdx <= 0 || c->focusdx > 2) {
-					logdatetime(stderr);
-					fprintf(stderr, "dwm: warning: focus-origin-dx value must be greater than 0 and less than 2.\n");
+					if (config_warnings) {
+						logdatetime(stderr);
+						fprintf(stderr, "dwm: warning: focus-origin-dx value must be greater than 0 and less than 2.\n");
+					}
 					c->focusdx = 1;
 				}
 			}
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dy")) && cJSON_IsNumber(r_node)) {
 				c->focusdy = r_node->valuedouble;
 				if (c->focusdy <= 0 || c->focusdy > 2) {
-					logdatetime(stderr);
-					fprintf(stderr, "dwm: warning: focus-origin-dy value must be greater than 0 and less than 2.\n");
+					if (config_warnings) {
+						logdatetime(stderr);
+						fprintf(stderr, "dwm: warning: focus-origin-dy value must be greater than 0 and less than 2.\n");
+					}
 					c->focusdy = 1;
 				}
 			}
@@ -3047,7 +3064,7 @@ skip_parenting:
 
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-monitor")) && cJSON_IsInteger(r_node)) {
 				c->monindex = r_node->valueint;
-				for (m = mons; m && m->num != r_node->valueint; m = m->next);
+				for (m = mons; m && m->num != c->monindex; m = m->next);
 				if (m)
 					c->mon = m;
 			}
@@ -4207,8 +4224,10 @@ cleanupmon(Monitor *mon)
 		for (m = mons; m && m->next != mon; m = m->next);
 		m->next = mon->next;
 	}
-	XUnmapWindow(dpy, mon->barwin);
-	XDestroyWindow(dpy, mon->barwin);
+	if (mon->barwin != None) {
+		XUnmapWindow(dpy, mon->barwin);
+		XDestroyWindow(dpy, mon->barwin);
+	}
 	#if PATCH_CUSTOM_TAG_ICONS
 	for (int i = 0; i < LENGTH(tags); i++)
 		if (mon->tagicons[i])
@@ -4509,7 +4528,7 @@ configurenotify(XEvent *e)
 		sw = ev->width;
 		sh = ev->height;
 		if (updategeom() || dirty) {
-			drw_resize(drw, sw, bh);
+			drw_resize(drw, sw, sh);
 			updatebars();
 			for (m = mons; m; m = m->next) {
 				for (c = m->clients; c; c = c->next)
@@ -4522,8 +4541,6 @@ configurenotify(XEvent *e)
 				resizebarwin(m);
 			}
 			focus(NULL, 0);
-logdatetime(stderr);
-fprintf(stderr, "debug: configurenotify: doing arrange(NULL);\n");
 			arrange(NULL);
 		}
 	}
@@ -4755,7 +4772,6 @@ createmon(void)
 {
 	Monitor *m, *mon;
 	unsigned int mi, i;
-	cJSON *l_node;
 
 	m = ecalloc(1, sizeof(Monitor));
 	m->tagset[0] = m->tagset[1] = 1;
@@ -4894,237 +4910,7 @@ createmon(void)
 	// identify monitor index;
 	for (mi = 0, mon = mons; mon; mon = mon->next, mi++);
 
-	if (monitors_json) {
-
-		for (cJSON *l_json = monitors_json->child; l_json; l_json = l_json->next) {
-
-			cJSON *l_mon = cJSON_GetObjectItemCaseSensitive(l_json, "monitor");
-			if (!cJSON_IsInteger(l_mon) || l_mon->valueint != mi)
-				continue;
-
-			#if PATCH_LOG_DIAGNOSTICS
-			m->logallrules = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "log-rules")) && json_isboolean(l_node)) ? l_node->valueint : m->logallrules;
-			#endif // PATCH_LOG_DIAGNOSTICS
-
-			l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-bar-layout");
-			if (l_node && cJSON_IsArray(l_node)) {
-				int sz = cJSON_GetArraySize(l_node);
-				if (sz && sz <= LENGTH(barlayout)) {
-					for (int j = 0; j < LENGTH(m->barlayout); j++)
-						m->barlayout[j] = 0;
-					cJSON *e = NULL;
-					for (int j = 0, k, n = 0; j < sz; j++) {
-						e = cJSON_GetArrayItem(l_node, j);
-						if (cJSON_IsString(e))
-							for (k = 0; k < LENGTH(BarElementTypes); k++)
-								if (BarElementTypes[k].name && strcmp(BarElementTypes[k].name, e->valuestring) == 0) {
-									m->barlayout[n++] = BarElementTypes[k].type;
-									break;
-								}
-					}
-				}
-			}
-			m->title_align = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-title-align")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->title_align;
-
-			#if PATCH_MOUSE_POINTER_HIDING
-			m->cursorautohide = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
-			m->cursorhideonkeys = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
-			#endif // PATCH_MOUSE_POINTER_HIDING
-
-			#if PATCH_ALTTAB
-			m->tabBW = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-border")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabBW;
-			if ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-size")) && cJSON_IsString(l_node)) {
-				char *ptr = NULL;
-				unsigned int v = strtol(l_node->valuestring, &ptr, 10);
-				if (v) {
-					m->tabMaxW = v;
-					if (ptr[0] != '\0') {
-						if (ptr[0] == 'x' && ptr[1] != '\0') {
-							v = strtol(&ptr[1], NULL, 10);
-							if (v)
-								m->tabMaxH = v;
-						}
-					}
-				}
-			}
-			m->tabTextAlign = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-text-align")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabTextAlign;
-			m->tabPosX = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-x")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabPosX;
-			m->tabPosY = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-y")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabPosY;
-			#endif // PATCH_ALTTAB
-
-			#if PATCH_ALT_TAGS
-			m->alttagsquiet = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-quiet-alt-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->alttagsquiet;
-			#endif // PATCH_ALT_TAGS
-			#if PATCH_CLIENT_OPACITY
-			m->activeopacity = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-opacity-active")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->activeopacity;
-			m->inactiveopacity = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-opacity-inactive")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->inactiveopacity;
-			#endif // PATCH_CLIENT_OPACITY
-			m->isdefault = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-default")) && json_isboolean(l_node)) ? l_node->valueint : m->isdefault;
-			#if PATCH_CLASS_STACKING
-			m->class_stacking = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-class-stacking")) && json_isboolean(l_node)) ? l_node->valueint : m->class_stacking;
-			#endif // PATCH_CLASS_STACKING
-			#if PATCH_VANITY_GAPS
-			m->enablegaps = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-enable-gaps")) && json_isboolean(l_node)) ? l_node->valueint : m->enablegaps;
-			m->gappih = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-inner-h")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappih;
-			m->gappiv = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-inner-v")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappiv;
-			m->gappoh = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-outer-h")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappoh;
-			m->gappov = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-outer-v")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappov;
-			#endif // PATCH_VANITY_GAPS
-			#if PATCH_HIDE_VACANT_TAGS
-			m->hidevacant = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-hide-vacant-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->hidevacant;
-			#endif // PATCH_HIDE_VACANT_TAGS
-			m->mfact_def = m->mfact = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-mfact")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->mfact;
-			#if PATCH_MIRROR_LAYOUT
-			m->mirror = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-mirror-layout")) && json_isboolean(l_node)) ? l_node->valueint : m->mirror;
-			#endif // PATCH_MIRROR_LAYOUT
-			m->nmaster = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-nmaster")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->nmaster;
-			m->showbar = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-showbar")) && json_isboolean(l_node)) ? l_node->valueint : m->showbar;
-			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			m->showmaster = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-showmaster")) && json_isboolean(l_node)) ? l_node->valueint : m->showmaster;
-			m->reversemaster = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-reverse-master")) && json_isboolean(l_node)) ? l_node->valueint : m->reversemaster;
-			m->etagf = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-tag-format-empty")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->etagf;
-			m->ptagf = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-tag-format-populated")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->ptagf;
-			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-			#if PATCH_CUSTOM_TAG_ICONS
-			m->showcustomtagicons = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-show-custom-tag-icons")) && json_isboolean(l_node)) ? l_node->valueint : m->showcustomtagicons;
-			if ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-custom-tag-icons")) && cJSON_IsArray(l_node)) {
-				int sz = cJSON_GetArraySize(l_node);
-				if (sz && sz <= LENGTH(tags)) {
-					cJSON *e = NULL;
-					for (int j = 0; j < sz; j++)
-						if ((e = cJSON_GetArrayItem(l_node, j)) && cJSON_IsString(e))
-							m->tagiconpaths[j] = e->valuestring;
-				}
-			}
-			#endif // PATCH_CUSTOM_TAG_ICONS
-			#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
-			m->showiconsontags = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-show-icons-on-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->showiconsontags;
-			#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
-			m->showstatus = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-showstatus")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->showstatus;
-			#if PATCH_SWITCH_TAG_ON_EMPTY
-			m->switchonempty = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-switch-on-empty")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->switchonempty;
-			if (m->switchonempty > LENGTH(tags))
-				m->switchonempty = 0;
-			#endif // PATCH_SWITCH_TAG_ON_EMPTY
-			m->defaulttag = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-start-tag")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->defaulttag;
-			m->topbar = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-topbar")) && json_isboolean(l_node)) ? l_node->valueint : m->topbar;
-
-			#if PATCH_CLIENT_INDICATORS
-			m->client_ind_top = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-indicators-top")) && json_isboolean(l_node)) ? l_node->valueint : (m->client_ind_top == -1 ? m->topbar : m->client_ind_top);
-			#endif // PATCH_CLIENT_INDICATORS
-
-			m->lt[0] = &layouts[0];
-			l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-layout");
-			if (l_node) {
-				if (cJSON_IsString(l_node))
-					l_node->valueint = layoutstringtoindex(l_node->valuestring);
-				if ((l_node->valueint) && (l_node->valueint >= 0 && l_node->valueint < LENGTH(layouts)))
-					m->lt[0] = &layouts[l_node->valueint];
-			}
-			m->lt[1] = &layouts[1 % LENGTH(layouts)];
-
-			cJSON *tags_json = cJSON_GetObjectItemCaseSensitive(l_json, "tags");
-
-			// propagate monitor settings per tag;
-			for (i = 0; i <= LENGTH(tags); i++) {
-				#if PATCH_PERTAG
-				#if PATCH_SWITCH_TAG_ON_EMPTY
-				m->pertag->switchonempty[i] = m->switchonempty;
-				#endif // PATCH_SWITCH_TAG_ON_EMPTY
-				#if PATCH_MOUSE_POINTER_HIDING
-				m->pertag->cursorautohide[i] = m->cursorautohide;
-				m->pertag->cursorhideonkeys[i] = m->cursorhideonkeys;
-				#endif // PATCH_MOUSE_POINTER_HIDING
-				m->pertag->nmasters[i] = m->nmaster;
-				m->pertag->mfacts_def[i] = m->pertag->mfacts[i] = m->mfact;
-				m->pertag->ltidxs[i][0] = m->lt[0];
-				m->pertag->showbars[i] = m->showbar;
-				m->pertag->ltidxs[i][1] = m->lt[1];
-				m->pertag->enablegaps[i] = m->enablegaps;
-				#if PATCH_ALT_TAGS
-				m->pertag->alttagsquiet[i] = m->alttagsquiet;
-				#endif // PATCH_ALT_TAGS
-				#if PATCH_CLASS_STACKING
-				m->pertag->class_stacking[i] = m->class_stacking;
-				#endif // PATCH_CLASS_STACKING
-				#endif // PATCH_PERTAG
-				if (cJSON_IsArray(tags_json)) {
-
-					for (cJSON *t_json = tags_json->child; t_json; t_json = t_json->next) {
-						l_node = cJSON_GetObjectItemCaseSensitive(t_json, "index");
-						if (cJSON_IsInteger(l_node) && l_node->valueint == i) {
-							#if PATCH_ALT_TAGS
-							m->tags[i-1] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-tag-text")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->tags[i-1];
-							#endif // PATCH_ALT_TAGS
-							#if PATCH_PERTAG
-							#if PATCH_ALT_TAGS
-							m->pertag->alttagsquiet[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-quiet-alt-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->alttagsquiet;
-							#endif // PATCH_ALT_TAGS
-							#if PATCH_CLASS_STACKING
-							m->pertag->class_stacking[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-class-stacking")) && json_isboolean(l_node)) ? l_node->valueint : m->class_stacking;
-							#endif // PATCH_CLASS_STACKING
-							#if PATCH_MOUSE_POINTER_HIDING
-							m->pertag->cursorautohide[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
-							m->pertag->cursorhideonkeys[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
-							#endif // PATCH_MOUSE_POINTER_HIDING
-							m->pertag->enablegaps[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-enable-gaps")) && json_isboolean(l_node)) ? l_node->valueint : m->enablegaps;
-							m->pertag->mfacts_def[i] = m->pertag->mfacts[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-mfact")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->mfact;
-							m->pertag->nmasters[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-nmaster")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->nmaster;
-							m->pertag->showbars[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-showbar")) && json_isboolean(l_node)) ? l_node->valueint : m->showbar;
-
-							l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-layout");
-							if (l_node) {
-								if (cJSON_IsString(l_node))
-									l_node->valueint = layoutstringtoindex(l_node->valuestring);
-								if ((l_node->valueint) && (l_node->valueint >= 0 && l_node->valueint < LENGTH(layouts))) {
-									if (l_node->valueint == 1) {
-										m->pertag->ltidxs[i][1] = m->pertag->ltidxs[i][0];
-										m->pertag->ltidxs[i][0] = &layouts[l_node->valueint];
-									}
-									else m->pertag->ltidxs[i][0] = &layouts[l_node->valueint];
-								}
-							}
-
-							#if PATCH_SWITCH_TAG_ON_EMPTY
-							m->pertag->switchonempty[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-switch-on-empty")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->switchonempty;
-							if (m->pertag->switchonempty[i] > LENGTH(tags))
-								m->pertag->switchonempty[i] = 0;
-							#endif // PATCH_SWITCH_TAG_ON_EMPTY
-							#endif // PATCH_PERTAG
-							break;
-						}
-					}
-
-				}
-
-			}
-			#if PATCH_PERTAG
-			m->lt[0] = m->pertag->ltidxs[1][0];
-			m->lt[1] = m->pertag->ltidxs[1][1];
-			m->mfact_def = m->mfact = m->pertag->mfacts[1];
-			m->nmaster = m->pertag->nmasters[1];
-			m->showbar = m->pertag->showbars[1];
-			m->enablegaps = m->pertag->enablegaps[1];
-			#if PATCH_MOUSE_POINTER_HIDING
-			m->cursorautohide = m->pertag->cursorautohide[1];
-			m->cursorhideonkeys = m->pertag->cursorhideonkeys[1];
-			#endif // PATCH_MOUSE_POINTER_HIDING
-			#if PATCH_CLASS_STACKING
-			m->class_stacking = m->pertag->class_stacking[1];
-			#endif // PATCH_CLASS_STACKING
-			#if PATCH_ALT_TAGS
-			m->alttagsquiet = m->pertag->alttagsquiet[1];
-			#endif // PATCH_ALT_TAGS
-			#if PATCH_SWITCH_TAG_ON_EMPTY
-			m->switchonempty = m->pertag->switchonempty[1];
-			#endif // PATCH_SWITCH_TAG_ON_EMPTY
-			#endif // PATCH_PERTAG
-		}
-	}
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstringop-truncation"
-	strncpy(m->ltsymbol, m->lt[0]->symbol, sizeof m->ltsymbol);
-#pragma GCC diagnostic pop
+	parsemon(m, mi, 1);
 
 	return m;
 }
@@ -10518,7 +10304,7 @@ logdiagnostics(const Arg *arg)
 
 	for (Monitor *m = mons; m; m = m->next) {
 
-		if ((!arg || !arg->ui) && m != selmon)
+		if ((arg && !arg->ui) && m != selmon)
 			continue;
 
 		fprintf(stderr,
@@ -12022,8 +11808,8 @@ monsatellites(Client *pp, Monitor *mon) {
 					detach(c);
 					detachstack(c);
 					c->mon = mon;
-					c->monindex = c->mon->num;
-					c->tags = c->mon->tagset[c->mon->seltags]; 	// assign tags of target monitor
+					c->monindex = pp->monindex;
+					c->tags = pp->tags;	//c->mon->tagset[c->mon->seltags]; 	// assign tags of target monitor
 					#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 					attachBelow(c);
 					attachstackBelow(c);
@@ -13734,10 +13520,12 @@ parselayoutjson(cJSON *layout)
 	}
 
 	for (c = unsupported->child; c; c = c->next) {
-		logdatetime(stderr);
-		if (cJSON_IsString(c))
+		if (cJSON_IsString(c)) {
+			logdatetime(stderr);
 			fprintf(stderr, "dwm: %s: %s.\n", c->string, c->valuestring);
-		else {
+		}
+		else if (config_warnings) {
+			logdatetime(stderr);
 			if (c->valueint > 1)
 				fprintf(stderr, "dwm: warning: parameter ignored - not supported in main section: (%lux) \"%s\".\n", c->valueint, c->string);
 			else if (c->valueint)
@@ -13748,10 +13536,12 @@ parselayoutjson(cJSON *layout)
 	}
 
 	for (c = unsupported_mon->child; c; c = c->next) {
-		logdatetime(stderr);
-		if (cJSON_IsString(c))
+		if (cJSON_IsString(c)) {
+			logdatetime(stderr);
 			fprintf(stderr, "dwm: %s: %s.\n", c->string, c->valuestring);
-		else {
+		}
+		else if (config_warnings) {
+			logdatetime(stderr);
 			if (c->valueint > 1)
 				fprintf(stderr, "dwm: warning: parameter ignored - not supported in monitor section: (%lux) \"%s\".\n", c->valueint, c->string);
 			else if (c->valueint)
@@ -13761,21 +13551,275 @@ parselayoutjson(cJSON *layout)
 		}
 	}
 
-	for (c = unsupported_tag->child; c; c = c->next) {
-		logdatetime(stderr);
-		if (c->valueint > 1)
-			fprintf(stderr, "dwm: warning: parameter ignored - not supported in tag section: (%lux) \"%s\".\n", c->valueint, c->string);
-		else if (c->valueint)
-			fprintf(stderr, "dwm: warning: parameter ignored - not supported in tag section: \"%s\".\n", c->string);
-		else
-			fprintf(stderr, "dwm: warning: parameter ignored in tag section - %s.\n", c->string);
+	if (config_warnings) {
+		for (c = unsupported_tag->child; c; c = c->next) {
+			logdatetime(stderr);
+			if (c->valueint > 1)
+				fprintf(stderr, "dwm: warning: parameter ignored - not supported in tag section: (%lux) \"%s\".\n", c->valueint, c->string);
+			else if (c->valueint)
+				fprintf(stderr, "dwm: warning: parameter ignored - not supported in tag section: \"%s\".\n", c->string);
+			else
+				fprintf(stderr, "dwm: warning: parameter ignored in tag section - %s.\n", c->string);
+		}
 	}
-
+	
 	cJSON_Delete(unsupported);
 	cJSON_Delete(unsupported_mon);
 	cJSON_Delete(unsupported_tag);
 
 	return 1;
+}
+
+// Apply run-time config parameters to monitor;
+void
+parsemon(Monitor *m, int index, int first)
+{
+	if (monitors_json) {
+
+		unsigned int i;
+		cJSON *l_node;
+		for (cJSON *l_json = monitors_json->child; l_json; l_json = l_json->next) {
+
+			cJSON *l_mon = cJSON_GetObjectItemCaseSensitive(l_json, "monitor");
+			if (!cJSON_IsInteger(l_mon) || l_mon->valueint != index)
+				continue;
+
+			#if PATCH_LOG_DIAGNOSTICS
+			m->logallrules = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "log-rules")) && json_isboolean(l_node)) ? l_node->valueint : m->logallrules;
+			#endif // PATCH_LOG_DIAGNOSTICS
+
+			l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-bar-layout");
+			if (l_node && cJSON_IsArray(l_node)) {
+				int sz = cJSON_GetArraySize(l_node);
+				if (sz && sz <= LENGTH(barlayout)) {
+					for (int j = 0; j < LENGTH(m->barlayout); j++)
+						m->barlayout[j] = 0;
+					cJSON *e = NULL;
+					for (int j = 0, k, n = 0; j < sz; j++) {
+						e = cJSON_GetArrayItem(l_node, j);
+						if (cJSON_IsString(e))
+							for (k = 0; k < LENGTH(BarElementTypes); k++)
+								if (BarElementTypes[k].name && strcmp(BarElementTypes[k].name, e->valuestring) == 0) {
+									m->barlayout[n++] = BarElementTypes[k].type;
+									break;
+								}
+					}
+				}
+			}
+			m->title_align = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-title-align")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->title_align;
+
+			#if PATCH_MOUSE_POINTER_HIDING
+			m->cursorautohide = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
+			m->cursorhideonkeys = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
+			#endif // PATCH_MOUSE_POINTER_HIDING
+
+			#if PATCH_ALTTAB
+			m->tabBW = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-border")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabBW;
+			if ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-size")) && cJSON_IsString(l_node)) {
+				char *ptr = NULL;
+				unsigned int v = strtol(l_node->valuestring, &ptr, 10);
+				if (v) {
+					m->tabMaxW = v;
+					if (ptr[0] != '\0') {
+						if (ptr[0] == 'x' && ptr[1] != '\0') {
+							v = strtol(&ptr[1], NULL, 10);
+							if (v)
+								m->tabMaxH = v;
+						}
+					}
+				}
+			}
+			m->tabTextAlign = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-text-align")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabTextAlign;
+			m->tabPosX = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-x")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabPosX;
+			m->tabPosY = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-alt-tab-y")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->tabPosY;
+			#endif // PATCH_ALTTAB
+
+			#if PATCH_ALT_TAGS
+			m->alttagsquiet = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-quiet-alt-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->alttagsquiet;
+			#endif // PATCH_ALT_TAGS
+			#if PATCH_CLIENT_OPACITY
+			m->activeopacity = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-opacity-active")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->activeopacity;
+			m->inactiveopacity = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-opacity-inactive")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->inactiveopacity;
+			#endif // PATCH_CLIENT_OPACITY
+			m->isdefault = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-default")) && json_isboolean(l_node)) ? l_node->valueint : m->isdefault;
+			#if PATCH_HIDE_VACANT_TAGS
+			m->hidevacant = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-hide-vacant-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->hidevacant;
+			#endif // PATCH_HIDE_VACANT_TAGS
+			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
+			m->showmaster = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-showmaster")) && json_isboolean(l_node)) ? l_node->valueint : m->showmaster;
+			m->reversemaster = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-reverse-master")) && json_isboolean(l_node)) ? l_node->valueint : m->reversemaster;
+			m->etagf = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-tag-format-empty")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->etagf;
+			m->ptagf = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-tag-format-populated")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->ptagf;
+			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
+			#if PATCH_CUSTOM_TAG_ICONS
+			m->showcustomtagicons = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-show-custom-tag-icons")) && json_isboolean(l_node)) ? l_node->valueint : m->showcustomtagicons;
+			if ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-custom-tag-icons")) && cJSON_IsArray(l_node)) {
+				int sz = cJSON_GetArraySize(l_node);
+				if (sz && sz <= LENGTH(tags)) {
+					cJSON *e = NULL;
+					for (int j = 0; j < sz; j++)
+						if ((e = cJSON_GetArrayItem(l_node, j)) && cJSON_IsString(e))
+							m->tagiconpaths[j] = e->valuestring;
+				}
+			}
+			#endif // PATCH_CUSTOM_TAG_ICONS
+			#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+			m->showiconsontags = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-show-icons-on-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->showiconsontags;
+			#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
+			m->showstatus = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-showstatus")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->showstatus;
+			#if PATCH_SWITCH_TAG_ON_EMPTY
+			m->switchonempty = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-switch-on-empty")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->switchonempty;
+			if (m->switchonempty > LENGTH(tags))
+				m->switchonempty = 0;
+			#endif // PATCH_SWITCH_TAG_ON_EMPTY
+			m->defaulttag = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-start-tag")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->defaulttag;
+			m->topbar = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-topbar")) && json_isboolean(l_node)) ? l_node->valueint : m->topbar;
+			#if PATCH_CLIENT_INDICATORS
+			m->client_ind_top = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-indicators-top")) && json_isboolean(l_node)) ? l_node->valueint : (m->client_ind_top == -1 ? m->topbar : m->client_ind_top);
+			#endif // PATCH_CLIENT_INDICATORS
+
+			if (first) {
+
+				#if PATCH_CLASS_STACKING
+				m->class_stacking = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-class-stacking")) && json_isboolean(l_node)) ? l_node->valueint : m->class_stacking;
+				#endif // PATCH_CLASS_STACKING
+				#if PATCH_VANITY_GAPS
+				m->enablegaps = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-enable-gaps")) && json_isboolean(l_node)) ? l_node->valueint : m->enablegaps;
+				m->gappih = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-inner-h")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappih;
+				m->gappiv = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-inner-v")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappiv;
+				m->gappoh = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-outer-h")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappoh;
+				m->gappov = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-gap-outer-v")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->gappov;
+				#endif // PATCH_VANITY_GAPS
+				m->mfact_def = m->mfact = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-mfact")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->mfact;
+				#if PATCH_MIRROR_LAYOUT
+				m->mirror = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-mirror-layout")) && json_isboolean(l_node)) ? l_node->valueint : m->mirror;
+				#endif // PATCH_MIRROR_LAYOUT
+				m->nmaster = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-nmaster")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->nmaster;
+				m->showbar = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-showbar")) && json_isboolean(l_node)) ? l_node->valueint : m->showbar;
+
+				m->lt[0] = &layouts[0];
+				l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-layout");
+				if (l_node) {
+					if (cJSON_IsString(l_node))
+						l_node->valueint = layoutstringtoindex(l_node->valuestring);
+					if ((l_node->valueint) && (l_node->valueint >= 0 && l_node->valueint < LENGTH(layouts)))
+						m->lt[0] = &layouts[l_node->valueint];
+				}
+				m->lt[1] = &layouts[1 % LENGTH(layouts)];
+
+			}
+
+			cJSON *tags_json = cJSON_GetObjectItemCaseSensitive(l_json, "tags");
+
+			// propagate monitor settings per tag;
+			for (i = 0; i <= LENGTH(tags); i++) {
+				#if PATCH_PERTAG
+				#if PATCH_SWITCH_TAG_ON_EMPTY
+				m->pertag->switchonempty[i] = m->switchonempty;
+				#endif // PATCH_SWITCH_TAG_ON_EMPTY
+				#if PATCH_MOUSE_POINTER_HIDING
+				m->pertag->cursorautohide[i] = m->cursorautohide;
+				m->pertag->cursorhideonkeys[i] = m->cursorhideonkeys;
+				#endif // PATCH_MOUSE_POINTER_HIDING
+				#if PATCH_ALT_TAGS
+				m->pertag->alttagsquiet[i] = m->alttagsquiet;
+				#endif // PATCH_ALT_TAGS
+				if (first) {
+					m->pertag->nmasters[i] = m->nmaster;
+					m->pertag->mfacts_def[i] = m->pertag->mfacts[i] = m->mfact;
+					m->pertag->ltidxs[i][0] = m->lt[0];
+					m->pertag->showbars[i] = m->showbar;
+					m->pertag->ltidxs[i][1] = m->lt[1];
+					m->pertag->enablegaps[i] = m->enablegaps;
+					#if PATCH_CLASS_STACKING
+					m->pertag->class_stacking[i] = m->class_stacking;
+					#endif // PATCH_CLASS_STACKING
+				}
+				#endif // PATCH_PERTAG
+				if (cJSON_IsArray(tags_json)) {
+
+					for (cJSON *t_json = tags_json->child; t_json; t_json = t_json->next) {
+						l_node = cJSON_GetObjectItemCaseSensitive(t_json, "index");
+						if (cJSON_IsInteger(l_node) && l_node->valueint == i) {
+							#if PATCH_ALT_TAGS
+							m->tags[i-1] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-tag-text")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->tags[i-1];
+							#endif // PATCH_ALT_TAGS
+							#if PATCH_PERTAG
+							#if PATCH_ALT_TAGS
+							m->pertag->alttagsquiet[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-quiet-alt-tags")) && json_isboolean(l_node)) ? l_node->valueint : m->alttagsquiet;
+							#endif // PATCH_ALT_TAGS
+							#if PATCH_MOUSE_POINTER_HIDING
+							m->pertag->cursorautohide[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-cursor-autohide")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorautohide;
+							m->pertag->cursorhideonkeys[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-cursor-hide-on-keys")) && json_isboolean(l_node)) ? l_node->valueint : m->cursorhideonkeys;
+							#endif // PATCH_MOUSE_POINTER_HIDING
+							#if PATCH_SWITCH_TAG_ON_EMPTY
+							m->pertag->switchonempty[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-switch-on-empty")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->switchonempty;
+							if (m->pertag->switchonempty[i] > LENGTH(tags))
+								m->pertag->switchonempty[i] = 0;
+							#endif // PATCH_SWITCH_TAG_ON_EMPTY
+
+							if (first) {
+								#if PATCH_CLASS_STACKING
+								m->pertag->class_stacking[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-class-stacking")) && json_isboolean(l_node)) ? l_node->valueint : m->class_stacking;
+								#endif // PATCH_CLASS_STACKING
+								m->pertag->enablegaps[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-enable-gaps")) && json_isboolean(l_node)) ? l_node->valueint : m->enablegaps;
+								m->pertag->mfacts_def[i] = m->pertag->mfacts[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-mfact")) && cJSON_IsNumber(l_node)) ? l_node->valuedouble : m->mfact;
+								m->pertag->nmasters[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-nmaster")) && cJSON_IsInteger(l_node)) ? l_node->valueint : m->nmaster;
+								m->pertag->showbars[i] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-showbar")) && json_isboolean(l_node)) ? l_node->valueint : m->showbar;
+
+								l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-layout");
+								if (l_node) {
+									if (cJSON_IsString(l_node))
+										l_node->valueint = layoutstringtoindex(l_node->valuestring);
+									if ((l_node->valueint) && (l_node->valueint >= 0 && l_node->valueint < LENGTH(layouts))) {
+										if (l_node->valueint == 1) {
+											m->pertag->ltidxs[i][1] = m->pertag->ltidxs[i][0];
+											m->pertag->ltidxs[i][0] = &layouts[l_node->valueint];
+										}
+										else m->pertag->ltidxs[i][0] = &layouts[l_node->valueint];
+									}
+								}
+
+							}
+							#endif // PATCH_PERTAG
+							break;
+						}
+					}
+
+				}
+
+			}
+			#if PATCH_PERTAG
+			#if PATCH_MOUSE_POINTER_HIDING
+			m->cursorautohide = m->pertag->cursorautohide[1];
+			m->cursorhideonkeys = m->pertag->cursorhideonkeys[1];
+			#endif // PATCH_MOUSE_POINTER_HIDING
+			#if PATCH_ALT_TAGS
+			m->alttagsquiet = m->pertag->alttagsquiet[1];
+			#endif // PATCH_ALT_TAGS
+			#if PATCH_SWITCH_TAG_ON_EMPTY
+			m->switchonempty = m->pertag->switchonempty[1];
+			#endif // PATCH_SWITCH_TAG_ON_EMPTY
+			if (first) {
+				m->lt[0] = m->pertag->ltidxs[1][0];
+				m->lt[1] = m->pertag->ltidxs[1][1];
+				m->mfact_def = m->mfact = m->pertag->mfacts[1];
+				m->nmaster = m->pertag->nmasters[1];
+				m->showbar = m->pertag->showbars[1];
+				m->enablegaps = m->pertag->enablegaps[1];
+				#if PATCH_CLASS_STACKING
+				m->class_stacking = m->pertag->class_stacking[1];
+				#endif // PATCH_CLASS_STACKING
+			}
+			#endif // PATCH_PERTAG
+		}
+	}
+	if (!first)
+		return;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+	strncpy(m->ltsymbol, m->lt[0]->symbol, sizeof m->ltsymbol);
+#pragma GCC diagnostic pop
 }
 
 int
@@ -13905,26 +13949,28 @@ parserulesjson(cJSON *rules)
 		else rules->child = stack;
 	}
 
-	if (unmatchable > 1) {
-		logdatetime(stderr);
-		fprintf(stderr, "dwm: warning: rule skipped - missing string matching criteria (%ux).\n", unmatchable);
-	}
-	else if (unmatchable) {
-		logdatetime(stderr);
-		fprintf(stderr, "dwm: warning: rule skipped - missing string matching criteria.\n");
-	}
+	if (config_warnings) {
+		if (unmatchable > 1) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: warning: rule skipped - missing string matching criteria (%ux).\n", unmatchable);
+		}
+		else if (unmatchable) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: warning: rule skipped - missing string matching criteria.\n");
+		}
 
-	for (c = unsupported->child; c; c = c->next) {
-		logdatetime(stderr);
-		if (c->valueint > 1)
-			fprintf(stderr, "dwm: warning: rule parameter ignored - not supported: (%lux) \"%s\".\n", c->valueint, c->string);
-		else
-			fprintf(stderr, "dwm: warning: rule parameter ignored - not supported: \"%s\".\n", c->string);
-	}
+		for (c = unsupported->child; c; c = c->next) {
+			logdatetime(stderr);
+			if (c->valueint > 1)
+				fprintf(stderr, "dwm: warning: rule parameter ignored - not supported: (%lux) \"%s\".\n", c->valueint, c->string);
+			else
+				fprintf(stderr, "dwm: warning: rule parameter ignored - not supported: \"%s\".\n", c->string);
+		}
 
-	for (c = unsupported_values->child; c; c = c->next) {
-		logdatetime(stderr);
-		fprintf(stderr, "dwm: warning: rule parameter ignored - \"%s\" %s.\n", c->string, c->valuestring);
+		for (c = unsupported_values->child; c; c = c->next) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: warning: rule parameter ignored - \"%s\" %s.\n", c->string, c->valuestring);
+		}
 	}
 
 	cJSON_Delete(unsupported);
@@ -16259,9 +16305,20 @@ run(void)
 
 	#elif PATCH_HANDLE_SIGNALS
 	XEvent ev;
+	//#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
+	#if PATCH_MOUSE_POINTER_HIDING
+	XGenericEventCookie *cookie;
+	#endif // PATCH_MOUSE_POINTER_HIDING
+	//#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
 	XSync(dpy, False);
 	/* main event loop */
 	while (running == 1) {
+		//#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
+		#if PATCH_MOUSE_POINTER_HIDING
+		cookie = &ev.xcookie;
+		#endif // PATCH_MOUSE_POINTER_HIDING
+		//#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
+
 		struct pollfd pfd = {
 			.fd = ConnectionNumber(dpy),
 			.events = POLLIN,
@@ -16274,6 +16331,138 @@ run(void)
 			continue;
 
 		XNextEvent(dpy, &ev);
+
+		#if PATCH_MOUSE_POINTER_HIDING
+		if (ev.type == motion_type) {
+			if (!cursor_always_hide)
+				showcursor();
+			#if 0 //PATCH_FOCUS_FOLLOWS_MOUSE
+			if (selmon->sel)
+				checkmouseoverclient(selmon->sel);
+			#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+			break;
+		}
+		else if (ev.type == key_release_type) {
+			if ((!selmon && cursorhideonkeys)
+			|| (!selmon->sel && selmon->cursorhideonkeys)
+			|| (selmon->sel && (selmon->sel->cursorhideonkeys == 1 || (selmon->sel->cursorhideonkeys == -1 && selmon->cursorhideonkeys)))) {
+				unsigned int state = 0;
+				if (cursor_ignore_mods) {
+					// extract modifier state;
+					// xinput device event;
+					XDeviceKeyEvent *key = (XDeviceKeyEvent *) &ev;
+					if ((state = (key->keycode == 9)))
+						showcursor();
+					else
+						state = (key->state & cursor_ignore_mods);
+				}
+				if (!state)
+					hidecursor();
+			}
+		}
+		else if (ev.type == button_press_type || ev.type == button_release_type) {
+			if (!cursor_always_hide)
+				showcursor();
+		}
+		else if (ev.type == device_change_type) {
+			XDevicePresenceNotifyEvent *xdpe = (XDevicePresenceNotifyEvent *)&ev;
+			if (last_device_change != xdpe->serial) {
+				snoop_root();
+				last_device_change = xdpe->serial;
+			}
+		}
+		else if (ev.type == GenericEvent) {
+			/* xi2 raw event */
+			XGetEventData(dpy, cookie);
+			XIDeviceEvent *xie = (XIDeviceEvent *)cookie->data;
+
+			switch (xie->evtype) {
+				case XI_RawMotion:
+				#if 0
+					#if PATCH_FOCUS_FOLLOWS_MOUSE
+					if (selmon->sel)
+						checkmouseoverclient(selmon->sel);
+					#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+				#endif
+
+				case XI_RawButtonPress:
+					if (ignore_scroll && ((xie->detail >= 4 && xie->detail <= 7) || xie->event_x == xie->event_y))
+						break;
+					if (!cursor_always_hide)
+						showcursor();
+					break;
+
+				case XI_RawButtonRelease:
+					break;
+
+				default:
+					DEBUG("unknown XI event type %d\n", xie->evtype);
+			}
+
+			XFreeEventData(dpy, cookie);
+		}
+		else if (ev.type == (timer_sync_event + XSyncAlarmNotify)) {
+			XSyncAlarmNotifyEvent *alarm_e = (XSyncAlarmNotifyEvent *)&ev;
+			if (alarm_e->alarm == cursor_idle_alarm) {
+				if (cursortimeout) {
+					int hide = 0;
+
+					if ((!selmon && cursorautohide)
+					|| (!selmon->sel && selmon->cursorautohide))
+						hide = 1;
+					else {
+						int x, y;
+						Client *sel = NULL;
+						if (getrootptr(&x, &y))
+							sel = getclientatcoords(x, y, False);
+						if (!sel)
+							sel = selmon->sel;
+						if (selmon->sel && sel == selmon->sel && (sel->cursorautohide == 1 || (sel->cursorautohide == -1 && sel->mon->cursorautohide)))
+							hide = 1;
+					}
+					if (hide) {
+						//DEBUG("idle counter reached %dms, hiding cursor\n", XSyncValueLow32(alarm_e->counter_value));
+						hidecursor();
+					}
+					#if DEBUGGING
+					else {
+						//DEBUG("idle counter reached %dms\n", XSyncValueLow32(alarm_e->counter_value));
+					}
+					#endif // DEBUGGING
+				}
+			}
+		}
+		else
+		#else // NO PATCH_MOUSE_POINTER_HIDING
+		#if PATCH_FOCUS_FOLLOWS_MOUSE
+		#if 0
+		// sometimes enternotify events don't get picked up, this is a reasonable workaround;
+		// BROKEN - tiled clients with popups that overlap other clients will lose focus when pointer strays over the overlapped client;
+		if (ev.type == motion_type) {
+			if (selmon->sel)
+				checkmouseoverclient(selmon->sel);
+			break;
+		}
+		else
+		if (ev.type == device_change_type) {
+			XDevicePresenceNotifyEvent *xdpe = (XDevicePresenceNotifyEvent *)&ev;
+			if (last_device_change != xdpe->serial) {
+				snoop_root();
+				last_device_change = xdpe->serial;
+			}
+		}
+		else if (ev.type == GenericEvent) {
+			/* xi2 raw event */
+			XGetEventData(dpy, cookie);
+			XIDeviceEvent *xie = (XIDeviceEvent *)cookie->data;
+			if (xie->evtype == XI_RawMotion && selmon->sel)
+				checkmouseoverclient(selmon->sel);
+			XFreeEventData(dpy, cookie);
+		}
+		#endif
+		#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+		#endif // PATCH_MOUSE_POINTER_HIDING
+
 		if (handler[ev.type])
 			handler[ev.type](&ev); /* call handler */
 	}
@@ -16827,8 +17016,10 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 				detach(cc);
 				detachstackex(cc);
 				cc->mon = m;
-				cc->monindex = m->num;
-				cc->tags = m->tagset[m->seltags]; 	// assign tags of target monitor
+				if (!force) {
+					cc->monindex = m->num;
+					cc->tags = m->tagset[m->seltags]; 	// assign tags of target monitor
+				}
 				#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 				attachBelow(cc);
 				attachstackBelow(cc);
@@ -16859,8 +17050,10 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		detach(c);
 		detachstack(c);
 		c->mon = m;
-		c->monindex = m->num;
-		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
+		if (!force) {
+			c->monindex = m->num;
+			c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
+		}
 		#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 		if (!c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
@@ -17728,8 +17921,11 @@ setup(void)
 	#endif // PATCH_ALPHA_CHANNEL
 
 	if (!fonts_json || !(drw->fonts = drw_fontset_create_json(drw, fonts_json)))
-		if (!(drw->fonts = drw_fontset_create(drw, fonts, LENGTH(fonts))))
-			die("no fonts could be loaded.");
+		if (!(drw->fonts = drw_fontset_create(drw, fonts, LENGTH(fonts)))) {
+			logdatetime(stderr);
+			fputs("no fonts could be loaded.\n", stderr);
+			return 0;
+		}
 	lrpad = LRPAD(drw->fonts);
 	minbh = drw->fonts->h + 2;
 	bh = minbh
@@ -21510,6 +21706,59 @@ updateclientlist(void)
 				(unsigned char *) &(c->win), 1);
 }
 
+void
+updateclientmonitors(void)
+{
+	Monitor *mm;
+
+	#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+	Monitor *last_status_mon, *status_mon;
+	status_mon = NULL;
+	status_always_on = status_allow_fixed_mon ? mons : NULL;
+	#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
+
+	// move any clients that want a monitor that they are not currently on;
+	for (Monitor *m = mons; m; m = m->next)
+	{
+		#if PATCH_STATUS_ALLOW_FIXED_MONITOR
+		if (status_allow_fixed_mon && status_always_on) {
+			last_status_mon = status_mon;
+			if (m->showstatus)
+				status_mon = status_always_on = m;
+			if (last_status_mon && last_status_mon != status_mon)
+				status_always_on = NULL;
+		}
+		#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
+
+		for (Client *cc, *c = m->clients; c; c = cc) {
+			cc = c->next;
+			if (c->monindex == m->num || c->monindex == -1)
+				continue;
+			for (mm = mons; mm; mm = mm->next)
+				if (mm->num == c->monindex)
+					break;
+			if (!mm)
+				continue;
+			if (c == m->clients)
+				m->clients = cc;
+			else {
+				for (cc = m->clients; cc && cc->next && cc->next != c; cc = cc->next);
+				cc = cc->next = c->next;
+			}
+			detachstack(c);
+			c->mon = mm;
+			#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+			attachBelow(c);
+			//attachstack(c);
+			attachstackBelow(c);
+			#else // NO PATCH_ATTACH_BELOW_AND_NEWMASTER
+			attach(c);
+			attachstack(c);
+			#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+		}
+	}
+}
+
 #if PATCH_EWMH_TAGS
 void
 updatecurrentdesktop(void){
@@ -21528,6 +21777,7 @@ int
 updategeom(void)
 {
 	int dirty = 0;
+	Monitor *m;
 
 	#if PATCH_CONSTRAIN_MOUSE
 	if (constrained) {
@@ -21537,8 +21787,6 @@ updategeom(void)
 #ifdef XINERAMA
 	if (XineramaIsActive(dpy)) {
 		int i, j, n, nn;
-		Client *c;
-		Monitor *m, *mm;
 		XineramaScreenInfo *info = XineramaQueryScreens(dpy, &nn);
 		XineramaScreenInfo *unique = NULL;
 
@@ -21551,7 +21799,6 @@ updategeom(void)
 		XFree(info);
 		nn = j;
 
-		/* new monitors if nn > n */
 		for (i = n; i < nn; i++) {
 			for (m = mons; m && m->next; m = m->next);
 			if (m)
@@ -21578,6 +21825,8 @@ updategeom(void)
 			while ((c = m->clients)) {
 				dirty = 1;
 				m->clients = c->next;
+				if (c->monindex == -1)
+					c->monindex = c->mon->num;
 				detachstack(c);
 				c->mon = mons;
 				#if PATCH_ATTACH_BELOW_AND_NEWMASTER
@@ -21594,47 +21843,20 @@ updategeom(void)
 			cleanupmon(m);
 		}
 		free(unique);
-
-		#if PATCH_STATUS_ALLOW_FIXED_MONITOR
-		Monitor *last_status_mon, *status_mon;
-		status_mon = NULL;
-		status_always_on = status_allow_fixed_mon ? mons : NULL;
-		#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
-		// move any clients that want a monitor that they are not currently on;
-		for (m = mons; m; m = m->next)
-		{
-			#if PATCH_STATUS_ALLOW_FIXED_MONITOR
-			if (status_allow_fixed_mon && status_always_on) {
-				last_status_mon = status_mon;
-				if (m->showstatus)
-					status_mon = status_always_on = m;
-				if (last_status_mon && last_status_mon != status_mon)
-					status_always_on = NULL;
-			}
-			#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
-
-			for (c = m->clients; c; c = c->next)
-				if (c->monindex != -1 && c->mon->num != c->monindex) {
-					for (mm = mons; mm && mm->num != c->monindex; mm = mm->next);
-					if (mm)
-						sendmon(c, mm, NULL, 1);
-				}
-		}
+		updateclientmonitors();
 
 	} else
 #endif /* XINERAMA */
 	{ /* default monitor setup */
 		if (!mons)
 			mons = createmon();
-		#if PATCH_STATUS_ALLOW_FIXED_MONITOR
-		status_always_on = status_allow_fixed_mon ? mons : NULL;
-		#endif // PATCH_STATUS_ALLOW_FIXED_MONITOR
 		if (mons->mw != sw || mons->mh != sh) {
 			dirty = 1;
 			mons->mw = mons->ww = sw;
 			mons->mh = mons->wh = sh;
 			updatebarpos(mons);
 		}
+		updateclientmonitors();
 	}
 	if (dirty) {
 		selmon = mons;
@@ -23304,6 +23526,9 @@ reload:
 			else if (!strcmp("-u", argv[i]))
 				urgency = False;
 
+			else if (!strcmp("-w", argv[i]))
+				config_warnings ^= 1;
+
 			else if (!strcmp("-r", argv[i])) {
 				if ((r = ++i) >= argc)
 					return(usage("error: No rules file specified after -r switch."));
@@ -23475,7 +23700,9 @@ reload:
 	// check if environment works;
 	const char *env = "XDG_RUNTIME_DIR";
 	if (!getenv(env)) {
+		logdatetime(stderr);
 		fputs("dwm: environment failed.", stderr);
+		rc = 1;
 		goto finish;
 	}
 	// ***********************************************************************;
@@ -23504,14 +23731,10 @@ reload:
 		logdatetime(stderr);
 		fputs("dwm: warning: no locale support\n", stderr);
 	}
-	if (!(dpy = XOpenDisplay(NULL))) {
-		logdatetime(stderr);
+	if (!(dpy = XOpenDisplay(NULL)))
 		die("dwm: cannot open display");
-	}
-	if (!(xcon = XGetXCBConnection(dpy))) {
-		logdatetime(stderr);
-		die("dwm: cannot get xcb connection\n");
-	}
+	if (!(xcon = XGetXCBConnection(dpy)))
+		die("dwm: cannot get xcb connection");
 
 	checkotherwm();
 #ifdef __OpenBSD__
@@ -23529,8 +23752,10 @@ reload:
 			colourflags[i] |= 4;
 	}
 
-	if (!setup())
+	if (!setup()) {
+		rc = 1;
 		goto finish;
+	}
 
 	scan();
 	//#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
@@ -23610,7 +23835,7 @@ fputs("dwm: finished.\n", stderr);
 
 	free(coloursbackup);
 
-	return EXIT_SUCCESS;
+	return rc;
 }
 
 int
@@ -23626,7 +23851,7 @@ usage(const char * err_text)
 	if (err_text)
 		fprintf(f, "%s\n", err_text);
 	print_wrap(f, wrap_length, NULL, 10,
-		"\nusage: dwm", NULL, NULL, "\n[-h] [-v] [-r <rules-file.json>] [-l <layout-file.json>] [-u]"
+		"\nusage: dwm", NULL, NULL, "\n[-h] [-v] [-w] [-r <rules-file.json>] [-l <layout-file.json>] [-u]"
 		#if PATCH_SYSTRAY
 		" [-n]"
 		#endif // PATCH_SYSTRAY
@@ -23639,6 +23864,7 @@ usage(const char * err_text)
 	const char *indent = "    ";
 	print_wrap(f, wrap_length, indent, 2, "-h", indent, NULL, "display usage and accepted configuration paramters");
 	print_wrap(f, wrap_length, indent, 2, "-v", indent, NULL, "display version information");
+	print_wrap(f, wrap_length, indent, 2, "-w", indent, NULL, "toggle display of JSON config warnings");
 	#if PATCH_SYSTRAY
 	print_wrap(f, wrap_length, indent, 2, "-n", indent, NULL, "disable dwm system tray functionality");
 	#endif // PATCH_SYSTRAY
