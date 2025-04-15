@@ -1643,7 +1643,6 @@ static void placemouse(const Arg *arg);
 #if PATCH_MOUSE_POINTER_WARPING
 static int pointoverbar(Monitor *m, int x, int y, int check_clients);
 #endif // PATCH_MOUSE_POINTER_WARPING
-static void pop(Client *c);
 static void populate_charcode_map(void);
 #if PATCH_MOVE_TILED_WINDOWS || PATCH_FLAG_HIDDEN
 static Client *prevtiled(Client *c);
@@ -14447,15 +14446,6 @@ pointoverbar(Monitor *m, int x, int y, int check_clients)
 #endif // PATCH_MOUSE_POINTER_WARPING
 
 void
-pop(Client *c)
-{
-	detach(c);
-	attach(c);
-	focus(c, 1);
-	arrange(c->mon);
-}
-
-void
 populate_charcode_map(void)
 {
 	int keycodes_length = 0, idx = 0;
@@ -24025,22 +24015,34 @@ zoom(const Arg *arg)
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	Client *t = c;
+	Client *f = c;
 
 	if (!selmon->lt[selmon->sellt]->arrange || !c || c->isfloating)
 		return;
 	if (c == nexttiled(selmon->clients) && !(t = nexttiled(c->next)))
 		return;
 
+	if (nexttiled(selmon->clients) == f)
+		f = t;
+	else
+		f = c;
+
 	#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
+	int ok = 0;
 	int px, py;
 	unsigned int cw, ch;
 	float sfw, sfh;
-	int ok = getrelativeptr(c, &px, &py);
-	cw = c->w;
-	ch = c->h;
+	if (f == c) {
+		ok = getrelativeptr(c, &px, &py);
+		cw = c->w;
+		ch = c->h;
+	}
 	#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 
-	pop(t);
+	detach(t);
+	attach(t);
+	focus(f, 1);
+	arrange(t->mon);
 
 	#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!ok)
