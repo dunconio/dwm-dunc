@@ -1397,7 +1397,7 @@ static void buttonpress(XEvent *e);
 static void changefocusopacity(const Arg *arg);
 static void changeunfocusopacity(const Arg *arg);
 #endif // PATCH_CLIENT_OPACITY
-#if 0 //PATCH_FOCUS_FOLLOWS_MOUSE
+#if PATCH_FOCUS_FOLLOWS_MOUSE
 static void checkmouseoverclient(Client *c);
 #endif // PATCH_FOCUS_FOLLOWS_MOUSE
 static void checkotherwm(void);
@@ -1614,9 +1614,9 @@ static void minimize(Client *c);
 static int modalgroupclients(Client *c);
 #endif // PATCH_MODAL_SUPPORT
 static void monocle(Monitor *m);
-#if PATCH_FLAG_FOLLOW_PARENT
+#if PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
 static void monsatellites(Client *pp, Monitor *mon);
-#endif // PATCH_FLAG_FOLLOW_PARENT
+#endif // PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
 static void motionnotify(XEvent *e);
 static void mouseview(const Arg *arg);
 #if PATCH_MOVE_FLOATING_WINDOWS
@@ -3739,6 +3739,8 @@ swallow(Client *p, Client *c)
 		return;
 	detach(c);
 	detachstackex(c);
+	if (c->mon->sel == c)
+		c->mon->sel = p;
 
 	setclientstate(c, WithdrawnState);
 	XUnmapWindow(dpy, p->win);
@@ -3998,6 +4000,9 @@ buttonpress(XEvent *e)
 void
 changefocusopacity(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
 	if (selmon->sel->opacity < 0)
@@ -4011,6 +4016,9 @@ changefocusopacity(const Arg *arg)
 void
 changeunfocusopacity(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
 	if (selmon->sel->unfocusopacity < 0)
@@ -4022,28 +4030,18 @@ changeunfocusopacity(const Arg *arg)
 }
 #endif // PATCH_CLIENT_OPACITY
 
-#if 0 //PATCH_FOCUS_FOLLOWS_MOUSE
+#if PATCH_FOCUS_FOLLOWS_MOUSE
 void
 checkmouseoverclient(Client *c)
 {
-	int x, y;
-	if (!c || !getrootptr(&x, &y))
-		return;
-
 	int a, w = 1, h = 1;
-	if ((a = INTERSECTC(x, y, w, h, c)))
+	int x, y;
+	if (!getrootptr(&x, &y))
 		return;
-
-	#if PATCH_FLAG_GAME
-	if (c->isgame && c->isfullscreen) {
-		focus(c, 1);
-		return;
-	}
-	#endif // PATCH_FLAG_GAME
 
 	// check if mouse is over a floating window;
 	Monitor *m = recttomon(x, y, 1, 1);
-	Client *r = (m->lt[m->sellt]->arrange == monocle) ? NULL : recttoclient(x, y, w, h);
+	Client *r = (m->lt[m->sellt]->arrange == monocle) ? NULL : recttoclient(x, y, w, h, 0);
 	for(Client *cc = m->stack; cc; cc = cc->snext)
 		if (ISVISIBLE(cc) && cc->isfloating
 			#if PATCH_FLAG_PANEL
@@ -4066,8 +4064,44 @@ checkmouseoverclient(Client *c)
 	if (r) {
 		DEBUG("checkmouseoverclient change focus:%s\n", r ? r->name : "<none>");
 		focus(r, 0);
+		return;
 	}
+
+	if (c) {
+		if ((a = INTERSECTC(x, y, w, h, c)))
+			return;
+
+		#if PATCH_FLAG_GAME
+		if (c->isgame && c->isfullscreen) {
+			focus(c, 1);
+			return;
+		}
+		#endif // PATCH_FLAG_GAME
+	}
+
 }
+void
+checkmouseovermonitor(Monitor *m)
+{
+	int x, y;
+	if (!getrootptr(&x, &y))
+		return;
+	Monitor *mm = recttomon(x, y, 1, 1);
+	if (m == mm)
+		return;
+	focusmonex(mm);
+	focus(NULL, 0);
+}
+/*
+void
+checkmouseposition(Monitor *m, Client *c)
+{
+	if (!c)
+		checkmouseovermonitor(m ? m : selmon);
+	else
+		checkmouseoverclient(c);
+}
+*/
 #endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 void
@@ -5090,6 +5124,9 @@ cropresize(Client *c)
 void
 cyclelayoutmouse(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Layout *l;
 	for(l = (Layout *)layouts; l != selmon->lt[selmon->sellt]; l++);
 	if(arg->i > 0) {
@@ -5282,6 +5319,22 @@ detachstack(Client *c)
 
 	Client *t;
 	if (c == c->mon->sel) {
+		if (c->mon == selmon && ISVISIBLE(c)
+			#if PATCH_FLAG_HIDDEN
+			&& !c->ishidden
+			#endif // PATCH_FLAG_HIDDEN
+			#if PATCH_FLAG_IGNORED
+			&& !c->isignored
+			#endif // PATCH_FLAG_IGNORED
+			#if PATCH_FLAG_PANEL
+			&& !c->ispanel
+			#endif // PATCH_FLAG_PANEL
+			#if PATCH_SHOW_DESKTOP
+			&& !c->isdesktop && !c->ondesktop
+			#endif // PATCH_SHOW_DESKTOP
+			)
+			XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
+
 		for (t = c->mon->stack; t && (!ISVISIBLE(t)
 			#if PATCH_FLAG_PANEL
 			|| t->ispanel
@@ -5336,6 +5389,10 @@ dirtomon(int dir)
 void
 dragfact(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+
 	unsigned int n;
 	int px, py; // pointer coordinates
 	int lock_x = 0, lock_y = 0;
@@ -7718,6 +7775,10 @@ focusmon(const Arg *arg)
 void
 focusstack(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+
 	Client *c = NULL, *i, *s;
 	Monitor *m = selmon;
 	XEvent xev;
@@ -9255,6 +9316,10 @@ hidecursor(void)
 #if PATCH_FLAG_HIDDEN
 void
 hidewin(const Arg *arg) {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+
 	Client *c = selmon->sel;
 	Client *h = NULL;
 	if (arg->ui) {
@@ -9475,6 +9540,9 @@ highlight(Client *c)
 void
 incnmaster(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_SHOW_DESKTOP
 	if (showdesktop && selmon->showdesktop)
 		return;
@@ -9625,6 +9693,9 @@ keyrelease(XEvent *e)
 void
 killclient(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c;
 	if (!selmon || !(c = selmon->sel))
 		return;
@@ -9809,6 +9880,9 @@ killgroup(const Arg *arg)
 {
 	if (!arg || !(arg->ui & (KILLGROUP_BY_NAME | KILLGROUP_BY_CLASS | KILLGROUP_BY_INSTANCE)))
 		return;
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
 
@@ -10237,11 +10311,15 @@ logdiagnostics_client(Client *c, const char *indent)
 	gettextprop(c->win, wmatom[WMWindowRole], role, sizeof(role));
 
 	logdiagnostics_client_common(c, indent, "    ");
-	fprintf(stderr, " (%ix%i+%ix%i:%ix%i) (pid:%i) ", c->w, c->h, c->x, c->y, (c->x - m->mx), (c->y - m->my), c->pid);
+
+	if (!c->w && !c->h && !c->x && !c->y)
+		fprintf(stderr, " (no geometry yet) (pid:%u) ", c->pid);
+	else
+		fprintf(stderr, " (%ix%i+%ix%i:%ix%i) (pid:%u) ", c->w, c->h, c->x, c->y, (c->x - m->mx), (c->y - m->my), c->pid);
 	if (strlen(role))
 		fprintf(stderr, "role:\"%s\" ", role);
 	else
-		fprintf(stderr, "role:<none> ");
+		fputs("role:<none> ", stderr);
 
 	fprintf(stderr,
 		"(\"%s\", \"%s\"",
@@ -10252,12 +10330,12 @@ logdiagnostics_client(Client *c, const char *indent)
 	if (c->dispclass)
 		fprintf(stderr, " displays:\"%s\"", c->dispclass);
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
-	fprintf(stderr, ")");
+	fputs(")", stderr);
 
 	if (c->parent)
 		fprintf(stderr, " parent:\"%s\"", c->parent->name);
 	else
-		fprintf(stderr, " parent:<none>");
+		fputs(" parent:<none>", stderr);
 
 	if (c->ultparent != c && c->ultparent != c->parent)
 		fprintf(stderr, " ult-parent:\"%s\"", c->ultparent->name);
@@ -10265,7 +10343,7 @@ logdiagnostics_client(Client *c, const char *indent)
 	if (c->monindex != -1 && c->mon->num != c->monindex)
 		fprintf(stderr, " wants-monitor:%i", c->monindex);
 
-	fprintf(stderr, "\n");
+	fputs("\n", stderr);
 
 	if (ch.res_class)
 		XFree(ch.res_class);
@@ -10580,7 +10658,7 @@ logdiagnostics(const Arg *arg)
 			instance = ch.res_name  ? ch.res_name  : broken;
 			gettextprop(c->win, wmatom[WMWindowRole], role, sizeof(role));
 
-			fprintf(stderr, "    %#10lx \"%s\" (pid:%i) ", c->win, c->name, c->pid);
+			fprintf(stderr, "    %#10lx \"%s\" (pid:%u) ", c->win, c->name, c->pid);
 			if (strlen(role))
 				fprintf(stderr, "role:\"%s\" ", role);
 			else
@@ -11223,19 +11301,20 @@ manage(Window w, XWindowAttributes *wa)
 						c->isfloating = c->oldstate | format;
 					}
 				case 3:
+					c->monindex = *(data+2);
 					for (m = mons; m; m = m->next) {
 						if (m->num == *(data+2)) {
 							c->mon = m;
-							c->monindex = m->num;
 							break;
 						}
 					}
 					#if PATCH_VIRTUAL_MONITORS
-					for (m = mons; m; m = m->next) {
-						if (m->num == *(data+2) % 1000) {
-							c->mon = m;
-							c->monindex = m->num;
-							break;
+					if (c->monindex != c->mon->num) {
+						for (m = mons; m; m = m->next) {
+							if (m->num == *(data+2) % 1000) {
+								c->mon = m;
+								break;
+							}
 						}
 					}
 					#endif // PATCH_VIRTUAL_MONITORS
@@ -11245,6 +11324,8 @@ manage(Window w, XWindowAttributes *wa)
 						h = c->mon->mh;
 					c->sfw = w;
 					c->sfh = h;
+					x += c->mon->mx;
+					y += c->mon->my;
 					if (x >= c->mon->mx && x <= (c->mon->mx + c->mon->mw))
 						c->sfx = x;
 					if (y >= c->mon->my && y <= (c->mon->my + c->mon->mh))
@@ -11923,7 +12004,7 @@ monocle(Monitor *m)
 			resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
 }
 
-#if PATCH_FLAG_FOLLOW_PARENT
+#if PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
 void
 monsatellites(Client *pp, Monitor *mon) {
 
@@ -11933,13 +12014,20 @@ monsatellites(Client *pp, Monitor *mon) {
 		for (c = m->clients; c && c->snext; c = c->snext);
 		for (; c; c = p) {
 			p = c->sprev;
-			if (c != pp && c->followparent && c->parent == pp && ISVISIBLE(c)) {
+			if (c != pp && c->parent == pp && ISVISIBLE(c) && (0
+				#if PATCH_FLAG_FOLLOW_PARENT
+				|| c->followparent
+				#endif // PATCH_FLAG_FOLLOW_PARENT
+				#if PATCH_MODAL_SUPPORT
+				|| c->ismodal
+				#endif // PATCH_MODAL_SUPPORT
+			)) {
 				if (c->mon != mon) {
 					detach(c);
 					detachstack(c);
 					c->mon = mon;
 					c->monindex = pp->monindex;
-					c->tags = pp->tags;	//c->mon->tagset[c->mon->seltags]; 	// assign tags of target monitor
+					c->tags = c->mon->tagset[c->mon->seltags]; 	// assign tags of target monitor
 					#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 					attachBelow(c);
 					attachstackBelow(c);
@@ -11957,7 +12045,7 @@ monsatellites(Client *pp, Monitor *mon) {
 	}
 
 }
-#endif // PATCH_FLAG_FOLLOW_PARENT
+#endif // PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
 
 void
 motionnotify(XEvent *e)
@@ -12007,6 +12095,10 @@ mouseview(const Arg *arg)
 	signed int direction = 0;
 	static signed int taglength = LENGTH(tags);
 
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+
 	// ascertain first active tag
 	for (int i = 0; i < taglength; i++)
 		if (selmon->tagset[selmon->seltags] & (1 << i)) {
@@ -12039,6 +12131,10 @@ movefloat(const Arg *arg)
 {
 	if (!selmon)
 		return;
+
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 	Client *c;
 	if (!(c = selmon->sel) || !c->isfloating || (c->isfullscreen
@@ -12108,6 +12204,10 @@ movefloat(const Arg *arg)
 void
 movemouse(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+
 	int x, y, ocx, ocy, nx, ny;
 	Client *c;
 	#if PATCH_MODAL_SUPPORT
@@ -12270,7 +12370,7 @@ movemouse(const Arg *arg)
 		}
 
 		selmon = m;
-		sendmon(c, m, c, 0);
+		sendmon(c, m, c, 1);
 		raisewin(c->mon, c->win, True);
 		c->monindex = c->mon->num;
 		arrange(NULL);
@@ -12307,6 +12407,9 @@ movemouse(const Arg *arg)
 
 void
 moveorplace(const Arg *arg) {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if ((!selmon->lt[selmon->sellt]->arrange || (selmon->sel && selmon->sel->isfloating)))
 		movemouse(&(Arg){.i = 0});
 	else
@@ -12317,9 +12420,9 @@ moveorplace(const Arg *arg) {
 void
 movetiled(const Arg *arg)
 {
-	if (!selmon)
-		return;
-
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *d, *c;
 	if (!(c = selmon->sel) || c->isfloating || (c->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
@@ -14129,6 +14232,9 @@ parserulesjson(cJSON *rules)
 void
 placemouse(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	int x, y, px, py, ocx, ocy, nx = -9999, ny = -9999, freemove = 0;
 	Client *c, *r = NULL, *at, *prevr;
 	Monitor *m;
@@ -14953,6 +15059,9 @@ recv_message(uint8_t *msg_type, uint32_t *reply_size, uint8_t **reply)
 void
 refocuspointer(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (selmon->sel)
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		warptoclient(selmon->sel, 0, 1);
@@ -15656,6 +15765,9 @@ textwithicon(char *text, Picture icon, unsigned int icw, unsigned int ich,
 void
 togglealwaysontop(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
 	#if PATCH_SHOW_DESKTOP
@@ -15672,6 +15784,9 @@ togglealwaysontop(const Arg *arg)
 void
 togglealttags(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	selmon->alttags = !selmon->alttags;
 	drawbar(selmon, 0);
 	#if PATCH_MOUSE_POINTER_HIDING
@@ -15687,6 +15802,9 @@ toggleconstrain(const Arg *arg)
 {
 	if (!xfixes_support)
 		return;
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (barrierLeft) {
 		if (constrained)
 			destroybarriermon();
@@ -15700,6 +15818,9 @@ toggleconstrain(const Arg *arg)
 void
 toggleisgame(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
 
@@ -15718,7 +15839,6 @@ toggleisgame(const Arg *arg)
 void
 toggletorch(const Arg *arg)
 {
-
 	#if PATCH_FLAG_PANEL
 	Monitor *m;
 	#endif // PATCH_FLAG_PANEL
@@ -15816,6 +15936,9 @@ resizerequest(XEvent *e)
 void
 resizemouse(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	int opx, opy, ocx, ocy, och, ocw, nx, ny, nw, nh;
 	Client *c;
 	Monitor *m;
@@ -15948,6 +16071,9 @@ resizemouse(const Arg *arg)
 void
 resizeorfacts(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Monitor *m = selmon;
 
 	if (!m->sel)
@@ -17127,7 +17253,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 
 	float mfwo = 1.0f, mfho = 1.0f;
-	if (c->isfloating) {
+	if (c->isfloating && !force) {
 		mfwo = (float) (c->x - c->mon->mx + c->w / 2) / (c->mon->mw / 2);
 		mfho = (float) (c->y - c->mon->my + c->h / 2) / (c->mon->mh / 2);
 	}
@@ -17152,7 +17278,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 
 	#if PATCH_MODAL_SUPPORT
 	if (c->ismodal) {
-		Client *cc, *p;
+		Client *cc, *p, *child = c;
 		for (cc = c->snext; cc && cc->snext; cc = cc->snext);
 		// prevent client moves via resize() triggering updates of
 		// the client's parent offset coordinates, sfxo & sfyo
@@ -17160,13 +17286,15 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		for (; cc; cc = p) {
 			p = cc->sprev;
 			if (cc->ultparent == c->ultparent && ISVISIBLE(cc)) {
-				detach(cc);
-				detachstackex(cc);
-				cc->mon = m;
-				if (!force) {
-					cc->monindex = m->num;
-					cc->tags = m->tagset[m->seltags]; 	// assign tags of target monitor
+				if (cc->isfloating && (cc == c || !child || child->parent != cc)) {
+					mfwo = (float) (cc->x - cc->mon->mx + cc->w / 2) / (cc->mon->mw / 2);
+					mfho = (float) (cc->y - cc->mon->my + cc->h / 2) / (cc->mon->mh / 2);
 				}
+				detach(cc);
+				detachstack(cc);
+				cc->mon = m;
+				cc->monindex = m->num;
+				cc->tags = m->tagset[m->seltags]; 	// assign tags of target monitor
 				#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 				attachBelow(cc);
 				attachstackBelow(cc);
@@ -17174,12 +17302,23 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 				attach(cc);
 				attachstack(cc);
 				#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
-				// ensure floating clients are within the monitor bounds;
-				if (cc->isfloating)
+				if (cc->isfloating) {
+					// try to move the client relative to its immediate child;
+					if (child && child->parent == cc) {
+						cc->x = (child->x + child->w / 2) - ((child->sfxo == 0 ? 1 : child->sfxo) * cc->w / 2);
+						cc->y = (child->y + child->h / 2) - ((child->sfyo == 0 ? 1 : child->sfyo) * cc->h / 2);
+					}
+					else {
+						cc->x = ((mfwo * m->mw / 2) + m->mx - cc->w / 2);
+						cc->y = ((mfho * m->mh / 2) + m->my - cc->h / 2);
+					}
+					// ensure floating clients are within the monitor bounds;
 					resize(cc, cc->x, cc->y, cc->w, cc->h, False);
+				}
 				#if PATCH_PERSISTENT_METADATA
 				setclienttagprop(cc);
 				#endif // PATCH_PERSISTENT_METADATA
+				child = cc;
 			}
 		}
 		// normal coord tracking behaviour continues;
@@ -17189,18 +17328,16 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 	else
 	#endif // PATCH_MODAL_SUPPORT
 	{
-		#if PATCH_FLAG_FOLLOW_PARENT
+		#if PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
 		monsatellites(c, m);
-		#endif // PATCH_FLAG_FOLLOW_PARENT
+		#endif // PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
 
 		//unfocus(c, 1);
 		detach(c);
 		detachstack(c);
 		c->mon = m;
-		if (!force) {
-			c->monindex = m->num;
-			c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
-		}
+		c->monindex = m->num;
+		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
 		#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 		if (!c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
@@ -17219,8 +17356,10 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		// move the client if it is floating;
 		if (c->isfloating) {
 			if (!c->parent || c->parent->mon != c->mon) {
-				c->x = ((mfwo * m->mw / 2) + m->mx - c->w / 2);
-				c->y = ((mfho * m->mh / 2) + m->my - c->h / 2);
+				if (!force) {
+					c->x = ((mfwo * m->mw / 2) + m->mx - c->w / 2);
+					c->y = ((mfho * m->mh / 2) + m->my - c->h / 2);
+				}
 				if (c->w + c->bw*2 < m->mw) {
 					if (c->x + c->w + c->bw*2 > m->mx + m->mw)
 						c->x = m->mx + m->mw - c->w - c->bw*2;
@@ -17850,6 +17989,9 @@ sethidden(Client *c, int hidden, int rearrange)
 void
 setlayout(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	setlayoutex(arg);
 	#if PATCH_MOUSE_POINTER_WARPING
 	if (selmon->sel)
@@ -17891,12 +18033,18 @@ setlayoutex(const Arg *arg)
 void
 setlayoutmouse(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	setlayoutex(arg);
 }
 
 void
 setlayoutreplace(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (arg && arg->v)
 		#if PATCH_PERTAG
 		selmon->lt[selmon->sellt] = selmon->pertag->ltidxs[selmon->pertag->curtag][selmon->sellt] = (Layout *)arg->v;
@@ -17926,6 +18074,9 @@ setnumdesktops(void)
 #if PATCH_CFACTS
 void
 setcfact(const Arg *arg) {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	float f;
 	Client *c;
 
@@ -17961,6 +18112,9 @@ setcfact(const Arg *arg) {
 void
 setmfact(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	float f;
 	int mfi, argi, ri;
 
@@ -19386,15 +19540,6 @@ swapmon(const Arg *arg)
 void
 setclienttagprop(Client *c)
 {
-	if (
-		#if PATCH_FLAG_PANEL
-		c->ispanel ||
-		#endif // PATCH_FLAG_PANEL
-		#if PATCH_FLAG_IGNORED
-		c->isignored ||
-		#endif // PATCH_FLAG_IGNORED
-		0)
-		return;
 	setclienttagpropex(c, 0);
 }
 void
@@ -19417,13 +19562,24 @@ setclienttagpropex(Client *c, int index)
 		? c->oldbw : c->bw
 	);
 
+	int x, y;
+	if (c->isfloating) {
+		x = c->x;
+		y = c->y;
+	}
+	else {
+		x = c->sfx;
+		y = c->sfy;
+	}
+	x -= c->mon->mx;
+	y -= c->mon->my;
 	long data[] = {
 		(long) index,	// placeholder for index within Window array;
 		(long) c->tags,
 		(long) (c->monindex == -1 ? c->mon->num : c->monindex),
 		(long) (c->isfloating & ~(1 << 1)),
-		(long) (c->isfloating ? c->x : c->sfx),
-		(long) (c->isfloating ? c->y : c->sfy),
+		(long) (x),
+		(long) (y),
 		(long) (c->isfloating ? c->w : c->sfw),
 		(long) (c->isfloating ? c->h : c->sfh),
 		(long) (c->sfxo * 1000),
@@ -20020,6 +20176,10 @@ altTabStart(const Arg *arg)
 {
 	if (running != 1)
 		return;
+
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 	Monitor *selm = selmon, *m = selmon;
 	Client *c, *s = NULL;
@@ -20690,77 +20850,95 @@ altTabStart(const Arg *arg)
 void
 tag(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c;
-	if ((c = selmon->sel) && (arg->ui & TAGMASK)
+	if (!(c = selmon->sel) || !(arg->ui & TAGMASK)
 		#if PATCH_FLAG_IGNORED
-		&& !c->isignored
+		|| c->isignored
 		#endif // PATCH_FLAG_IGNORED
 		#if PATCH_FLAG_PANEL
-		&& !c->ispanel
+		|| c->ispanel
 		#endif // PATCH_FLAG_PANEL
 		#if PATCH_SHOW_DESKTOP
-		&& !c->isdesktop
+		|| c->isdesktop
 		#endif // PATCH_SHOW_DESKTOP
-		) {
+		)
+		return;
 
-		#if PATCH_FLAG_FOLLOW_PARENT
-		if (c->followparent && c->parent)
-			return;
-		#endif // PATCH_FLAG_FOLLOW_PARENT
+	#if PATCH_FLAG_FOLLOW_PARENT
+	if (c->followparent && c->parent)
+		return;
+	#endif // PATCH_FLAG_FOLLOW_PARENT
 
-		c->tags = arg->ui & TAGMASK;
-		#if PATCH_PERSISTENT_METADATA
-		setclienttagprop(c);
-		#endif // PATCH_PERSISTENT_METADATA
+	c->tags = arg->ui & TAGMASK;
+	#if PATCH_PERSISTENT_METADATA
+	setclienttagprop(c);
+	#endif // PATCH_PERSISTENT_METADATA
 
-		#if PATCH_MODAL_SUPPORT
-		if (c->ismodal) {
-			for (Client *p = c->snext; p; p = p->snext)
-				if (p->ultparent == c->ultparent && ISVISIBLE(p)) {
-					p->tags = arg->ui & TAGMASK;
-					#if PATCH_PERSISTENT_METADATA
-					setclienttagprop(p);
-					#endif // PATCH_PERSISTENT_METADATA
-				}
-		}
-		#if PATCH_FLAG_FOLLOW_PARENT
-		else
-		#endif // PATCH_FLAG_FOLLOW_PARENT
-		#endif // PATCH_MODAL_SUPPORT
-		#if PATCH_FLAG_FOLLOW_PARENT
-		tagsatellites(c);
-		#endif // PATCH_FLAG_FOLLOW_PARENT
-
-		focus(NULL, 0);
-		arrange(selmon);
-		if (viewontag && ((arg->ui & TAGMASK) != TAGMASK))
-			view(arg);
-		if (!ISVISIBLE(c))
-			if ((c = guessnextfocus(c, selmon)))
-				focus(c, 0);
+	#if PATCH_MODAL_SUPPORT
+	if (c->ismodal) {
+		for (Client *p = c->snext; p; p = p->snext)
+			if (p->ultparent == c->ultparent && ISVISIBLE(p)) {
+				p->tags = arg->ui & TAGMASK;
+				#if PATCH_PERSISTENT_METADATA
+				setclienttagprop(p);
+				#endif // PATCH_PERSISTENT_METADATA
+			}
 	}
+	#if PATCH_FLAG_FOLLOW_PARENT
+	else
+	#endif // PATCH_FLAG_FOLLOW_PARENT
+	#endif // PATCH_MODAL_SUPPORT
+	#if PATCH_FLAG_FOLLOW_PARENT
+	tagsatellites(c);
+	#endif // PATCH_FLAG_FOLLOW_PARENT
+
+	focus(NULL, 0);
+	arrange(selmon);
+	if (viewontag && ((arg->ui & TAGMASK) != TAGMASK))
+		view(arg);
+	if (!ISVISIBLE(c))
+		if ((c = guessnextfocus(c, selmon)))
+			focus(c, 0);
 }
 
 void
 tagmon(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
-	if (!c || !mons->next)
+	if (!c || !mons->next
+		#if PATCH_FLAG_IGNORED
+		|| c->isignored
+		#endif // PATCH_FLAG_IGNORED
+		#if PATCH_FLAG_PANEL
+		|| c->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		|| c->isdesktop || c->ondesktop
+		#endif // PATCH_SHOW_DESKTOP
+		)
 		return;
-	#if PATCH_FLAG_IGNORED
-	if (c->isignored)
-		return;
-	#endif // PATCH_FLAG_IGNORED
-	#if PATCH_FLAG_PANEL
-	if (c->ispanel)
-		return;
-	#endif // PATCH_FLAG_PANEL
-	#if PATCH_SHOW_DESKTOP
-	if (c->isdesktop || c->ondesktop)
-		return;
-	#endif // PATCH_SHOW_DESKTOP
 
 	Client *sel = c;
+	#if PATCH_MODAL_SUPPORT
+	if (c->ismodal) {
+		for (
+			c = c->parent;
+			c && c->ismodal && c->parent && c->mon == c->parent->mon;
+			c = c->parent
+		);
+		if (!c)
+			return;
+	}
+	#if PATCH_FLAG_FOLLOW_PARENT
+	else
+	#endif // PATCH_FLAG_FOLLOW_PARENT
+	#endif // PATCH_MODAL_SUPPORT
 	#if PATCH_FLAG_FOLLOW_PARENT
 	if (c->followparent) {
 		for (
@@ -20799,12 +20977,15 @@ tagmon(const Arg *arg)
 			);
 	}
 
-	sendmon(c, m, sel, 0);
+	sendmon(c, m, sel, 1);
 }
 
 void
 togglebar(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	togglebarex(selmon);
 	arrange(selmon);
 	drawbar(selmon, 0);
@@ -20837,6 +21018,9 @@ toggledesktop(const Arg *arg)
 	if (!showdesktop)
 		return;
 
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	int i;
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	int c = 0;
@@ -20886,6 +21070,9 @@ toggledesktop(const Arg *arg)
 void
 togglefakefullscreen(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	if (!c)
 		return;
@@ -20922,6 +21109,9 @@ togglefakefullscreen(const Arg *arg)
 void
 togglefloating(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	togglefloatingex(selmon->sel);
 }
 void
@@ -21011,6 +21201,9 @@ togglefloatingex(Client *c)
 void
 togglefullscreen(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	if (!c)
 		return;
@@ -21032,8 +21225,9 @@ togglefullscreen(const Arg *arg)
 void
 togglemirror(const Arg *arg)
 {
-	if (!selmon)
-		return;
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->lt[selmon->sellt]->arrange || selmon->lt[selmon->sellt]->arrange == monocle)
 		return;
 
@@ -21069,6 +21263,9 @@ togglemirror(const Arg *arg)
 void
 togglepause(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c;
 	if (!(c = selmon->sel) || !c->pid)
 		return;
@@ -21097,8 +21294,11 @@ toggleskiprules(const Arg *arg)
 void
 togglesplit(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Monitor *m;
-	if (!selmon || !(m = selmon->pmon->mon1) || !m->split)
+	if (!(m = selmon->pmon->mon1) || !m->split)
 		return;
 	m->enablesplit ^= 1;
 	if (!updatevirtualmonitors())
@@ -21141,6 +21341,9 @@ togglesplit(const Arg *arg)
 void
 togglestacking(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_PERTAG
 	selmon->pertag->class_stacking[selmon->pertag->curtag] = !selmon->pertag->class_stacking[selmon->pertag->curtag];
 	#endif // PATCH_PERTAG
@@ -21153,6 +21356,9 @@ togglestacking(const Arg *arg)
 void
 togglesticky(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	if (!c)
 		return;
@@ -21186,6 +21392,9 @@ togglesticky(const Arg *arg)
 void
 toggletag(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	toggletagex(selmon->sel, arg->ui);
 }
 void
@@ -21219,6 +21428,9 @@ toggletagex(Client *c, int tagmask)
 void
 toggleview(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	toggleviewex(selmon, arg->ui);
 }
 
@@ -21367,6 +21579,9 @@ unfocus(Client *c, int setfocus)
 #if PATCH_FLAG_HIDDEN
 void
 unhidewin(const Arg *arg) {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Monitor *m = selmon;
 
 	#if PATCH_SHOW_DESKTOP
@@ -22871,6 +23086,9 @@ validate_pid(Client *c)
 void
 view(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	viewmontag(selmon, arg->ui, 1);
 }
 void
@@ -23067,6 +23285,9 @@ viewactive(const Arg *arg)
 {
 	if (!arg->i)
 		return;
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	viewactiveex(selmon, arg->i);
 }
 
@@ -23420,6 +23641,9 @@ wait_and_reset(void *arg)
 void
 window_switcher(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseovermonitor(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	pthread_t th;
 	pid_t pid = spawnex(arg->v, False);
 	enable_switching = 1;
@@ -23796,6 +24020,9 @@ systraytomon(Monitor *m) {
 void
 zoom(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient(selmon->sel);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	Client *t = c;
 
