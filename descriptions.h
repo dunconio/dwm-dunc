@@ -89,6 +89,7 @@
 #define DESCRIPTION_RELOAD							"Reload configuration and rescan windows"
 #define DESCRIPTION_RESCAN							"Rescan windows"
 #define DESCRIPTION_LOGOUT							"Quit dwm and log out of the session"
+#define DESCRIPTION_LOCK_SCREEN						"Lock the screen"
 #define DESCRIPTION_RESTART							"Quit dwm and restart the computer"
 #define DESCRIPTION_QUIT							"Quit dwm and restart"
 #define DESCRIPTION_SHUTDOWN						"Quit dwm and shut down the computer"

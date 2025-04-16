@@ -562,6 +562,7 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_m,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-audio.sh -r"), DESCRIPTION_MUTE_GUI },
 	{ ShiftMask,                    XF86AudioPlay,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-app.sh firefox freetube kodi thorium vlc"), DESCRIPTION_MUTE_MEDIA_APPS },
 	{ ShiftMask|ControlMask,        XF86AudioPlay,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/pactl-mute-media-except-active.sh firefox freetube kodi thorium vlc"), DESCRIPTION_MUTE_MEDIA_APPS_EXCEPT_ACTIVE },
+	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_k,    spawn,   SHCMD("bash -c $HOME/Debian-setup/slock/slock"), DESCRIPTION_LOCK_SCREEN },
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_l,    spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-quit.sh logout"), DESCRIPTION_LOGOUT },
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_Home, spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-quit.sh restart"), DESCRIPTION_RESTART },
 	{ MODKEY|ShiftMask|ControlMask|Mod1Mask, XK_End,  spawn,   SHCMD("bash $XDG_RUNTIME_DIR/dwm/dwm-quit.sh shutdown"), DESCRIPTION_SHUTDOWN },
