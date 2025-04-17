@@ -2958,20 +2958,20 @@ skip_parenting:
 			#if PATCH_MOUSE_POINTER_WARPING
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dx")) && cJSON_IsNumber(r_node)) {
 				c->focusdx = r_node->valuedouble;
-				if (c->focusdx <= 0 || c->focusdx > 2) {
+				if (c->focusdx < -2 || c->focusdx > 2) {
 					if (config_warnings) {
 						logdatetime(stderr);
-						fprintf(stderr, "dwm: warning: focus-origin-dx value must be greater than 0 and less than 2.\n");
+						fprintf(stderr, "dwm: warning: focus-origin-dx value must be between -2 and 2.\n");
 					}
 					c->focusdx = 1;
 				}
 			}
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dy")) && cJSON_IsNumber(r_node)) {
 				c->focusdy = r_node->valuedouble;
-				if (c->focusdy <= 0 || c->focusdy > 2) {
+				if (c->focusdy < -2 || c->focusdy > 2) {
 					if (config_warnings) {
 						logdatetime(stderr);
-						fprintf(stderr, "dwm: warning: focus-origin-dy value must be greater than 0 and less than 2.\n");
+						fprintf(stderr, "dwm: warning: focus-origin-dy value must be between -2 and 2.\n");
 					}
 					c->focusdy = 1;
 				}
@@ -9228,14 +9228,22 @@ hidecursor(void)
 		if (getrootptr(&cursormove_x, &cursormove_y)) {
 
 			#if PATCH_MOUSE_POINTER_WARPING
-			if (c->focusdx != 1.0f)
-				x = c->x + c->focusdx * c->w/2;
+			if (c->focusdx != 1.0f) {
+				if (c->focusdx < 0)
+					x = c->x + c->w + c->focusdx * c->w/2;
+				else
+					x = c->x + c->focusdx * c->w/2;
+			}
 			else
 			#endif // PATCH_MOUSE_POINTER_WARPING
 				x = c->x + c->w + c->bw;
 			#if PATCH_MOUSE_POINTER_WARPING
-			if (c->focusdy != 1.0f)
-				y = c->y + c->focusdy * c->h/2;
+			if (c->focusdy != 1.0f) {
+				if (c->focusdy < 0)
+					y = c->y + c->h + c->focusdy * c->h/2;
+				else
+					y = c->y + c->focusdy * c->h/2;
+			}
 			else
 			#endif // PATCH_MOUSE_POINTER_WARPING
 				y = c->y + c->h + c->bw;
@@ -10635,10 +10643,15 @@ logdiagnostics(const Arg *arg)
 		#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 		int x, y;
 		if (m == selmon && m->sel && getrelativeptr(m->sel, &x, &y)) {
-//			float dx, dy;
-//			dx = (float) x / (m->sel->w / 2);
-//			dy = (float) y / (m->sel->h / 2);
-			fprintf(stderr, "\n    Pointer relative position: %f, %f (\"%s\")\n", (float) x / (m->sel->w / 2), (float) y / (m->sel->h / 2), m->sel->name);
+			fprintf(stderr,
+				"\n    Pointer relative position: %f, %f",
+				(float) x / (m->sel->w / 2), (float) y / (m->sel->h / 2)
+			);
+			fprintf(stderr,
+				" and %f, %f (\"%s\")\n",
+				(float) -(m->sel->w - x) / (m->sel->w / 2), (float) -(m->sel->h - y) / (m->sel->h / 2),
+				m->sel->name
+			);
 		}
 		#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 
@@ -23507,12 +23520,22 @@ warptoclient(Client *c, int force)
 		tw = c->w;
 		th = c->h;
 		#if PATCH_ALTTAB
-		tpx = c->x + (altTabMon ? 1 : c->focusdx) * c->w/2;
-		tpy = c->y + (altTabMon ? 1 : c->focusdy) * c->h/2;
-		#else // NO PATCH_ALTTAB
-		tpx = c->x + c->focusdx * c->w/2;
-		tpy = c->y + c->focusdy * c->h/2;
-		#endif // PATCH_ALTTAB
+		if (altTabMon) {
+			tpx = c->x + c->w/2;
+			tpy = c->y + c->h/2;
+		}
+		else
+		#endif // NO PATCH_ALTTAB
+		{
+			if (c->focusdx < 0)
+				tpx = c->x + c->w + c->focusdx * c->w/2;
+			else
+				tpx = c->x + c->focusdx * c->w/2;
+			if (c->focusdy < 0)
+				tpy = c->y + c->h + c->focusdy * c->h/2;
+			else
+				tpy = c->y + c->focusdy * c->h/2;
+		}
 	}
 	else if (selmon) {
 		tx = selmon->wx;
