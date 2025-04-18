@@ -4545,7 +4545,8 @@ clientmessage(XEvent *e)
 			}
 			else
 			#endif // PATCH_EXTERNAL_WINDOW_ACTIVATION || PATCH_FLAG_GAME || PATCH_SHOW_DESKTOP
-			if (!c->isurgent && urgency
+			if (!c->isurgent && urgency &&
+				(c->mon != selmon || !ISVISIBLE(c) || c->mon->lt[c->mon->sellt]->arrange == monocle)
 				#if PATCH_SHOW_DESKTOP
 				&& !c->isdesktop && !c->ondesktop
 				#endif // PATCH_SHOW_DESKTOP
