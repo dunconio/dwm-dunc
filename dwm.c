@@ -3410,7 +3410,7 @@ arrangemon(Monitor *m)
 		#endif // PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
 		for (c = m->stack; c; c = c->snext)
 		{
-			if (!c->snext
+			if (!c->snext || c->isfloating
 				#if PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
 				|| (tabHighlight && altTabMon && altTabMon->isAlt && !(altTabMon->isAlt & ALTTAB_MOUSE) && altTabMon->highlight == c)
 				#endif // PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
@@ -21175,8 +21175,23 @@ togglefloatingex(Client *c)
 					c->h = c->mon->wy + c->mon->wh - c->y - c->bw*2;
 			}
 		}
-		if (vis)
+		if (vis) {
 			resize(c, c->x, c->y, c->w, c->h, False);	// restore last known float dimensions
+			#if PATCH_CLASS_STACKING
+			if (c->mon->class_stacking && c == c->mon->sel && c->isstackhead
+				#if PATCH_FLAG_HIDDEN
+				&& !c->ishidden
+				#endif // PATCH_FLAG_HIDDEN
+				#if PATCH_FLAG_IGNORED
+				&& !c->isignored
+				#endif // PATCH_FLAG_IGNORED
+				#if PATCH_FLAG_PANEL
+				&& !c->ispanel
+				#endif // PATCH_FLAG_PANEL
+				)
+				XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
+			#endif // PATCH_CLASS_STACKING
+		}
 	}
 	else {
 		// save last known float dimensions;
