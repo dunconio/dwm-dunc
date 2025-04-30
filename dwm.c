@@ -4052,7 +4052,6 @@ checkmouseoverclient(Client *c)
 			#if PATCH_FLAG_HIDDEN
 			&& !cc->ishidden
 			#endif // PATCH_FLAG_HIDDEN
-			&& !cc->neverfocus
 		) {
 			if ((a = INTERSECTC(x, y, w, h, cc))) {
 				r = cc;
@@ -4062,7 +4061,7 @@ checkmouseoverclient(Client *c)
 
 	if (r) {
 		DEBUG("checkmouseoverclient change focus:%s\n", r ? r->name : "<none>");
-		focus(r, 0);
+		focus(r, 1);
 		return;
 	}
 
