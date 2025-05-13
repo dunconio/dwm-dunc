@@ -17354,7 +17354,10 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 		{
 			attach(c);
-			attachstack(c);
+			c->sprev = NULL;
+			if ((c->snext = c->mon->stack))
+				c->snext->sprev = c;
+			c->mon->stack = c;
 		}
 		// move the client if it is floating;
 		if (c->isfloating) {
