@@ -378,11 +378,20 @@ static IPCCommand ipccommands[] = {
 /* key definitions */
 #define MODKEY Mod4Mask
 //#define MODKEY Mod1Mask
+#if PATCH_KEY_HOLD
+#define TAGKEYS(KEY,TAG,TAGNAME) \
+	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG}, "View tag "TAGNAME }, \
+	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG}, "Toggle view tag "TAGNAME }, \
+	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, KEY, tag,          {.ui = 1 << TAG}, "Apply tag "TAGNAME" to client" }, \
+	{ MODKEY|ShiftMask|ModKeyHoldMask, KEY, viewkeyholdclient,{.ui = 1 << TAG}, "View client on tag "TAGNAME }, \
+	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG}, "Toggle tag "TAGNAME" to client" },
+#else // NO PATCH_KEY_HOLD
 #define TAGKEYS(KEY,TAG,TAGNAME) \
 	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG}, "View tag "TAGNAME }, \
 	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG}, "Toggle view tag "TAGNAME }, \
 	{ MODKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG}, "Apply tag "TAGNAME" to client" }, \
 	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG}, "Toggle tag "TAGNAME" to client" },
+#endif // PATCH_KEY_HOLD
 
 /* helper for spawning shell commands in the pre dwm-5.0 fashion */
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/bash", "-c", cmd, NULL } }
@@ -452,8 +461,15 @@ static const Key keys[] = {
 #endif // PATCH_CFACTS
 	{ MODKEY,                       XK_Return, zoom,           {0}, DESCRIPTION_ZOOM },
 	{ MODKEY,                       XK_KP_Enter,zoom,          {0}, DESCRIPTION_ZOOM },
+#if PATCH_KEY_HOLD
+	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, XK_Left, tagmon,    {.i = -1 }, DESCRIPTION_TAGMON_BACKWARD },
+	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Left, viewkeyholdclient, {0}, DESCRIPTION_TAGMON_BACKWARD_VIEW },
+	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, XK_Right, tagmon,   {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
+	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Right, viewkeyholdclient, {0}, DESCRIPTION_TAGMON_FORWARD_VIEW },
+#else // NO PATCH_KEY_HOLD
 	{ MODKEY|ShiftMask,             XK_Left,   tagmon,         {.i = -1 }, DESCRIPTION_TAGMON_BACKWARD },
 	{ MODKEY|ShiftMask,             XK_Right,  tagmon,         {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
+#endif // PATCH_KEY_HOLD
 /* extra functionality from patches */
 
 #if PATCH_LOG_DIAGNOSTICS
@@ -495,22 +511,22 @@ static const Key keys[] = {
 #endif // PATCH_MOVE_TILED_WINDOWS
 
 #if PATCH_MOVE_FLOATING_WINDOWS
-	{ MODKEY,		           XK_KP_Left,     movefloat,      {.ui = MOVE_FLOATING_LEFT }, DESCRIPTION_MOVE_FLOAT_LEFT },
-	{ MODKEY|ShiftMask,	       XK_KP_Left,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_LEFT_BIG },
-	{ MODKEY,		           XK_KP_Right,    movefloat,      {.ui = MOVE_FLOATING_RIGHT }, DESCRIPTION_MOVE_FLOAT_RIGHT },
-	{ MODKEY|ShiftMask,        XK_KP_Right,    movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_RIGHT_BIG },
-	{ MODKEY,		           XK_KP_Up,       movefloat,      {.ui = MOVE_FLOATING_UP }, DESCRIPTION_MOVE_FLOAT_UP },
-	{ MODKEY|ShiftMask,        XK_KP_Up,       movefloat,      {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UP_BIG },
-	{ MODKEY,		           XK_KP_Down,     movefloat,      {.ui = MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWN },
-	{ MODKEY|ShiftMask,        XK_KP_Down,     movefloat,      {.ui = MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWN_BIG },
-	{ MODKEY,		           XK_KP_Home,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_UP }, DESCRIPTION_MOVE_FLOAT_UPLEFT },
-	{ MODKEY|ShiftMask,        XK_KP_Home,     movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_UP | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UPLEFT_BIG },
-	{ MODKEY,		           XK_KP_End,      movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWNLEFT },
-	{ MODKEY|ShiftMask,        XK_KP_End,      movefloat,      {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWNLEFT_BIG },
-	{ MODKEY,	               XK_KP_Page_Up,  movefloat,      {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_RIGHT }, DESCRIPTION_MOVE_FLOAT_UPRIGHT },
-	{ MODKEY|ShiftMask,        XK_KP_Page_Up,  movefloat,      {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_RIGHT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UPRIGHT_BIG },
-	{ MODKEY,		           XK_KP_Page_Down,movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWNRIGHT },
-	{ MODKEY|ShiftMask,        XK_KP_Page_Down,movefloat,      {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWNRIGHT_BIG },
+	{ MODKEY,           XK_KP_Left,      movefloat, {.ui = MOVE_FLOATING_LEFT }, DESCRIPTION_MOVE_FLOAT_LEFT },
+	{ MODKEY|ShiftMask, XK_KP_Left,      movefloat, {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_LEFT_BIG },
+	{ MODKEY,           XK_KP_Right,     movefloat, {.ui = MOVE_FLOATING_RIGHT }, DESCRIPTION_MOVE_FLOAT_RIGHT },
+	{ MODKEY|ShiftMask, XK_KP_Right,     movefloat, {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_RIGHT_BIG },
+	{ MODKEY,           XK_KP_Up,        movefloat, {.ui = MOVE_FLOATING_UP }, DESCRIPTION_MOVE_FLOAT_UP },
+	{ MODKEY|ShiftMask, XK_KP_Up,        movefloat, {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UP_BIG },
+	{ MODKEY,           XK_KP_Down,      movefloat, {.ui = MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWN },
+	{ MODKEY|ShiftMask, XK_KP_Down,      movefloat, {.ui = MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWN_BIG },
+	{ MODKEY,           XK_KP_Home,      movefloat, {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_UP }, DESCRIPTION_MOVE_FLOAT_UPLEFT },
+	{ MODKEY|ShiftMask, XK_KP_Home,      movefloat, {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_UP | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UPLEFT_BIG },
+	{ MODKEY,           XK_KP_End,       movefloat, {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWNLEFT },
+	{ MODKEY|ShiftMask, XK_KP_End,       movefloat, {.ui = MOVE_FLOATING_LEFT | MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWNLEFT_BIG },
+	{ MODKEY,           XK_KP_Page_Up,   movefloat, {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_RIGHT }, DESCRIPTION_MOVE_FLOAT_UPRIGHT },
+	{ MODKEY|ShiftMask, XK_KP_Page_Up,   movefloat, {.ui = MOVE_FLOATING_UP | MOVE_FLOATING_RIGHT | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_UPRIGHT_BIG },
+	{ MODKEY,           XK_KP_Page_Down, movefloat, {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN }, DESCRIPTION_MOVE_FLOAT_DOWNRIGHT },
+	{ MODKEY|ShiftMask, XK_KP_Page_Down, movefloat, {.ui = MOVE_FLOATING_RIGHT | MOVE_FLOATING_DOWN | MOVE_FLOATING_BIGGER }, DESCRIPTION_MOVE_FLOAT_DOWNRIGHT_BIG },
 #endif // PATCH_MOVE_FLOATING_WINDOWS
 
 // toggles

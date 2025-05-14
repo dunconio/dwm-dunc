@@ -691,7 +691,7 @@ struct wp_data {
 static int cursorhiding = 0;
 static int cursor_always_hide = 0, ignore_scroll = 0;
 static unsigned char cursor_ignore_mods = (ShiftMask | ControlMask | Mod1Mask | Mod4Mask | Mod5Mask);
-static XSyncCounter cursor_idler_counter = 0;
+static XSyncCounter counter_idletime = 0;
 static XSyncAlarm cursor_idle_alarm = None;
 static int timer_sync_event;
 static int cursormove_x = -1, cursormove_y = -1;
@@ -713,6 +713,11 @@ static int button_press_type = -1;
 static int button_release_type = -1;
 static int key_release_type = -1;
 #endif // PATCH_MOUSE_POINTER_HIDING
+
+#define ModKeyNoRepeatMask	(1<<15)
+#if PATCH_KEY_HOLD
+#define ModKeyHoldMask		(1<<14)
+#endif // PATCH_KEY_HOLD
 
 #if DEBUGGING
 static int skip_rules = 0;
@@ -1392,6 +1397,7 @@ static void attachBelow(Client *c);
 static void attachstackBelow(Client *c);
 #endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 static void attachstack(Client *c);
+static void attachstackex(Client *c);
 static void buttonpress(XEvent *e);
 #if PATCH_CLIENT_OPACITY
 static void changefocusopacity(const Arg *arg);
@@ -1582,9 +1588,9 @@ static int is_unsigned_int(const char *s);
 #endif // PATCH_IPC
 static int keycode_to_modifier(XModifierKeymap *modmap, KeyCode keycode);
 static void keypress(XEvent *e);
-#if PATCH_ALT_TAGS
+#if PATCH_ALT_TAGS || PATCH_KEY_HOLD
 static void keyrelease(XEvent *e);
-#endif // PATCH_ALT_TAGS
+#endif // PATCH_ALT_TAGS || PATCH_KEY_HOLD
 static void killclient(const Arg *arg);
 static void killclientex(Client *c, int sigterm);
 static void killgroup(const Arg *arg);
@@ -1772,6 +1778,7 @@ static void sigterm(int unused);
 //static void sigchld(int unused);
 static void sigstatusbar(const Arg *arg);
 #endif // PATCH_STATUSCMD
+static int skipnextkeyevent(int type, unsigned int keycode, unsigned int state, unsigned long serial);
 static void snapchildclients(Client *p, int quiet);
 //#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_HIDING
 #if PATCH_MOUSE_POINTER_HIDING
@@ -1913,7 +1920,11 @@ static int validate_colour(cJSON *string, char **colour);
 #endif // PATCH_TWO_TONE_TITLE
 static int validate_colours(cJSON *array, char *colours[3], char *defaults[3]);
 static pid_t validate_pid(Client *c);
+static int validclient(Client *c);
 static void view(const Arg *arg);
+#if PATCH_KEY_HOLD
+static void viewkeyholdclient(const Arg *arg);
+#endif // PATCH_KEY_HOLD
 static void viewactive(const Arg *arg);	// argument is direction (on selected monitor);
 static void viewactivenext(const Arg *arg);	// argument is monitor index;
 static void viewactiveprev(const Arg *arg);	// argument is monitor index;
@@ -1996,6 +2007,11 @@ static Monitor *constrained = NULL;
 static Client *dummyc = NULL;
 #endif // PATCH_CUSTOM_TAG_ICONS
 
+#if PATCH_KEY_HOLD
+KeySym keyholdsym = 0;
+unsigned int keyholdstate = 0;
+Client *keyholdclient = NULL;
+#endif // PATCH_KEY_HOLD
 
 #if PATCH_MOUSE_POINTER_WARPING
 static volatile sig_atomic_t warptoclient_stop_flag = 0;
@@ -2013,9 +2029,9 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[Expose] = expose,
 	[FocusIn] = focusin,
 	[KeyPress] = keypress,
-	#if PATCH_ALT_TAGS
+	#if PATCH_ALT_TAGS || PATCH_KEY_HOLD
 	[KeyRelease] = keyrelease,
-	#endif // PATCH_ALT_TAGS
+	#endif // PATCH_ALT_TAGS || PATCH_KEY_HOLD
 	[MappingNotify] = mappingnotify,
 	[MapRequest] = maprequest,
 	[MotionNotify] = motionnotify,
@@ -3651,6 +3667,17 @@ attachstack(Client *c)
 		if ((c->snext = f))
 			c->snext->sprev = c;
 	}
+}
+
+void
+attachstackex(Client *c)
+{
+	if (!c || !c->mon)
+		return;
+	c->sprev = NULL;
+	if ((c->snext = c->mon->stack))
+		c->snext->sprev = c;
+	c->mon->stack = c;
 }
 
 #if PATCH_ATTACH_BELOW_AND_NEWMASTER
@@ -5335,6 +5362,9 @@ detachstack(Client *c)
 			XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
 
 		for (t = c->mon->stack; t && (!ISVISIBLE(t)
+			#if PATCH_FLAG_HIDDEN
+			|| t->ishidden
+			#endif // PATCH_FLAG_HIDDEN
 			#if PATCH_FLAG_PANEL
 			|| t->ispanel
 			#endif // PATCH_FLAG_PANEL
@@ -7594,7 +7624,7 @@ focus(Client *c, int force)
 		#endif // PATCH_ALTTAB
 		{
 			detachstackex(c);
-			attachstack(c);
+			attachstackex(c);
 			grabbuttons(c, 1);
 		}
 		/* Avoid flickering when another client appears and the border
@@ -9015,11 +9045,15 @@ grabkeys(void)
 		for (k = start; k <= end; k++)
 			for (i = 0; i < LENGTH(keys); i++)
 				/* skip modifier codes, we do that ourselves */
-				if (keys[i].keysym == syms[(k - start) * skip])
+				if (keys[i].keysym == syms[(k - start) * skip]
+					#if PATCH_KEY_HOLD
+					&& !(keys[i].mod & ModKeyHoldMask)
+					#endif // PATCH_KEY_HOLD
+					)
 					for (j = 0; j < LENGTH(modifiers); j++)
 						if (!(XGrabKey(
 								dpy, k,
-								keys[i].mod | modifiers[j],
+								(keys[i].mod & ~ModKeyNoRepeatMask) | modifiers[j],
 								root, True,
 								GrabModeAsync, GrabModeAsync
 							)))
@@ -9658,6 +9692,7 @@ keypress(XEvent *e)
 
 	ev = &e->xkey;
 	keysym = XKeycodeToKeysym(dpy, (KeyCode)ev->keycode, 0);
+	#if PATCH_KEY_HOLD
 	for (i = 0; i < LENGTH(keys); i++)
 		if (keysym == keys[i].keysym
 		&& CLEANMASK(keys[i].mod) == CLEANMASK(ev->state)
@@ -9666,25 +9701,60 @@ keypress(XEvent *e)
 			if (torchwin && keys[i].func && keys[i].func != toggletorch)
 				break;
 			#endif // PATCH_TORCH
+			if (keys[i].mod & ModKeyHoldMask) {
+				keyholdstate = CLEANMASK(keys[i].mod);
+				keyholdsym = keysym;
+				keyholdclient = selmon->sel;
+			}
+		}
+	#endif // PATCH_KEY_HOLD
+	for (i = 0; i < LENGTH(keys); i++)
+		if (keysym == keys[i].keysym
+		&& CLEANMASK(keys[i].mod) == CLEANMASK(ev->state)
+		&& keys[i].func) {
+			#if PATCH_TORCH
+			if (torchwin && keys[i].func && keys[i].func != toggletorch)
+				break;
+			#endif // PATCH_TORCH
+			#if PATCH_KEY_HOLD
+			if (!(keys[i].mod & ModKeyHoldMask))
+			#endif // PATCH_KEY_HOLD
 			keys[i].func(&(keys[i].arg));
 		}
 }
 
-#if PATCH_ALT_TAGS
+#if PATCH_ALT_TAGS || PATCH_KEY_HOLD
 void
 keyrelease(XEvent *e)
 {
 	unsigned int i;
+	int skipevent = 0;
 	KeySym keysym;
 	XKeyEvent *ev;
 
 	ev = &e->xkey;
 	keysym = XKeycodeToKeysym(dpy, (KeyCode)ev->keycode, 0);
 
-    for (i = 0; i < LENGTH(keys); i++)
-        if (keys[i].func && keys[i].func == togglealttags
-        && (keysym == keys[i].keysym
-        || CLEANMASK(keys[i].mod) == CLEANMASK(ev->state))) {
+    for (i = 0; i < LENGTH(keys); i++) {
+		if (
+			#if PATCH_ALT_TAGS
+			!(
+				keys[i].func && keys[i].func == togglealttags &&
+				(
+					keysym == keys[i].keysym ||
+					CLEANMASK(keys[i].mod) == CLEANMASK(ev->state)
+				)
+			) &&
+			#endif // PATCH_ALT_TAGS
+			(
+				keysym != keys[i].keysym ||
+				CLEANMASK(keys[i].mod) != CLEANMASK(ev->state)
+			))
+			continue;
+		if ((keys[i].mod & ModKeyNoRepeatMask))
+			skipevent = skipnextkeyevent(KeyPress, ev->keycode, CLEANMASK(ev->state), ev->serial);
+		#if PATCH_ALT_TAGS
+        if (!skipevent && keys[i].func && keys[i].func == togglealttags) {
 			if (selmon->alttags)
             	keys[i].func(&(keys[i].arg));
 			else
@@ -9693,9 +9763,25 @@ keyrelease(XEvent *e)
 					drawbar(m, 0);
 				}
 		}
-
+		#endif // PATCH_ALT_TAGS
+		#if PATCH_KEY_HOLD
+		if (skipevent && (keys[i].mod & ModKeyHoldMask)
+			&& keysym == keyholdsym
+			&& CLEANMASK(keys[i].mod) == keyholdstate
+			) {
+			keyholdsym = 0;
+			keyholdstate = 0;
+			if (keys[i].func)
+				keys[i].func(&(keys[i].arg));
+		}
+		#endif // PATCH_KEY_HOLD
+	}
+	#if PATCH_KEY_HOLD
+	if (!skipevent)
+		keyholdclient = NULL;
+	#endif // PATCH_KEY_HOLD
 }
-#endif // PATCH_ALT_TAGS
+#endif // PATCH_ALT_TAGS || PATCH_KEY_HOLD
 
 void
 killclient(const Arg *arg)
@@ -15564,6 +15650,19 @@ setopacity(Client *c, double opacity)
 }
 #endif // PATCH_CLIENT_OPACITY
 
+int
+skipnextkeyevent(int type, unsigned int keycode, unsigned int state, unsigned long serial)
+{
+	XEvent xev;
+	if (!XPending(dpy))
+		return 0;
+	XPeekEvent(dpy, &xev);
+	if (xev.type != type || xev.xkey.keycode != keycode || CLEANMASK(xev.xkey.state) != state || xev.xkey.serial != serial)
+		return 0;
+	XNextEvent(dpy, &xev);
+	return 1;
+}
+
 void
 snapchildclients(Client *p, int quiet)
 {
@@ -17268,7 +17367,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	#endif // PATCH_SHOW_DESKTOP
 	int sel = (leader ? (leader == c->mon->sel ? 1 : 0) : 0);
-	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_FOCUS_FOLLOWS_MOUSE && !PATCH_KEY_HOLD
 	int px, py;
 	unsigned int cw = 1, ch = 1;
 	float sfw, sfh;
@@ -17277,7 +17376,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		cw = leader->w;
 		ch = leader->h;
 	}
-	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE && !PATCH_KEY_HOLD
 
 	#if PATCH_MODAL_SUPPORT
 	if (c->ismodal) {
@@ -17354,10 +17453,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 		{
 			attach(c);
-			c->sprev = NULL;
-			if ((c->snext = c->mon->stack))
-				c->snext->sprev = c;
-			c->mon->stack = c;
+			attachstackex(c);
 		}
 		// move the client if it is floating;
 		if (c->isfloating) {
@@ -17415,12 +17511,15 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	#endif // PATCH_SHOW_DESKTOP
 
+	#if PATCH_KEY_HOLD
+	arrange(NULL);
+	#else // NO PATCH_KEY_HOLD
 	if (sel) {
 		m->sel = leader;
 		selmon = m;
 
 		arrange(NULL);
-		focus(sel ? leader : NULL, 0);
+		focus(sel ? leader : NULL, 1);
 
 		#if PATCH_FOCUS_FOLLOWS_MOUSE
 		if (cw != 0 && ch != 0) {
@@ -17430,6 +17529,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		}
 		#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	}
+	#endif // PATCH_KEY_HOLD
 
 	if (c->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
@@ -17450,9 +17550,9 @@ set_idle_alarm(void)
 	XSyncValue value;
 	unsigned int flags;
 
-	XSyncQueryCounter(dpy, cursor_idler_counter, &value);
+	XSyncQueryCounter(dpy, counter_idletime, &value);
 
-	attr.trigger.counter = cursor_idler_counter;
+	attr.trigger.counter = counter_idletime;
 	attr.trigger.test_type = XSyncPositiveComparison;
 	attr.trigger.value_type = XSyncRelative;
 	XSyncIntsToValue(&attr.trigger.wait_value, cursortimeout * 1000, (unsigned long)(cursortimeout * 1000) >> 32);
@@ -18638,8 +18738,10 @@ setup_sync_counters(void)
 	if (XSyncQueryExtension(dpy, &timer_sync_event, &error) != True) {
 		logdatetime(stderr);
 		fputs("dwm: no X sync extension available;", stderr);
+		#if PATCH_MOUSE_POINTER_HIDING
 		if (cursortimeout)
 			fputs(" no cursor autohiding available;", stderr);
+		#endif // PATCH_MOUSE_POINTER_HIDING
 		fputs("\n", stderr);
 	}
 	else {
@@ -18647,16 +18749,21 @@ setup_sync_counters(void)
 
 		counters = XSyncListSystemCounters(dpy, &ncounters);
 		for (i = 0; i < ncounters; i++) {
-			if (!strcmp(counters[i].name, "IDLETIME")) {
-				cursor_idler_counter = counters[i].counter;
-				break;
-			}
+			#if PATCH_MOUSE_POINTER_HIDING
+			if (!strcmp(counters[i].name, "IDLETIME"))
+				counter_idletime = counters[i].counter;
+			#endif // PATCH_MOUSE_POINTER_HIDING
 		}
 		XSyncFreeSystemCounterList(counters);
 
-		if (cursortimeout && !cursor_idler_counter) {
+		if (!counter_idletime) {
 			logdatetime(stderr);
-			fputs("dwm: no X idle counter - no cursor autohiding available.\n", stderr);
+			fputs("dwm: no X idle counter;", stderr);
+			#if PATCH_MOUSE_POINTER_HIDING
+			if (cursortimeout)
+				fputs(" no cursor autohiding available;", stderr);
+			#endif // PATCH_MOUSE_POINTER_HIDING
+			fputs("\n", stderr);
 		}
 	}
 }
@@ -19149,6 +19256,7 @@ spawnex(const void *v, int keyhelp)
 	char buffer[256];
 	char bigbuff[32768];
 	size_t b = 0, i, j;
+	size_t buffsize = sizeof buffer - 1;
 	int k;
 	KeySym keysym;
 	unsigned int mod;
@@ -19162,12 +19270,12 @@ spawnex(const void *v, int keyhelp)
 
 #define TEST_KEY_MASK(MASK,TEXT) \
 	if (mod & MASK) { \
-		strncpy(buffer + j, TEXT"-", sizeof buffer - j); \
+		strncpy(buffer + j, TEXT"-", buffsize - j); \
 		j += strlen(TEXT"-"); \
 	}
 #define APPEND_BUFFER(KEYSYM,TEXT) \
 	case KEYSYM: \
-		strncpy(buffer + j, TEXT, sizeof buffer - j); \
+		strncpy(buffer + j, TEXT, buffsize - j); \
 		j += strlen(TEXT); \
 		break;
 
@@ -19289,11 +19397,17 @@ spawnex(const void *v, int keyhelp)
 						APPEND_BUFFER(XK_Sys_Req, "Sys_Req")
 						APPEND_BUFFER(XK_Print, "Print_Screen")
 						default:
-							buffer[j] = toupper(charcodes[k].key);
+							buffer[j++] = toupper(charcodes[k].key);
 					}
 					break;
 				}
 
+			#if PATCH_KEY_HOLD
+			if (mod & ModKeyHoldMask) {
+				strncpy(buffer + j, " [HELD]", buffsize - j);
+				j += 6;
+			}
+			#endif // PATCH_KEY_HOLD
 			buffer[++j] = '\0';
 
 			strncpy(bigbuff + b, buffer, sizeof bigbuff - b);
@@ -23069,7 +23183,7 @@ validate_colours(cJSON *array, char *colours[3], char *defaults[3])
 pid_t
 validate_pid(Client *c)
 {
-	if (!c)
+	if (!validclient(c))
 		return 0;
 	int ret;
 	if (c->pid && (ret = kill(c->pid, 0)) && ret == -1 && errno == ESRCH) {
@@ -23102,6 +23216,18 @@ validate_pid(Client *c)
 		}
 	}
 	return (c->pid);
+}
+
+int
+validclient(Client *c)
+{
+	if (!c)
+		return 0;
+	for (Monitor *m = mons; m; m = m->next)
+		for (Client *cc = m->clients; cc; cc = cc->next)
+			if (cc == c)
+				return 1;
+	return 0;
 }
 
 void
@@ -23300,6 +23426,41 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 		arrange(m);
 	}
 }
+
+#if PATCH_KEY_HOLD
+void
+viewkeyholdclient(const Arg *arg)
+{
+	Client *c = keyholdclient;
+	keyholdclient = NULL;
+	if (!validclient(c)
+		#if PATCH_FLAG_HIDDEN
+		|| c->ishidden
+		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_FLAG_IGNORED
+		|| c->isignored
+		#endif // PATCH_FLAG_IGNORED
+		#if PATCH_FLAG_PANEL
+		|| c->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		|| c->isdesktop || c->ondesktop
+		#endif // PATCH_SHOW_DESKTOP
+		)
+		return;
+
+	if (!ISVISIBLE(c))
+		viewmontag(c->mon, c->tags, 1);
+	focus(c, 1);
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	warptoclient(c, 0, 1);
+	#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	warptoclient(c, 1);
+	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+}
+#endif // PATCH_KEY_HOLD
 
 void
 viewactive(const Arg *arg)
@@ -24462,7 +24623,6 @@ reload:
 	}
 	if (cursor_always_hide)
 		hidecursor();
-	#else // NO PATCH_MOUSE_POINTER_HIDING
 	#endif // PATCH_MOUSE_POINTER_HIDING
 	#if PATCH_LOG_DIAGNOSTICS
 	logdatetime(stderr);

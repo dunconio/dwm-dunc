@@ -68,6 +68,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_HIDE_VACANT_TAGS` | Hides vacant tags (except the current active tag); |
 | `PATCH_IPC` | Provides socket-based message handling; |
 | `PATCH_LOG_DIAGNOSTICS` | Diagnostic functions that log to `stderr`; |
+| `PATCH_KEY_HOLD` | Enable use of 'synthetic' key qualifier mask `ModKeyHoldMask` (in `config.h`) to trigger the function when the key combination is held (long enough to repeat);<ul><li>This augments the existing functionality of synthetic mask `ModKeyNoRepeatMask` to only trigger function on initial key press (ignores key repeats);</li><li>Without either synthetic mask, all key repeats will re-trigger the function.</li></ul> |
 | `PATCH_MIRROR_LAYOUT` | Swap the master and stack areas where applicable; |
 | `PATCH_MODAL_SUPPORT` | Ensures floating modal child clients get focused appropriately |
 | `PATCH_MOUSE_POINTER_HIDING` | Support for hiding the mouse pointer when idle or typing; |

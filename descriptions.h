@@ -143,6 +143,10 @@
 
 #define DESCRIPTION_TAGMON_BACKWARD					"Move the client to the previous monitor"
 #define DESCRIPTION_TAGMON_FORWARD					"Move the client to the next monitor"
+#if PATCH_KEY_HOLD
+#define DESCRIPTION_TAGMON_BACKWARD_VIEW			"View the client that was moved to previous monitor"
+#define DESCRIPTION_TAGMON_FORWARD_VIEW				"View the client that was moved to next monitor"
+#endif // PATCH_KEY_HOLD
 
 #define DESCRIPTION_TOGGLE_30S_TONE					"Toggle 30s tone script"
 

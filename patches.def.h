@@ -25,6 +25,7 @@
 #define PATCH_HANDLE_SIGNALS				1	// respond appropriately to signals
 #define PATCH_HIDE_VACANT_TAGS				1
 #define PATCH_IPC							1	// socket-based message handling
+#define PATCH_KEY_HOLD						1	// shortcut hold option to trigger extra action;
 #define PATCH_LOG_DIAGNOSTICS				1
 #define PATCH_MIRROR_LAYOUT					1	// Swap the master and stack areas;
 #define PATCH_MODAL_SUPPORT					1	// Ensures floating modal child clients get focused appropriately
