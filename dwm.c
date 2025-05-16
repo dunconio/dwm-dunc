@@ -1367,6 +1367,7 @@ struct Systray {
 /* function declarations */
 static void activate(const Arg *arg);
 static void activateclient(Client *c, int setfocus);
+static void adjustfloatposition(Client *c);
 #if PATCH_FLAG_FLOAT_ALIGNMENT
 static int alignfloat(Client *c, float relX, float relY);
 #endif // PATCH_FLAG_FLOAT_ALIGNMENT
@@ -1549,7 +1550,7 @@ static pid_t getstatusbarpid();
 static unsigned int getsystraywidth();
 #endif // PATCH_SYSTRAY
 static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
-static Client *gettoplevelclient(Monitor *m);
+static Client *getmontopclient(Monitor *m);		// get the top client on the monitor from XQueryTree;
 static Client *getultimateparentclient(Client *c);
 static void grabbuttons(Client *c, int focused);
 #if PATCH_ALTTAB || PATCH_TORCH
@@ -2220,6 +2221,59 @@ activateclient(Client *c, int setfocus)
 	#endif // PATCH_MOUSE_POINTER_WARPING
 }
 
+void
+adjustfloatposition(Client *c)
+{
+	#if PATCH_FLAG_FLOAT_ALIGNMENT
+	alignfloat(c, c->floatingx, c->floatingy);
+	#if PATCH_FLAG_CENTRED
+	int aligned =
+	#endif // PATCH_FLAG_CENTRED
+		alignfloat(c, c->floatalignx, c->floataligny);
+	#endif // PATCH_FLAG_FLOAT_ALIGNMENT
+
+	#if PATCH_FLAG_CENTRED
+	if (c->isfloating && c->iscentred && (
+		!c->isfullscreen
+		#if PATCH_FLAG_FAKEFULLSCREEN
+		|| c->fakefullscreen == 1
+		#endif // PATCH_FLAG_FAKEFULLSCREEN
+		)
+	) {
+		#if PATCH_FLAG_FLOAT_ALIGNMENT
+		if (c->iscentred == 1 || (c->iscentred == 2 && (!c->parent || c->parent->mon != c->mon))) {
+			if (!(aligned & FLOAT_ALIGNED_X))
+				c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
+			if (!(aligned & FLOAT_ALIGNED_Y))
+				c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
+		}
+		else if (c->iscentred == 2) {
+			if (!(aligned & FLOAT_ALIGNED_X))
+				c->x = MAX(c->parent->x + (WIDTH(c->parent) - WIDTH(c)) / 2, c->mon->wx);
+			if (!(aligned & FLOAT_ALIGNED_Y))
+				c->y = MAX(c->parent->y + (HEIGHT(c->parent) - HEIGHT(c)) / 2, c->mon->wy);
+		}
+		#else // NO PATCH_FLAG_FLOAT_ALIGNMENT
+		if (c->iscentred == 1 || (c->iscentred == 2 && (!c->parent || c->parent->mon != c->mon))) {
+			c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
+			c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
+		}
+		else if (c->iscentred == 2) {
+			c->x = MAX(c->parent->x + (WIDTH(c->parent) - WIDTH(c)) / 2, c->mon->wx);
+			c->y = MAX(c->parent->y + (HEIGHT(c->parent) - HEIGHT(c)) / 2, c->mon->wy);
+		}
+		#endif // PATCH_FLAG_FLOAT_ALIGNMENT
+	}
+	#endif // PATCH_FLAG_CENTRED
+
+	if (c->x + WIDTH(c) > c->mon->wx + c->mon->ww)
+		c->x = c->mon->wx + c->mon->ww - WIDTH(c);
+	if (c->y + HEIGHT(c) > c->mon->wy + c->mon->wh)
+		c->y = c->mon->wy + c->mon->wh - HEIGHT(c);
+	c->x = MAX(c->x, c->mon->wx);
+	c->y = MAX(c->y, c->mon->wy);
+}
+
 #if PATCH_FLAG_FLOAT_ALIGNMENT
 int
 alignfloat(Client *c, float relX, float relY)
@@ -2383,8 +2437,25 @@ applyrulesdeferred(Client *c, char *oldtitle)
 			c->tags = tags;
 		Monitor *mm = c->mon;
 		c->mon = m;
-		if (floating != c->isfloating_override && c->isurgent && c->isfloating)
-			focus(c, 0);
+		if (floating != c->isfloating_override && c->isfloating) {
+			if (c->isfloating) {
+				// move client into appropriate position;
+				if (selmon->sel == c) {
+					adjustfloatposition(c);
+					focus(c, 1);
+					#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+					warptoclient(c, 1, 1);
+					#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+					warptoclient(c, 1);
+					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+				}
+				else
+					adjustfloatposition(c);
+			}
+			arrange(c->mon);
+			if (c->isurgent)
+				focus(c, 0);
+		}
 		if (m == mm && (c->tags == tags || ISVISIBLE(c))) {
 			if (c->monindex == -1)
 				c->monindex = mm->num;
@@ -8880,7 +8951,7 @@ gettextprop(Window w, Atom atom, char *text, unsigned int size)
 }
 
 Client *
-gettoplevelclient(Monitor *m)
+getmontopclient(Monitor *m)
 {
 	int i;
 	unsigned int num;
@@ -10707,10 +10778,14 @@ logdiagnostics(const Arg *arg)
 		fprintf(stderr, "    Focused on tag:");
 		for (int i = 0; i < LENGTH(tags); i++) {
 			fprintf(stderr, "\n        [%i] ", i + 1);
-			if ((c = m->focusontag[i]))
-				logdiagnostics_client_common(c, "", "");
-			else
-				fputs("<none>", stderr);
+			if ((c = m->focusontag[i])) {
+				if (validclient(c)) {
+					logdiagnostics_client_common(c, "", "");
+					continue;
+				}
+				m->focusontag[i] = NULL;
+			}
+			fputs("<none>", stderr);
 		}
 
 		fprintf(stderr, "\n    Clients:\n");
@@ -10992,11 +11067,6 @@ manage(Window w, XWindowAttributes *wa)
 	Window trans = None;
 	XWindowChanges wc;
 	XEvent xev;
-	#if PATCH_FLAG_FLOAT_ALIGNMENT
-	#if PATCH_FLAG_CENTRED
-	int aligned = 0;
-	#endif // PATCH_FLAG_CENTRED
-	#endif // PATCH_FLAG_FLOAT_ALIGNMENT
 	#if PATCH_SHOW_DESKTOP
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	int nondesktop = 0;
@@ -11242,54 +11312,8 @@ manage(Window w, XWindowAttributes *wa)
 	#endif // PATCH_FLAG_CENTRED
 	#endif // PATCH_FLAG_GAME
 
-	#if PATCH_FLAG_FLOAT_ALIGNMENT
-	alignfloat(c, c->floatingx, c->floatingy);
-	#if PATCH_FLAG_CENTRED
-	aligned =
-	#endif // PATCH_FLAG_CENTRED
-		alignfloat(c, c->floatalignx, c->floataligny);
-	#endif // PATCH_FLAG_FLOAT_ALIGNMENT
-
-	#if PATCH_FLAG_CENTRED
-	if (c->isfloating && c->iscentred && (
-		!c->isfullscreen
-		#if PATCH_FLAG_FAKEFULLSCREEN
-		|| c->fakefullscreen == 1
-		#endif // PATCH_FLAG_FAKEFULLSCREEN
-		)
-	) {
-		#if PATCH_FLAG_FLOAT_ALIGNMENT
-		if (c->iscentred == 1 || (c->iscentred == 2 && (!c->parent || c->parent->mon != c->mon))) {
-			if (!(aligned & FLOAT_ALIGNED_X))
-				c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
-			if (!(aligned & FLOAT_ALIGNED_Y))
-				c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
-		}
-		else if (c->iscentred == 2) {
-			if (!(aligned & FLOAT_ALIGNED_X))
-				c->x = MAX(c->parent->x + (WIDTH(c->parent) - WIDTH(c)) / 2, c->mon->wx);
-			if (!(aligned & FLOAT_ALIGNED_Y))
-				c->y = MAX(c->parent->y + (HEIGHT(c->parent) - HEIGHT(c)) / 2, c->mon->wy);
-		}
-		#else // NO PATCH_FLAG_FLOAT_ALIGNMENT
-		if (c->iscentred == 1 || (c->iscentred == 2 && (!c->parent || c->parent->mon != c->mon))) {
-			c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
-			c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
-		}
-		else if (c->iscentred == 2) {
-			c->x = MAX(c->parent->x + (WIDTH(c->parent) - WIDTH(c)) / 2, c->mon->wx);
-			c->y = MAX(c->parent->y + (HEIGHT(c->parent) - HEIGHT(c)) / 2, c->mon->wy);
-		}
-		#endif // PATCH_FLAG_FLOAT_ALIGNMENT
-	}
-	#endif // PATCH_FLAG_CENTRED
-
-	if (c->x + WIDTH(c) > c->mon->wx + c->mon->ww)
-		c->x = c->mon->wx + c->mon->ww - WIDTH(c);
-	if (c->y + HEIGHT(c) > c->mon->wy + c->mon->wh)
-		c->y = c->mon->wy + c->mon->wh - HEIGHT(c);
-	c->x = MAX(c->x, c->mon->wx);
-	c->y = MAX(c->y, c->mon->wy);
+	if (c->isfloating)
+		adjustfloatposition(c);
 
 	updatesizehints(c);
 	updatewmhints(c);
@@ -12276,9 +12300,9 @@ movefloat(const Arg *arg)
 	getrelativeptr(c, &px, &py);
 	XMoveWindow(dpy, c->win, c->x, c->y);
 	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, px, py);
-	#else // NO PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
-	XMoveWindow(dpy, c->win, c->x, c->y);
+	focus(c, 1);
 	#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
+	XMoveWindow(dpy, c->win, c->x, c->y);
 
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	if (focuswin)
@@ -14945,7 +14969,7 @@ raisewin(Monitor *m, Window w, int above_bar)
 	#endif // PATCH_TORCH
 	{
 		if (w == m->barwin) {
-			if ((c = gettoplevelclient(m))) {
+			if ((c = getmontopclient(m))) {
 				wc.sibling = c->win;
 				wc.stack_mode = Above;
 				XConfigureWindow(dpy, w, CWSibling|CWStackMode, &wc);
@@ -20993,6 +21017,15 @@ tag(const Arg *arg)
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 
 	c->tags = arg->ui & TAGMASK;
+	if (c->isfullscreen
+		#if PATCH_FLAG_FAKEFULLSCREEN
+		&& c->fakefullscreen != 1
+		#endif // PATCH_FLAG_FAKEFULLSCREEN
+	) {
+		for (int i = 0; i < LENGTH(tags); i++)
+			if (c->tags & (1 << i))
+				selmon->focusontag[i] = c;
+	}
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
@@ -23451,6 +23484,11 @@ viewkeyholdclient(const Arg *arg)
 
 	if (!ISVISIBLE(c))
 		viewmontag(c->mon, c->tags, 1);
+	else if (c->mon != selmon) {
+		Monitor *mm = selmon;
+		selmon = c->mon;
+		drawbar(mm, 1);
+	}
 	focus(c, 1);
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
