@@ -1155,6 +1155,7 @@ struct Client {
 	Client *next;
 	Client *sprev;
 	Client *snext;
+	Client *prevsel;
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 	int pauseinvisible;
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
@@ -7670,8 +7671,13 @@ focus(Client *c, int force)
 		}
 		#endif // PATCH_CLASS_STACKING
 
-		if (c->mon != selmon)
+		if (c->mon != selmon) {
 			selmon = c->mon;
+			c->prevsel = NULL;
+		}
+		else if (c != c->prevsel && c->prevsel != selmon->sel)
+			c->prevsel = selmon->sel;
+
 		if (c->isurgent
 			#if PATCH_ALTTAB
 			&& !altTabMon
@@ -9145,6 +9151,11 @@ guessnextfocus(Client *c, Monitor *m)
 	else
 		if (!m)
 			m = c->mon;
+
+	// use prevsel if it's visible and on the same monitor;
+	if (c && c->prevsel && validclient(c->prevsel)
+		&& ISVISIBLE(c->prevsel) && c->prevsel->mon == c->mon)
+		sel = c->prevsel;
 
 	// prefer the client's parent for the next focus;
 	if (!sel && c && c->parent && ISVISIBLE(c->parent) && c->parent->mon == c->mon) {
@@ -15324,6 +15335,8 @@ removelinks(Client *c)
 	// now reset any remaining child clients parent/ult-parent links;
 	for (m = mons; m; m = m->next)
 		for (cc = m->clients; cc; cc = cc->next) {
+			if (cc->prevsel == c)
+				cc->prevsel = NULL;
 			if (cc->parent == c)
 				cc->parent = c->parent;
 			if (cc->ultparent == c && cc->index < index) {
@@ -17768,6 +17781,7 @@ setdefaultvalues(Client *c)
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 	c->pauseinvisible = 0;
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
+	c->prevsel = NULL;
 }
 
 #if PATCH_EWMH_TAGS
