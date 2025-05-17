@@ -9180,12 +9180,20 @@ guessnextfocus(Client *c, Monitor *m)
 
 	// use prevsel if it's visible and on the same monitor;
 	if (c && c->prevsel && validclient(c->prevsel)
-		&& ISVISIBLE(c->prevsel) && c->prevsel->mon == c->mon)
+		&& ISVISIBLE(c->prevsel) && c->prevsel->mon == c->mon
+		#if PATCH_FLAG_HIDDEN
+		&& !c->prevsel->ishidden
+		#endif // PATCH_FLAG_HIDDEN
+		)
 		sel = c->prevsel;
 
 	// prefer the client's parent for the next focus;
 	if (!sel && c && c->parent && !c->toplevel && !c->fosterparent
-		&& ISVISIBLE(c->parent) && c->parent->mon == c->mon) {
+		&& ISVISIBLE(c->parent) && c->parent->mon == c->mon
+		#if PATCH_FLAG_HIDDEN
+		&& !c->parent->ishidden
+		#endif // PATCH_FLAG_HIDDEN
+		) {
 		sel = c->parent;
 		// if floating client has autofocus=0 then look at its parent instead;
 		while (sel && sel->isfloating && !sel->autofocus) {
