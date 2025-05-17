@@ -17595,6 +17595,8 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 
 	#if PATCH_KEY_HOLD
 	arrange(NULL);
+	if (sel)
+		focus(NULL, 0);
 	#else // NO PATCH_KEY_HOLD
 	if (sel) {
 		m->sel = leader;
@@ -17620,6 +17622,11 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		) {
 		resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
 		raiseclient(c);
+		c->mon->sel = c;
+		for (int i = 0; i < LENGTH(tags); i++)
+			if (c->tags & (1 << i))
+				c->mon->focusontag[i] = c;
+		drawbar(c->mon, 1);
 	}
 }
 
@@ -23544,12 +23551,9 @@ viewkeyholdclient(const Arg *arg)
 		return;
 
 	if (!ISVISIBLE(c))
-		viewmontag(c->mon, c->tags, 1);
-	else if (c->mon != selmon) {
-		Monitor *mm = selmon;
-		selmon = c->mon;
-		drawbar(mm, 1);
-	}
+		viewmontag(c->mon, c->tags, 0);
+	if (c->mon != selmon)
+		focusmonex(c->mon);
 	focus(c, 1);
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
