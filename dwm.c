@@ -997,7 +997,7 @@ struct Client {
 	#if PATCH_FLAG_TITLE
 	char *displayname;
 	#endif // PATCH_FLAG_TITLE
-
+	int toplevel;
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	char *dispclass;
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
@@ -1151,6 +1151,7 @@ struct Client {
 	int followparent;
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 	Client *parent;
+	int fosterparent;
 	Client *ultparent;
 	Client *next;
 	Client *sprev;
@@ -2242,7 +2243,11 @@ adjustfloatposition(Client *c)
 		)
 	) {
 		#if PATCH_FLAG_FLOAT_ALIGNMENT
-		if (c->iscentred == 1 || (c->iscentred == 2 && (!c->parent || c->parent->mon != c->mon))) {
+		if (c->iscentred == 1
+			|| (c->iscentred == 2
+				&& (c->toplevel || c->fosterparent || !c->parent || c->parent->mon != c->mon)
+			)
+		) {
 			if (!(aligned & FLOAT_ALIGNED_X))
 				c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
 			if (!(aligned & FLOAT_ALIGNED_Y))
@@ -2255,7 +2260,11 @@ adjustfloatposition(Client *c)
 				c->y = MAX(c->parent->y + (HEIGHT(c->parent) - HEIGHT(c)) / 2, c->mon->wy);
 		}
 		#else // NO PATCH_FLAG_FLOAT_ALIGNMENT
-		if (c->iscentred == 1 || (c->iscentred == 2 && (!c->parent || c->parent->mon != c->mon))) {
+		if (c->iscentred == 1
+			|| (c->iscentred == 2
+				&& (c->toplevel || c->fosterparent || !c->parent || c->parent->mon != c->mon)
+			)
+		) {
 			c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
 			c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
 		}
@@ -2304,7 +2313,9 @@ alignfloat(Client *c, float relX, float relY)
 				#endif // PATCH_FLAG_PANEL
 				#if PATCH_FLAG_CENTRED
 				{
-					if (c->iscentred == 2 && c->parent)
+					if (c->iscentred == 2 && c->parent
+						&& !c->toplevel && !c->fosterparent
+						)
 						y = (relY * (c->parent->h - h - c->bw*2) + c->parent->y);
 					else
 						y = (relY * (c->mon->wh - h - c->bw*2) + c->mon->wy);
@@ -2336,7 +2347,9 @@ alignfloat(Client *c, float relX, float relY)
 				#endif // PATCH_FLAG_PANEL
 				#if PATCH_FLAG_CENTRED
 				{
-					if (c->iscentred == 2 && c->parent)
+					if (c->iscentred == 2 && c->parent
+						&& !c->toplevel && !c->fosterparent
+						)
 						x = (relX * (c->parent->w - w - c->bw*2) + c->parent->x);
 					else
 						x = (relX * (c->mon->ww - w - c->bw*2) + c->mon->wx);
@@ -2662,7 +2675,10 @@ applyrules(Client *c, int deferred, char *oldtitle)
 		sz_p_role = strlen(p_role);
 		sz_p_title = strlen(p_title);
 	}
-	else p_role[0] = '\0';
+	else {
+		p_role[0] = '\0';
+		c->toplevel = 1;
+	}
 
 	if (!deferred)
 		setdefaultvalues(c);
@@ -2728,6 +2744,8 @@ applyrules(Client *c, int deferred, char *oldtitle)
 								if (pch.res_name)
 									XFree(pch.res_name);
 								if (!p->parent_late) {
+									p->fosterparent = 0;
+									p->toplevel = 0;
 									if (p == c) {
 										p->ultparent = c;
 										p->parent = NULL;
@@ -2743,8 +2761,10 @@ applyrules(Client *c, int deferred, char *oldtitle)
 									}
 									if (c->parent == p)
 										c->parent = NULL;
-									if (c->ultparent == p)
+									if (c->ultparent == p) {
 										c->ultparent = c;
+										c->toplevel = 1;
+									}
 									p->parent_begins = NULL;
 									p->parent_contains = NULL;
 									p->parent_ends = NULL;
@@ -2835,7 +2855,7 @@ applyrules(Client *c, int deferred, char *oldtitle)
 				);
 
 				if (c->parent)
-					fprintf(stderr, " parent:\"%s\"", c->parent->name);
+					fprintf(stderr, " %sparent:\"%s\"", c->fosterparent ? "[foster]" : "", c->parent->name);
 				else
 					fprintf(stderr, " parent:<none>");
 
@@ -2863,6 +2883,8 @@ applyrules(Client *c, int deferred, char *oldtitle)
 					if (cJSON_IsNull(r_node)) {
 						c->parent = NULL;
 						c->ultparent = c;
+						c->toplevel = 1;
+						c->fosterparent = 0;
 						goto skip_parenting;
 					}
 					else if (cJSON_IsString(r_node))
@@ -2889,9 +2911,11 @@ applyrules(Client *c, int deferred, char *oldtitle)
 							if (pch.res_name)
 								XFree(pch.res_name);
 							if (!c->parent_late) {
+								c->fosterparent = 0;
 								if (c == p) {
 									c->ultparent = p;
 									c->parent = NULL;
+									c->toplevel = 1;
 								}
 								else {
 									c->parent = p;
@@ -2899,6 +2923,7 @@ applyrules(Client *c, int deferred, char *oldtitle)
 									c->tags = p->tags;
 									c->mon = p->mon;
 									c->monindex = p->monindex;
+									c->toplevel = 0;
 								}
 								c->parent_begins = NULL;
 								c->parent_contains = NULL;
@@ -2921,9 +2946,11 @@ applyrules(Client *c, int deferred, char *oldtitle)
 							||	(c->parent_ends && applyrules_stringtest(c->parent_ends, p->name, sz_sp_title, APPLYRULES_STRING_ENDS))
 							||	(c->parent_is && applyrules_stringtest(c->parent_is, p->name, sz_sp_title, APPLYRULES_STRING_EXACT))
 							) {
+								c->fosterparent = 0;
 								if (c == p) {
 									c->ultparent = p;
 									c->parent = NULL;
+									c->toplevel = 1;
 								}
 								else {
 									c->parent = p;
@@ -2931,6 +2958,7 @@ applyrules(Client *c, int deferred, char *oldtitle)
 									c->tags = p->tags;
 									c->mon = p->mon;
 									c->monindex = p->monindex;
+									c->toplevel = 0;
 								}
 								c->parent_begins = NULL;
 								c->parent_contains = NULL;
@@ -2971,6 +2999,8 @@ skip_parenting:
 					c->parent = p;
 					c->ultparent = p->ultparent;
 					c->index = p->index + 1;
+					c->toplevel = 0;
+					c->fosterparent = 1;
 				}
 			}
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-never-parent")) && json_isboolean(r_node)) c->neverparent = r_node->valueint;
@@ -3170,13 +3200,7 @@ skip_parenting:
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-sticky")) && json_isboolean(r_node)) c->issticky = r_node->valueint;
 			#endif // PATCH_FLAG_STICKY
 
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-top-level")) && json_isboolean(r_node) && r_node->valueint) {
-				c->ultparent = c;
-				c->parent = NULL;
-				#if PATCH_FLAG_FOLLOW_PARENT
-				c->followparent = 0;
-				#endif // PATCH_FLAG_FOLLOW_PARENT
-			}
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-top-level")) && json_isboolean(r_node)) c->toplevel = r_node->valueint ? 1 : 0;
 
 			#if PATCH_FLAG_FOLLOW_PARENT
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-follow-parent")) && json_isboolean(r_node)) c->followparent = r_node->valueint;
@@ -3233,7 +3257,7 @@ skip_parenting:
 				);
 
 				if (c->parent)
-					fprintf(stderr, " parent:\"%s\"", c->parent->name);
+					fprintf(stderr, " %sparent:\"%s\"", c->fosterparent ? "[foster]" : "", c->parent->name);
 				else
 					fprintf(stderr, " parent:<none>");
 
@@ -3309,6 +3333,8 @@ skip_parenting:
 		if (c->isdesktop == -1)
 			c->isdesktop = c->wasdesktop;
 		if (c->isdesktop) {
+			c->toplevel = 1;
+			c->fosterparent = 0;
 			c->parent = NULL;
 			c->ultparent = c;
 			c->ondesktop = 0;
@@ -5284,7 +5310,7 @@ desktopvalidex(Client *c, unsigned int tagset, int show_desktop)
 		return
 			(c->isdesktop || c->ondesktop || (ret && c->isfloating
 				#if PATCH_MODAL_SUPPORT
-				&& (!c->ismodal || !c->parent || c->parent->isfloating)
+				&& (!c->ismodal || c->toplevel || !c->parent || c->parent->isfloating)
 				#endif // PATCH_MODAL_SUPPORT
 			));
 	}
@@ -9158,11 +9184,13 @@ guessnextfocus(Client *c, Monitor *m)
 		sel = c->prevsel;
 
 	// prefer the client's parent for the next focus;
-	if (!sel && c && c->parent && ISVISIBLE(c->parent) && c->parent->mon == c->mon) {
+	if (!sel && c && c->parent && !c->toplevel && !c->fosterparent
+		&& ISVISIBLE(c->parent) && c->parent->mon == c->mon) {
 		sel = c->parent;
 		// if floating client has autofocus=0 then look at its parent instead;
 		while (sel && sel->isfloating && !sel->autofocus) {
-			if (sel->parent && ISVISIBLE(sel->parent) && sel->parent->mon == c->mon)
+			if (sel->parent && !sel->toplevel && !sel->fosterparent
+				&& ISVISIBLE(sel->parent) && sel->parent->mon == c->mon)
 				sel = sel->parent;
 			else
 				sel = NULL;
@@ -10508,7 +10536,7 @@ logdiagnostics_client(Client *c, const char *indent)
 	fputs(")", stderr);
 
 	if (c->parent)
-		fprintf(stderr, " parent:\"%s\"", c->parent->name);
+		fprintf(stderr, " %sparent:\"%s\"", c->fosterparent ? "[foster]" : "", c->parent->name);
 	else
 		fputs(" parent:<none>", stderr);
 
@@ -10883,7 +10911,7 @@ void
 logdiagnostics_client_common(Client *c, const char *indent1, const char *indent2)
 {
 	fprintf(stderr,
-		"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s "
+		"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s "
 		#if PATCH_FLAG_CENTRED
 		"c%u "
 		#endif // PATCH_FLAG_CENTRED
@@ -10989,6 +11017,7 @@ logdiagnostics_client_common(Client *c, const char *indent1, const char *indent2
 		#endif // PATCH_CLASS_STACKING
 		(c->ultparent == c ? "u" : "_"),
 		(c->parent ? "P" : "_"),
+		(c->toplevel ? "^" : "_"),
 		(c->isurgent ? "U" : "_"),
 		#if PATCH_FLAG_FOLLOW_PARENT
 		(c->followparent ? "+" : " "),
@@ -11169,7 +11198,7 @@ manage(Window w, XWindowAttributes *wa)
 			free(c);
 			return;
 		}
-		if (!c->tags && c->parent == t && t->mon == c->mon) {
+		if (!c->tags && !c->toplevel && c->parent == t && t->mon == c->mon) {
 			#if PATCH_FLAG_STICKY
 			if (t->issticky)
 				c->issticky = 1;
@@ -11184,15 +11213,17 @@ manage(Window w, XWindowAttributes *wa)
 		c->mon = NULL;
 		c->monindex = -1;
 		c->parent = t = getparentclient(c);
+		if (t && t->pid != c->pid)
+			c->fosterparent = 1;
 		#if PATCH_FLAG_FOLLOW_PARENT
-		if (c->parent)
+		if (c->parent && !c->fosterparent)
 			c->followparent = c->parent->followparent;
 		#endif // PATCH_FLAG_FOLLOW_PARENT
 		if (applyrules(c, 0, NULL) == -1) {
 			free(c);
 			return;
 		}
-		if (c->parent && c->parent == t && !c->tags && !c->mon) {
+		if (!c->fosterparent && !c->toplevel && c->parent && c->parent == t && !c->tags && !c->mon) {
 			#if PATCH_FLAG_STICKY
 			if (t->issticky
 				#if PATCH_MODAL_SUPPORT
@@ -11212,7 +11243,7 @@ manage(Window w, XWindowAttributes *wa)
 			#endif // PATCH_MODAL_SUPPORT
 			#endif // PATCH_FLAG_STICKY
 		}
-		if (c->parent) {
+		if (c->parent && !c->toplevel) {
 			if (!c->mon) {
 				if (c->isfloating
 					#if PATCH_FLAG_IGNORED
@@ -11227,7 +11258,7 @@ manage(Window w, XWindowAttributes *wa)
 					c->mon = selmon;
 			}
 			#if PATCH_MODAL_SUPPORT
-			if (c->ismodal_override == -1)
+			if (c->ismodal_override == -1 && !c->fosterparent)
 				c->ismodal = c->parent->ismodal;
 			#endif // PATCH_MODAL_SUPPORT
 			#if PATCH_FLAG_STICKY
@@ -11849,6 +11880,7 @@ DEBUGENDIF
 				#if PATCH_FLAG_PANEL
 				// avoid warping when the new client is 'attached' to its parent panel;
 				if (!c->ispanel && (!c->isfloating || !c->parent || !c->parent->ispanel ||
+					c->toplevel || c->fosterparent ||
 					(c->y + HEIGHT(c)) < c->parent->y || c->y > (c->parent->y + c->parent->h) ||
 					(c->x + WIDTH(c)) < c->parent->x || c->x > (c->parent->x + c->parent->w)
 				))
@@ -11893,6 +11925,7 @@ DEBUGENDIF
 	#endif // PATCH_FLAG_PANEL
 
 	if (c->isfloating && c->parent && c->parent->mon == c->mon
+		&& !c->fosterparent && !c->toplevel
 		&& ISVISIBLEONTAG(c, c->parent->tags) && (
 			!c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
@@ -12084,7 +12117,9 @@ modalgroupclients(Client *c)
 				while (ns) {
 					s = ns;
 					ns = s->sprev;
-					if ((s->ultparent == c->ultparent || s->parent == c->parent || s == c)
+					if ((s->ultparent == c->ultparent
+						|| (s->parent == c->parent && !s->toplevel && !c->toplevel)
+						|| s == c)
 						&& ISVISIBLE(s)
 						#if PATCH_FLAG_PANEL
 						&& !s->ispanel
@@ -12147,7 +12182,9 @@ monsatellites(Client *pp, Monitor *mon) {
 		for (c = m->clients; c && c->snext; c = c->snext);
 		for (; c; c = p) {
 			p = c->sprev;
-			if (c != pp && c->parent == pp && ISVISIBLE(c) && (0
+			if (c != pp
+				&& !c->toplevel && !c->fosterparent && c->parent == pp
+				&& ISVISIBLE(c) && (0
 				#if PATCH_FLAG_FOLLOW_PARENT
 				|| c->followparent
 				#endif // PATCH_FLAG_FOLLOW_PARENT
@@ -12320,7 +12357,10 @@ movefloat(const Arg *arg)
 		drawfocusborder(0);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
-	if (c->isfloating && c->parent && c->parent->mon == c->mon && (!c->isfullscreen
+	if (c->isfloating
+		&& !c->toplevel && !c->fosterparent
+		&& c->parent && c->parent->mon == c->mon
+		&& (!c->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
 		|| c->fakefullscreen == 1
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
@@ -12388,7 +12428,9 @@ movemouse(const Arg *arg)
 	else
 	#endif // PATCH_CROP_WINDOWS
 	#if PATCH_MODAL_SUPPORT
-	if (c->ismodal && c->parent && c->parent->isfloating
+	if (c->ismodal
+		&& !c->toplevel && !c->fosterparent
+		&& c->parent && c->parent->isfloating
 		#if PATCH_SHOW_DESKTOP
 		&& !c->ondesktop
 		#endif // PATCH_SHOW_DESKTOP
@@ -12486,7 +12528,10 @@ movemouse(const Arg *arg)
 	if ((m = recttomon(c->x, c->y, c->w, c->h)) != selmon) {
 		if (
 			#if PATCH_FLAG_FOLLOW_PARENT
-			(c->followparent && c->parent && c->parent->mon == c->mon) ||
+			(
+				c->followparent && !c->toplevel && !c->fosterparent
+				&& c->parent && c->parent->mon == c->mon
+			) ||
 			#endif // PATCH_FLAG_FOLLOW_PARENT
 			#if PATCH_MODAL_SUPPORT
 			mc ||
@@ -15769,7 +15814,7 @@ tagsatellites(Client *p) {
 		{
 			if (c->parent == p
 				&& c != p
-				&& c->followparent
+				&& c->followparent && !c->toplevel
 				#if PATCH_FLAG_IGNORED
 				&& !c->isignored
 				#endif // PATCH_FLAG_IGNORED
@@ -17387,7 +17432,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		return;
 	#endif // PATCH_SHOW_DESKTOP
 	#if PATCH_FLAG_FOLLOW_PARENT
-	if (c->followparent && c->parent && !force)
+	if (c->followparent && c->parent && !c->toplevel && !c->fosterparent && !force)
 		return;
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 
@@ -17683,6 +17728,8 @@ setdefaultcolours(char *colours[3], char *defaults[3])
 void
 setdefaultvalues(Client *c)
 {
+	c->toplevel = 0;
+	c->fosterparent = 0;
 	#if PATCH_FLAG_TITLE
 	c->displayname = NULL;
 	#endif // PATCH_FLAG_TITLE
@@ -21026,7 +21073,7 @@ tag(const Arg *arg)
 		return;
 
 	#if PATCH_FLAG_FOLLOW_PARENT
-	if (c->followparent && c->parent)
+	if (c->followparent && c->parent && !c->toplevel && !c->fosterparent)
 		return;
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 
@@ -21107,7 +21154,7 @@ tagmon(const Arg *arg)
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 	#endif // PATCH_MODAL_SUPPORT
 	#if PATCH_FLAG_FOLLOW_PARENT
-	if (c->followparent) {
+	if (c->followparent && !c->toplevel && !c->fosterparent) {
 		for (
 			c = c->parent;
 			c && c->followparent && c->parent && c->mon == c->parent->mon;
