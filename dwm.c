@@ -413,6 +413,9 @@ static const supported_json supported_layout_mon[] = {
 static const supported_json supported_layout_tag[] = {
 	{ "comment", 			"ignored" },
 	{ "index",				"tag index number, usually between 1 and 9" },
+	#if PATCH_HIDE_VACANT_TAGS
+	{ "set-always-visible",	"true to always show the tag even when there are no clients attached" },
+	#endif // PATCH_HIDE_VACANT_TAGS
 	#if PATCH_PERTAG
 	#if PATCH_CLASS_STACKING
 	{ "set-class-stacking",	"true for visible tiled clients of the same class to occupy the same tile on this tag" },
@@ -1194,6 +1197,15 @@ typedef struct {
 	void (*arrange)(Monitor *);
 } Layout;
 
+/* tagging */
+static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
+//static char *tags[] = { "󾠮", "󾠯", "󾠰", "󾠱", "󾠲", "󾠳", "󾠴", "󾠵", "󾠶" };
+#if PATCH_CUSTOM_TAG_ICONS
+static char *tagiconpaths[] = {
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+#endif // PATCH_CUSTOM_TAG_ICONS
+
 #if PATCH_PERTAG
 typedef struct Pertag Pertag;
 #endif // PATCH_PERTAG
@@ -1234,6 +1246,7 @@ struct Monitor {
 	#endif // PATCH_SHOW_DESKTOP
 	#if PATCH_HIDE_VACANT_TAGS
 	int hidevacant;
+	int alwaysvisible[LENGTH(tags)];
 	#endif // PATCH_HIDE_VACANT_TAGS
 	#if PATCH_CLIENT_OPACITY
 	double activeopacity;
@@ -3983,7 +3996,8 @@ buttonpress(XEvent *e)
 				do {
 					#if PATCH_HIDE_VACANT_TAGS
 					// do not reserve space for vacant tags;
-					if (m->hidevacant && !(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
+					if (m->hidevacant && !m->alwaysvisible[i] &&
+						!(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
 						continue;
 					#endif // PATCH_HIDE_VACANT_TAGS
 					x += selmon->tagw[i];
@@ -6361,7 +6375,8 @@ drawbar(Monitor *m, int skiptags)
 			for (i = 0; i < LENGTH(tags); i++) {
 				#if PATCH_HIDE_VACANT_TAGS
 				/* do not draw vacant tags */
-				if (m->hidevacant && !(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
+				if (m->hidevacant && !m->alwaysvisible[i] &&
+					!(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
 					continue;
 				#endif // PATCH_HIDE_VACANT_TAGS
 
@@ -10775,6 +10790,11 @@ logdiagnostics(const Arg *arg)
 
 		fprintf(stderr, "]\n    tag-widths:\n");
 		for (int i = 0; i < LENGTH(tags); i++)
+			#if PATCH_HIDE_VACANT_TAGS
+			if (m->alwaysvisible[i])
+				fprintf(stderr, "        [%i] tagw[%i]: %u (always-visible)\n", (i + 1), i, m->tagw[i]);
+			else
+			#endif // PATCH_HIDE_VACANT_TAGS
 			fprintf(stderr, "        [%i] tagw[%i]: %u\n", (i + 1), i, m->tagw[i]);
 
 		#if PATCH_FLAG_PANEL
@@ -14106,6 +14126,11 @@ parsemon(Monitor *m, int index, int first)
 					m->enablesplit = ((l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-split-enabled")) && json_isboolean(l_node)) ? l_node->valueint : m->enablesplit;
 				#endif // PATCH_VIRTUAL_MONITORS
 
+				#if PATCH_HIDE_VACANT_TAGS
+				for (i = 0; i < LENGTH(tags); i++)
+					m->alwaysvisible[i] = 0;
+				#endif // PATCH_HIDE_VACANT_TAGS
+
 				m->lt[0] = &layouts[0];
 				l_node = cJSON_GetObjectItemCaseSensitive(l_json, "set-layout");
 				if (l_node) {
@@ -14150,6 +14175,9 @@ parsemon(Monitor *m, int index, int first)
 					for (cJSON *t_json = tags_json->child; t_json; t_json = t_json->next) {
 						l_node = cJSON_GetObjectItemCaseSensitive(t_json, "index");
 						if (cJSON_IsInteger(l_node) && l_node->valueint == i) {
+							#if PATCH_HIDE_VACANT_TAGS
+							m->alwaysvisible[i-1] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-always-visible")) && json_isboolean(l_node)) ? l_node->valueint : m->alwaysvisible[i];
+							#endif // PATCH_HIDE_VACANT_TAGS
 							#if PATCH_ALT_TAGS
 							m->tags[i-1] = ((l_node = cJSON_GetObjectItemCaseSensitive(t_json, "set-tag-text")) && cJSON_IsString(l_node)) ? l_node->valuestring : m->tags[i-1];
 							#endif // PATCH_ALT_TAGS

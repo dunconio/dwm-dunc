@@ -259,15 +259,6 @@ static char *colours[][3] = {
 	#endif // PATCH_STATUSCMD
 };
 
-/* tagging */
-static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
-//static char *tags[] = { "󾠮", "󾠯", "󾠰", "󾠱", "󾠲", "󾠳", "󾠴", "󾠵", "󾠶" };
-#if PATCH_CUSTOM_TAG_ICONS
-static char *tagiconpaths[] = {
-	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-};
-#endif // PATCH_CUSTOM_TAG_ICONS
-
 #if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 static int showmaster = 1;				// show master client on tag bar;
 static char *ptagf = "[%s %s]";	// format of a tag label
