@@ -1933,6 +1933,7 @@ static void viewactivenext(const Arg *arg);	// argument is monitor index;
 static void viewactiveprev(const Arg *arg);	// argument is monitor index;
 static void viewactiveex(Monitor *m, int direction);
 static void viewmontag(Monitor *m, unsigned int tagmask, int switchmon);
+static void waitforclearkeyboard(void);
 #if PATCH_MOUSE_POINTER_WARPING
 #if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 static void warptoclient(Client *c, int smoothly, int force);
@@ -4158,51 +4159,19 @@ changeunfocusopacity(const Arg *arg)
 void
 checkmouseoverclient(Client *c)
 {
-	int a, w = 1, h = 1;
 	int x, y;
 	if (!getrootptr(&x, &y))
 		return;
 
-	// check if mouse is over a floating window;
 	Monitor *m = recttomon(x, y, 1, 1);
-	Client *r = (m->lt[m->sellt]->arrange == monocle) ? NULL : recttoclient(x, y, w, h, 0);
-	for(Client *cc = m->stack; cc; cc = cc->snext)
-		if (ISVISIBLE(cc) && cc->isfloating
-			#if PATCH_FLAG_PANEL
-			&& !cc->ispanel
-			#endif // PATCH_FLAG_PANEL
-			#if PATCH_FLAG_IGNORED
-			&& !cc->isignored
-			#endif // PATCH_FLAG_IGNORED
-			#if PATCH_FLAG_HIDDEN
-			&& !cc->ishidden
-			#endif // PATCH_FLAG_HIDDEN
-		) {
-			if ((a = INTERSECTC(x, y, w, h, cc))) {
-				r = cc;
-				break;
-			}
-		}
+	if (m != selmon)
+		focusmonex(m);
 
-	if (r) {
-		DEBUG("checkmouseoverclient change focus:%s\n", r ? r->name : "<none>");
+	Client *r = getclientatcoords(x, y, 0);
+	if (r)
 		focus(r, 1);
-		return;
-	}
-
-	if (c) {
-		if ((a = INTERSECTC(x, y, w, h, c)))
-			return;
-
-		#if PATCH_FLAG_GAME
-		if (c->isgame && c->isfullscreen) {
-			focus(c, 1);
-			return;
-		}
-		#endif // PATCH_FLAG_GAME
-	}
-
 }
+
 void
 checkmouseovermonitor(Monitor *m)
 {
@@ -7701,8 +7670,8 @@ focus(Client *c, int force)
 			selmon = c->mon;
 			c->prevsel = NULL;
 		}
-		else if (c != c->prevsel && c->prevsel != selmon->sel)
-			c->prevsel = selmon->sel;
+		else if (c->prevsel != sel && c != sel)
+			c->prevsel = sel;
 
 		if (c->isurgent
 			#if PATCH_ALTTAB
@@ -7859,8 +7828,8 @@ focusmonex(Monitor *m)
 	}
 	selmon = m;
 	#if PATCH_CLIENT_OPACITY
-	if (s->sel)
-		opacity(s->sel, 1);
+	if (c)
+		opacity(c, 1);
 	#endif // PATCH_CLIENT_OPACITY
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	drawfocusborder(m->sel && ISVISIBLE(m->sel) ? 0 : 1);
@@ -8294,7 +8263,7 @@ getclientatcoords(int x, int y, int focusable)
 	int a, w = 1, h = 1;
 	// check if coords are over a client;
 	for(c = m->stack; c; c = c->snext)
-		if (ISVISIBLE(c)
+		if (ISVISIBLE(c) && !MINIMIZED(c)
 			#if PATCH_FLAG_IGNORED
 			&& !c->isignored
 			#endif // PATCH_FLAG_IGNORED
@@ -9180,7 +9149,8 @@ guessnextfocus(Client *c, Monitor *m)
 
 	// use prevsel if it's visible and on the same monitor;
 	if (c && c->prevsel && validclient(c->prevsel)
-		&& ISVISIBLE(c->prevsel) && c->prevsel->mon == c->mon
+		&& ISVISIBLE(c->prevsel) && !MINIMIZED(c->prevsel)
+		&& c->prevsel->mon == c->mon
 		#if PATCH_FLAG_HIDDEN
 		&& !c->prevsel->ishidden
 		#endif // PATCH_FLAG_HIDDEN
@@ -9189,7 +9159,8 @@ guessnextfocus(Client *c, Monitor *m)
 
 	// prefer the client's parent for the next focus;
 	if (!sel && c && c->parent && !c->toplevel && !c->fosterparent
-		&& ISVISIBLE(c->parent) && c->parent->mon == c->mon
+		&& ISVISIBLE(c->parent) && !MINIMIZED(c->parent)
+		&& c->parent->mon == c->mon
 		#if PATCH_FLAG_HIDDEN
 		&& !c->parent->ishidden
 		#endif // PATCH_FLAG_HIDDEN
@@ -9198,7 +9169,8 @@ guessnextfocus(Client *c, Monitor *m)
 		// if floating client has autofocus=0 then look at its parent instead;
 		while (sel && sel->isfloating && !sel->autofocus) {
 			if (sel->parent && !sel->toplevel && !sel->fosterparent
-				&& ISVISIBLE(sel->parent) && sel->parent->mon == c->mon)
+				&& ISVISIBLE(sel->parent) && !MINIMIZED(sel->parent)
+				&& sel->parent->mon == c->mon)
 				sel = sel->parent;
 			else
 				sel = NULL;
@@ -9889,8 +9861,9 @@ keyrelease(XEvent *e)
 			) {
 			keyholdsym = 0;
 			keyholdstate = 0;
-			if (keys[i].func)
+			if (keyholdclient && keys[i].func)
 				keys[i].func(&(keys[i].arg));
+			keyholdclient = NULL;
 		}
 		#endif // PATCH_KEY_HOLD
 	}
@@ -17531,11 +17504,12 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		c->monindex = m->num;
 		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
 		#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-		if (!c->isfullscreen
+		if (m->lt[m->sellt]->arrange != &monocle &&
+			(!c->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			|| c->fakefullscreen == 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
-		) {
+		)) {
 			attachBelow(c);
 			attachstackBelow(c);
 		}
@@ -17544,6 +17518,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		{
 			attach(c);
 			attachstackex(c);
+			m->sel = c;
 		}
 		// move the client if it is floating;
 		if (c->isfloating) {
@@ -17878,11 +17853,14 @@ setfocus(Client *c)
 	}
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
 
+	#if PATCH_FLAG_GAME
+	if (c->isgame && MINIMIZED(c))
+		unminimize(c);
+	#endif // PATCH_FLAG_GAME
 	if (c->isfullscreen) {
 		#if PATCH_FLAG_GAME
 		if (c->isgame) {
 			showhidebar(c->mon);
-			unminimize(c);
 			setclientstate(c, NormalState);
 			#if PATCH_FLAG_GAME_STRICT
 			if (game && game != c)
@@ -22113,6 +22091,7 @@ unmanage(Client *c, int destroyed, int cleanup)
 						selmon = pm;
 				}
 				#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+				waitforclearkeyboard();
 				if ((c->mon != selmon && (sel = selmon->sel)) || !(sel = guessnextfocus(c, c->mon)))
 					focus(NULL, 0);
 				else {
@@ -23654,6 +23633,26 @@ viewactiveex(Monitor *m, int direction)
 		++done;
 	}
 
+}
+
+void
+waitforclearkeyboard(void)
+{
+	int clear = 0;
+	struct timespec ts = { .tv_sec = 0, .tv_nsec = 1000000 };
+	char keys_return[32];
+	while (!clear) {
+		clear = 1;
+		XQueryKeymap(dpy, keys_return);
+		for (int i = 0; i < 32; i++) {
+			if (keys_return[i] != 0) {
+				clear = 0;
+				break;
+			}
+		}
+		if (!clear)
+			nanosleep(&ts, NULL);
+	}
 }
 
 #if PATCH_MOUSE_POINTER_WARPING
