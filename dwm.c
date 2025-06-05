@@ -23636,6 +23636,16 @@ viewactiveex(Monitor *m, int direction)
 	if (active < 0)
 		active = taglength-1;
 
+	#if PATCH_HIDE_VACANT_TAGS
+	if (m->alwaysvisible[active]) {
+		if (abs(direction) == 2)
+			viewmontag(m, (1 << active | 1 << 31), 0);
+		else
+			viewmontag(m, (1 << active), 0);
+		return;
+	}
+	#endif // PATCH_HIDE_VACANT_TAGS
+
 	for (done = 0; done < 2; active = (direction > 0) ? 0 : (taglength - 1))
 	{
 		// find next tag with clients and view it
