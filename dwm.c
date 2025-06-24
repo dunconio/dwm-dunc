@@ -5965,6 +5965,10 @@ drawbar(Monitor *m, int skiptags)
 			Clr* oldscheme;
 			#endif // PATCH_STATUSCMD_NONPRINTING
 			padw = lrpad / 2;
+			#if PATCH_SYSTRAY
+			if (showsystray && systrayonleft)
+				x += m->stw;
+			#endif // PATCH_SYSTRAY
 
 			for (text = s = buffer; --bufsize > 0; s++) {
 				#if PATCH_STATUSCMD_COLOURS || PATCH_STATUSCMD_NONPRINTING
@@ -5984,12 +5988,7 @@ drawbar(Monitor *m, int skiptags)
 							apply_fribidi(text);
 							#endif // PATCH_BIDIRECTIONAL_TEXT
 							drw_text(drw,
-								m->bar[StatusText].x + x, 0, tw, bh, padw
-								#if PATCH_SYSTRAY
-								+ (showsystray && systrayonleft ? m->stw : 0)
-								#endif // PATCH_SYSTRAY
-								,
-								0,
+								m->bar[StatusText].x + x, 0, tw, bh, padw, 0,
 								#if PATCH_CLIENT_INDICATORS
 								0,
 								#endif // PATCH_CLIENT_INDICATORS
@@ -6041,11 +6040,7 @@ drawbar(Monitor *m, int skiptags)
 								#endif // PATCH_COLOUR_BAR
 							][ColBg];
 							drw_text(drw,
-								m->bar[StatusText].x + x, 0, tw, bh, padw
-								#if PATCH_SYSTRAY
-								+ (showsystray && systrayonleft ? m->stw : 0)
-								#endif // PATCH_SYSTRAY
-								, 0,
+								m->bar[StatusText].x + x, 0, tw, bh, padw, 0,
 								#if PATCH_CLIENT_INDICATORS
 								0,
 								#endif // PATCH_CLIENT_INDICATORS
@@ -6072,12 +6067,7 @@ drawbar(Monitor *m, int skiptags)
 							apply_fribidi(text);
 							#endif // PATCH_BIDIRECTIONAL_TEXT
 							drw_text(drw,
-								m->bar[StatusText].x + x, 0, m->mw - m->bar[StatusText].x + x, bh, padw
-								#if PATCH_SYSTRAY
-								+ (showsystray && systrayonleft ? m->stw : 0)
-								#endif // PATCH_SYSTRAY
-								,
-								0,
+								m->bar[StatusText].x + x, 0, m->mw - m->bar[StatusText].x + x, bh, padw, 0,
 								#if PATCH_CLIENT_INDICATORS
 								0,
 								#endif // PATCH_CLIENT_INDICATORS
@@ -6113,12 +6103,7 @@ drawbar(Monitor *m, int skiptags)
 				apply_fribidi(text);
 				#endif // PATCH_BIDIRECTIONAL_TEXT
 				x = drw_text(drw,
-					m->bar[StatusText].x + x, 0, m->mw - (m->bar[StatusText].x + x), bh, padw
-					#if PATCH_SYSTRAY
-					+ (showsystray && systrayonleft ? m->stw : 0)
-					#endif // PATCH_SYSTRAY
-					,
-					0,
+					m->bar[StatusText].x + x, 0, m->mw - (m->bar[StatusText].x + x), bh, padw, 0,
 					#if PATCH_CLIENT_INDICATORS
 					0,
 					#endif // PATCH_CLIENT_INDICATORS
