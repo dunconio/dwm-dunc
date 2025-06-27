@@ -7860,6 +7860,13 @@ focusmon(const Arg *arg)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!m->sel)
 		XWarpPointer(dpy, None, root, 0, 0, 0, 0, m->wx + (m->ww / 2), m->wy + (m->wh / 2));
+	else if (
+		m->sel->isfullscreen
+		#if PATCH_FLAG_FAKEFULLSCREEN
+		&& m->sel->fakefullscreen != 1
+		#endif // PATCH_FLAG_FAKEFULLSCREEN
+		)
+		XWarpPointer(dpy, None, root, 0, 0, 0, 0, m->mx + (m->mw / 2), m->my + (m->mh / 2));
 	else
 		XWarpPointer(dpy, None, root, 0, 0, 0, 0, m->sel->x + (m->sel->w / 2), m->sel->y + (m->sel->h / 2));
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
@@ -21558,15 +21565,21 @@ togglesplit(const Arg *arg)
 		XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->wx + (selmon->ww / 2), selmon->wy + (selmon->wh / 2));
 	else {
 		#if PATCH_MOUSE_POINTER_WARPING
-		if (selmon->sel)
-			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(selmon->sel, 1, 0);
-			#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(selmon->sel, 0);
-			#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		warptoclient(selmon->sel, 1, 0);
+		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		warptoclient(selmon->sel, 0);
+		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		#else
+		if (selmon->sel->isfullscreen
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			&& selmon->sel->fakefullscreen != 1
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+			)
+			XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->mx + (selmon->mw / 2), selmon->my + (selmon->mh / 2));
 		else
+			XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->sel->x + (selmon->sel->w / 2), selmon->sel->y + (selmon->sel->h / 2));
 		#endif // PATCH_MOUSE_POINTER_WARPING
-		XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->sel->x + (selmon->sel->w / 2), selmon->sel->y + (selmon->sel->h / 2));
 	}
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 }
@@ -23827,26 +23840,40 @@ warptoclient(Client *c, int force)
 
 	// get target zone;
 	if (c) {
-		tx = c->x;
-		ty = c->y;
-		tw = c->w;
-		th = c->h;
-		#if PATCH_ALTTAB
-		if (altTabMon) {
-			tpx = c->x + c->w/2;
-			tpy = c->y + c->h/2;
+		if (c->isfullscreen
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			&& c->fakefullscreen != 1
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+		) {
+			tx = selmon->mx;
+			ty = selmon->my;
+			tw = selmon->mw;
+			th = selmon->mh;
+			tpx = tx + tw / 2;
+			tpy = ty + th / 2;
 		}
-		else
-		#endif // NO PATCH_ALTTAB
-		{
-			if (c->focusdx < 0)
-				tpx = c->x + c->w + c->focusdx * c->w/2;
+		else {
+			tx = c->x;
+			ty = c->y;
+			tw = c->w;
+			th = c->h;
+			#if PATCH_ALTTAB
+			if (altTabMon) {
+				tpx = c->x + c->w/2;
+				tpy = c->y + c->h/2;
+			}
 			else
-				tpx = c->x + c->focusdx * c->w/2;
-			if (c->focusdy < 0)
-				tpy = c->y + c->h + c->focusdy * c->h/2;
-			else
-				tpy = c->y + c->focusdy * c->h/2;
+			#endif // NO PATCH_ALTTAB
+			{
+				if (c->focusdx < 0)
+					tpx = c->x + c->w + c->focusdx * c->w/2;
+				else
+					tpx = c->x + c->focusdx * c->w/2;
+				if (c->focusdy < 0)
+					tpy = c->y + c->h + c->focusdy * c->h/2;
+				else
+					tpy = c->y + c->focusdy * c->h/2;
+			}
 		}
 	}
 	else if (selmon) {
