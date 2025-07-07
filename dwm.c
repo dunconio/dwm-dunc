@@ -2454,7 +2454,7 @@ apply_fribidi(char *str)
 void
 applyrulesdeferred(Client *c, char *oldtitle)
 {
-	if (!c || !c->ruledefer) return;
+	if (!c || c->ruledefer != 1) return;
 
 	Monitor *m = c->mon;
 	int sel = (m->sel == c);
@@ -2522,7 +2522,7 @@ applyrulesdeferred(Client *c, char *oldtitle)
 		#if PATCH_PERSISTENT_METADATA
 		setclienttagprop(c);
 		#endif // PATCH_PERSISTENT_METADATA
-		c->ruledefer = 0;
+		c->ruledefer = -1;
 	}
 
 }
@@ -2725,7 +2725,7 @@ applyrules(Client *c, int deferred, char *oldtitle)
 		int exclusive = ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "exclusive")) && json_isboolean(r_node)) ? r_node->valueint : 0;
 
 		int defer = ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "defer-rule")) && json_isboolean(r_node)) ? r_node->valueint : 0;
-		if (deferred && (!defer || !c->ruledefer))
+		if (deferred && (!defer || c->ruledefer != 1))
 			continue;
 
 		int has_parent = ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "if-has-parent")) && json_isboolean(r_node)) ? r_node->valueint : -1;
@@ -2831,14 +2831,15 @@ applyrules(Client *c, int deferred, char *oldtitle)
 		) {
 			match = STRINGMATCH(r_json, c->name, sz_title, "if-title");
 
-			if ((defer && !match && !deferred) ||
-				(defer && match && !deferred && cJSON_HasObjectItem(r_json, "if-title-was"))
-			) {
+			if (defer && !match && !deferred)
 				c->ruledefer = 1;
-				match = 0;
+			else if (defer && !match && deferred && cJSON_HasObjectItem(r_json, "if-title-was")
+			) {
+				if (oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT))
+					c->ruledefer = -1;
 			}
-			else if (match && defer && cJSON_HasObjectItem(r_json, "if-title-was"))
-				match = (deferred && oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
+			else if (deferred && match && defer && cJSON_HasObjectItem(r_json, "if-title-was"))
+				match = (oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
 
 			if (!match)
 				continue;
@@ -14940,7 +14941,7 @@ propertynotify(XEvent *e)
 				break;
 		}
 		if (ev->atom == XA_WM_NAME || ev->atom == netatom[NetWMName]) {
-			if (c->ruledefer) {
+			if (c->ruledefer == 1) {
 				char oldtitle[256];
 				strncpy(oldtitle, c->name, sizeof oldtitle);
 				updatetitle(c, 1);
