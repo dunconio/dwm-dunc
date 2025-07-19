@@ -1555,6 +1555,7 @@ static pid_t getprocessid(const char *procname);
 static int getprocname(pid_t pid, char *buffer, size_t buffer_size, char **procname, char **parameters);
 #if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 static int getrelativeptr(Client *c, int *x, int *y);
+static int getrelativeptrfloats(Client *c, float *x, float *y);
 #endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
@@ -1949,9 +1950,9 @@ static void viewmontag(Monitor *m, unsigned int tagmask, int switchmon);
 static void waitforclearkeyboard(void);
 #if PATCH_MOUSE_POINTER_WARPING
 #if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-static void warptoclient(Client *c, int smoothly, int force);
+static void warptoclient(Client *c, float relpx, float relpy, int smoothly, int force);
 #else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-static void warptoclient(Client *c, int force);
+static void warptoclient(Client *c, float relpx, float relpy, int force);
 #endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 #endif // PATCH_MOUSE_POINTER_WARPING
 #if PATCH_EXTERNAL_WINDOW_ACTIVATION
@@ -2230,9 +2231,9 @@ activateclient(Client *c, int setfocus)
 	#if PATCH_MOUSE_POINTER_WARPING
 	if (selmon->sel)
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 1, 1);
+		warptoclient(selmon->sel, 0, 0, 1, 1);
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 1);
+		warptoclient(selmon->sel, 0, 0, 1);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	#endif // PATCH_MOUSE_POINTER_WARPING
 }
@@ -2472,9 +2473,9 @@ applyrulesdeferred(Client *c, char *oldtitle)
 					adjustfloatposition(c);
 					focus(c, 1);
 					#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-					warptoclient(c, 1, 1);
+					warptoclient(c, 0, 0, 1, 1);
 					#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-					warptoclient(c, 1);
+					warptoclient(c, 0, 0, 1);
 					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 				}
 				else
@@ -4645,9 +4646,9 @@ clientmessage(XEvent *e)
 
 				#if PATCH_MOUSE_POINTER_WARPING
 				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, 1, 0);
+				warptoclient(c, 0, 0, 1, 0);
 				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, 0);
+				warptoclient(c, 0, 0, 0);
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 				#endif // PATCH_MOUSE_POINTER_WARPING
 			}
@@ -5253,15 +5254,27 @@ cyclelayoutmouse(const Arg *arg)
 void
 cyclelayout(const Arg *arg)
 {
+	#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
+	float px, py;
+	getrelativeptrfloats(selmon->sel, &px, &py);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
 	cyclelayoutmouse(arg);
 	#if PATCH_MOUSE_POINTER_WARPING
 	if (selmon->sel)
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 1, 0);
+		warptoclient(selmon->sel, px, py, 1, 0);
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 0);
+		warptoclient(selmon->sel, px, py, 0);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-	#endif // PATCH_MOUSE_POINTER_WARPING
+	#elif PATCH_FOCUS_FOLLOWS_MOUSE
+	if (selmon->sel) {
+		if (px == 0)
+			px = 0.5f;
+		if (py == 0)
+			py = 0.5f;
+		XWarpPointer(dpy, None, selmon->sel->win, 0, 0, 0, 0, px*selmon->sel->w, py*selmon->sel->h);
+	}
+	#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 }
 
 #if PATCH_SHOW_DESKTOP
@@ -7874,9 +7887,9 @@ focusmon(const Arg *arg)
 
 	#if PATCH_MOUSE_POINTER_WARPING
 	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-	warptoclient(selmon->sel, 0, 1);
+	warptoclient(selmon->sel, 0, 0, 0, 1);
 	#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-	warptoclient(selmon->sel, 1);
+	warptoclient(selmon->sel, 0, 0, 1);
 	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	#endif // PATCH_MOUSE_POINTER_WARPING
 }
@@ -8052,9 +8065,9 @@ focusstack(const Arg *arg)
 			#if PATCH_MOUSE_POINTER_WARPING
 			if (warp)
 				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, 0, 0);
+				warptoclient(c, 0, 0, 0, 0);
 				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, 0);
+				warptoclient(c, 0, 0, 0);
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 			#endif // PATCH_MOUSE_POINTER_WARPING
 		}
@@ -8861,6 +8874,30 @@ getrelativeptr(Client *c, int *x, int *y)
 	}
 	return 1;
 }
+int
+getrelativeptrfloats(Client *c, float *x, float *y)
+{
+	int px = 0, py = 0;
+	*x = 0;
+	*y = 0;
+
+	if (!c)
+		return 0;
+
+	int di;
+	unsigned int dui;
+	Window dummy;
+
+	if (!XQueryPointer(dpy, c->win, &dummy, &dummy, &di, &di, &px, &py, &dui)
+	|| (px < 0 || py < 0 || px > (c->w + 2*c->bw) || py > (c->h + 2*c->bw) )
+		)
+		return 0;
+
+	*x = (float) px / (c->w / 2);
+	*y = (float) py / (c->h / 2);
+
+	return 1;
+}
 #endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 
 int
@@ -9514,9 +9551,9 @@ hidewin(const Arg *arg) {
 	#if PATCH_MOUSE_POINTER_WARPING
 	if (h)
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(h, 1, 0);
+		warptoclient(h, 0, 0, 1, 0);
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(h, 0);
+		warptoclient(h, 0, 0, 0);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	#endif // PATCH_MOUSE_POINTER_WARPING
 }
@@ -11889,13 +11926,13 @@ DEBUGENDIF
 							|| (!c->isfloating && c->newmaster)
 							#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 						))
-						warptoclient(c, 0, 1);
+						warptoclient(c, 0, 0, 0, 1);
 					else
 					#endif // PATCH_FLAG_GREEDY_FOCUS
 					#endif // PATCH_FOCUS_FOLLOWS_MOUSE
-					warptoclient(c, 1, 0);
+					warptoclient(c, 0, 0, 1, 0);
 					#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-					warptoclient(c, 0);
+					warptoclient(c, 0, 0, 0);
 					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 				}
 				#endif // PATCH_MOUSE_POINTER_WARPING
@@ -15235,9 +15272,9 @@ refocuspointer(const Arg *arg)
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (selmon->sel)
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 0, 1);
+		warptoclient(selmon->sel, 0, 0, 0, 1);
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 1);
+		warptoclient(selmon->sel, 0, 0, 1);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	#if PATCH_MOUSE_POINTER_HIDING
 	hidecursor();
@@ -17355,9 +17392,9 @@ scan(void)
 			#if PATCH_MOUSE_POINTER_WARPING
 			if (selmon->sel)
 			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(selmon->sel, 0, 1);
+				warptoclient(selmon->sel, 0, 0, 0, 1);
 			#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(selmon->sel, 1);
+				warptoclient(selmon->sel, 0, 0, 1);
 			#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 			#endif // PATCH_MOUSE_POINTER_WARPING
 			drawbars();
@@ -18197,14 +18234,26 @@ setlayout(const Arg *arg)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	checkmouseovermonitor(selmon);
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
+	float px, py;
+	getrelativeptrfloats(selmon->sel, &px, &py);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
 	setlayoutex(arg);
 	#if PATCH_MOUSE_POINTER_WARPING
 	if (selmon->sel)
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 1, 0);
+		warptoclient(selmon->sel, px, py, 1, 0);
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 0);
+		warptoclient(selmon->sel, px, py, 0);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	#elif PATCH_FOCUS_FOLLOWS_MOUSE
+	if (selmon->sel) {
+		if (px == 0)
+			px = 0.5f;
+		if (py == 0)
+			py = 0.5f;
+		XWarpPointer(dpy, None, selmon->sel->win, 0, 0, 0, 0, px*selmon->sel->w, py*selmon->sel->h);
+	}
 	#endif // PATCH_MOUSE_POINTER_WARPING
 }
 
@@ -19857,9 +19906,9 @@ altTab(int direction, int first)
 	) {
 		#if PATCH_MOUSE_POINTER_WARPING
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(next, (!first || altTabMon->sel != next) ? 1 : 0, 1);
+		warptoclient(next, 0, 0, (!first || altTabMon->sel != next) ? 1 : 0, 1);
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(next, 1);
+		warptoclient(next, 0, 0, 1);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		#endif // PATCH_MOUSE_POINTER_WARPING
 	}
@@ -21055,9 +21104,9 @@ altTabStart(const Arg *arg)
 			#if PATCH_MOUSE_POINTER_WARPING
 			if ((!isAltMouse || !same) && mon_mask)
 				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, smoothwarp, 0);
+				warptoclient(c, 0, 0, smoothwarp, 0);
 				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, 0);
+				warptoclient(c, 0, 0, 0);
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 			#endif // PATCH_MOUSE_POINTER_WARPING
 			XUngrabPointer(dpy, CurrentTime);
@@ -21317,6 +21366,11 @@ togglefakefullscreen(const Arg *arg)
 		return;
 	#endif // PATCH_SHOW_DESKTOP
 
+	#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
+	float px, py;
+	getrelativeptrfloats(c, &px, &py);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
+
 	if (c->fakefullscreen != 1 && c->isfullscreen) { // exit fullscreen --> fake fullscreen
 		c->fakefullscreen = 2;
 		setfullscreen(c, 0);
@@ -21327,6 +21381,19 @@ togglefakefullscreen(const Arg *arg)
 		c->fakefullscreen = 1;
 		setfullscreen(c, 1);
 	}
+
+	#if PATCH_MOUSE_POINTER_WARPING
+	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	warptoclient(c, px, py, 1, 1);
+	#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	warptoclient(c, px, py, 1);
+	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	#elif PATCH_FOCUS_FOLLOWS_MOUSE
+	if (px == 0 && py == 0)
+		XWarpPointer(dpy, None, root, 0, 0, 0, 0, c->x + (c->w / 2), c->y + (c->h / 2));
+	else
+		XWarpPointer(dpy, None, root, 0, 0, 0, 0, c->x + (px * c->w / 2), c->y + (py * c->h / 2));
+	#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
@@ -21540,6 +21607,11 @@ togglesplit(const Arg *arg)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	checkmouseovermonitor(selmon);
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
+	float px, py;
+	Client *sel = selmon->sel;
+	getrelativeptrfloats(sel, &px, &py);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
 	Monitor *m;
 	if (!(m = selmon->pmon->mon1) || !m->split)
 		return;
@@ -21562,24 +21634,24 @@ togglesplit(const Arg *arg)
 	arrange(NULL);
 
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	if (!selmon->sel)
+	if (!sel)
 		XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->wx + (selmon->ww / 2), selmon->wy + (selmon->wh / 2));
 	else {
 		#if PATCH_MOUSE_POINTER_WARPING
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 1, 0);
+		warptoclient(sel, px, py, 1, 0);
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(selmon->sel, 0);
+		warptoclient(sel, px, py, 0);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		#else
-		if (selmon->sel->isfullscreen
+		if (sel->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
-			&& selmon->sel->fakefullscreen != 1
+			&& sel->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 			)
 			XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->mx + (selmon->mw / 2), selmon->my + (selmon->mh / 2));
 		else
-			XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->sel->x + (selmon->sel->w / 2), selmon->sel->y + (selmon->sel->h / 2));
+			XWarpPointer(dpy, None, root, 0, 0, 0, 0, sel->x + (px * sel->w / 2), sel->y + (py * sel->h / 2));
 		#endif // PATCH_MOUSE_POINTER_WARPING
 	}
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
@@ -21629,9 +21701,9 @@ togglesticky(const Arg *arg)
 		#if PATCH_MOUSE_POINTER_WARPING
 		if (selmon->sel)
 			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(selmon->sel, 1, 0);
+			warptoclient(selmon->sel, 0, 0, 1, 0);
 			#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(selmon->sel, 0);
+			warptoclient(selmon->sel, 0, 0, 0);
 			#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		#endif // PATCH_MOUSE_POINTER_WARPING
 	}
@@ -22135,9 +22207,9 @@ unmanage(Client *c, int destroyed, int cleanup)
 		if (c->mon == selmon) {
 			if (c->mon->sel)
 				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c->mon->sel, 1, -1);
+				warptoclient(c->mon->sel, 0, 0, 1, -1);
 				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c->mon->sel, -1);
+				warptoclient(c->mon->sel, 0, 0, -1);
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		}
 		#endif // PATCH_MOUSE_POINTER_WARPING
@@ -23526,9 +23598,9 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 			#endif // PATCH_ALTTAB
 			)
 			#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(m->sel, 0, 0);
+			warptoclient(m->sel, 0, 0, 0, 0);
 			#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			warptoclient(m->sel, 0);
+			warptoclient(m->sel, 0, 0, 0);
 			#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		#endif // PATCH_MOUSE_POINTER_WARPING
 	}
@@ -23571,9 +23643,9 @@ viewkeyholdclient(const Arg *arg)
 	focus(c, 1);
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-	warptoclient(c, 0, 1);
+	warptoclient(c, 0, 0, 0, 1);
 	#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-	warptoclient(c, 1);
+	warptoclient(c, 0, 0, 1);
 	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 }
@@ -23794,10 +23866,10 @@ warppointer(void *arg)
 }
 
 void
-warptoclient(Client *c, int smoothly, int force)
+warptoclient(Client *c, float relpx, float relpy, int smoothly, int force)
 #else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
 void
-warptoclient(Client *c, int force)
+warptoclient(Client *c, float relpx, float relpy, int force)
 #endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 {
 	if (mousewarp_disable)
@@ -23866,14 +23938,22 @@ warptoclient(Client *c, int force)
 			else
 			#endif // NO PATCH_ALTTAB
 			{
-				if (c->focusdx < 0)
-					tpx = c->x + c->w + c->focusdx * c->w/2;
+				if (relpx == 0) {
+					if (c->focusdx < 0)
+						tpx = c->x + c->w + c->focusdx * c->w/2;
+					else
+						tpx = c->x + c->focusdx * c->w/2;
+				}
 				else
-					tpx = c->x + c->focusdx * c->w/2;
-				if (c->focusdy < 0)
-					tpy = c->y + c->h + c->focusdy * c->h/2;
+					tpx = c->x + relpx * c->w/2;
+				if (relpy == 0) {
+					if (c->focusdy < 0)
+						tpy = c->y + c->h + c->focusdy * c->h/2;
+					else
+						tpy = c->y + c->focusdy * c->h/2;
+				}
 				else
-					tpy = c->y + c->focusdy * c->h/2;
+					tpy = c->y + relpy * c->h/2;
 			}
 		}
 	}
