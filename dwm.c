@@ -11554,8 +11554,8 @@ manage(Window w, XWindowAttributes *wa)
 	#endif // PATCH_SHOW_DESKTOP
 
 	#if PATCH_FLAG_GAME
-	if (c->isgame)
-		XSelectInput(dpy, w, FocusChangeMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
+	if (c->isgame && !c->isfullscreen)
+		XSelectInput(dpy, w, EnterWindowMask|FocusChangeMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
 	else
 	#endif // PATCH_FLAG_GAME
 	XSelectInput(dpy, w, EnterWindowMask|FocusChangeMask|LeaveWindowMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
@@ -18013,6 +18013,15 @@ setfullscreen(Client *c, int fullscreen)
 		setopacity(c, 0);
 	#endif // PATCH_CLIENT_OPACITY
 
+	#if PATCH_FLAG_GAME
+	if (c->isgame) {
+		if (fullscreen)
+			XSelectInput(dpy, c->win, FocusChangeMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
+		else
+			XSelectInput(dpy, c->win, EnterWindowMask|FocusChangeMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
+	}
+	#endif // PATCH_FLAG_GAME
+
 	/* Some clients, e.g. firefox, will send a client message informing the window manager
 	 * that it is going into fullscreen after receiving the above signal. This has the side
 	 * effect of this function (setfullscreen) sometimes being called twice when toggling
@@ -18117,6 +18126,16 @@ setfullscreen(Client *c, int fullscreen)
 	if (!c->isfullscreen)
 		while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 	#else // NO PATCH_FLAG_FAKEFULLSCREEN
+
+	#if PATCH_FLAG_GAME
+	if (c->isgame) {
+		if (fullscreen)
+			XSelectInput(dpy, c->win, FocusChangeMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
+		else
+			XSelectInput(dpy, c->win, EnterWindowMask|FocusChangeMask|PropertyChangeMask|StructureNotifyMask|ResizeRedirectMask);
+	}
+	#endif // PATCH_FLAG_GAME
+
 	if (fullscreen && !c->isfullscreen) {
 		c->isfullscreen = 1;
 		publishwindowstate(c);
