@@ -1420,7 +1420,8 @@ static void changefocusopacity(const Arg *arg);
 static void changeunfocusopacity(const Arg *arg);
 #endif // PATCH_CLIENT_OPACITY
 #if PATCH_FOCUS_FOLLOWS_MOUSE
-static void checkmouseoverclient(Client *c);
+static void checkmouseoverclient(void);
+static void checkmouseovermonitor(Monitor *m);
 #endif // PATCH_FOCUS_FOLLOWS_MOUSE
 static void checkotherwm(void);
 #if DEBUGGING || PATCH_LOG_DIAGNOSTICS
@@ -1595,6 +1596,9 @@ static int ismaster(Client *c);
 #if PATCH_MODAL_SUPPORT
 static int ismodalparent(Client *c);
 #endif // PATCH_MODAL_SUPPORT
+#if PATCH_FOCUS_FOLLOWS_MOUSE
+static int ismouseoverclient(Client *c);
+#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 static int isdescprocess(pid_t p, pid_t c);
 #if PATCH_IPC
 static int is_float(const char *s);
@@ -1662,9 +1666,9 @@ static int parselayoutjson(cJSON *layout);
 static void parsemon(Monitor *m, int index, int first);
 static int parserulesjson(cJSON *json);
 static void placemouse(const Arg *arg);
-#if PATCH_MOUSE_POINTER_WARPING
+#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 static int pointoverbar(Monitor *m, int x, int y, int check_clients);
-#endif // PATCH_MOUSE_POINTER_WARPING
+#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 static void populate_charcode_map(void);
 #if PATCH_MOVE_TILED_WINDOWS || PATCH_FLAG_HIDDEN
 static Client *prevtiled(Client *c);
@@ -2471,11 +2475,13 @@ applyrulesdeferred(Client *c, char *oldtitle)
 				if (selmon->sel == c) {
 					adjustfloatposition(c);
 					focus(c, 1);
+					#if PATCH_MOUSE_POINTER_WARPING
 					#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 					warptoclient(c, 1, 1);
 					#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
 					warptoclient(c, 1);
 					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+					#endif // PATCH_MOUSE_POINTER_WARPING
 				}
 				else
 					adjustfloatposition(c);
@@ -4141,7 +4147,7 @@ void
 changefocusopacity(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
@@ -4157,7 +4163,7 @@ void
 changeunfocusopacity(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
@@ -4172,7 +4178,7 @@ changeunfocusopacity(const Arg *arg)
 
 #if PATCH_FOCUS_FOLLOWS_MOUSE
 void
-checkmouseoverclient(Client *c)
+checkmouseoverclient(void)
 {
 	int x, y;
 	if (!getrootptr(&x, &y))
@@ -7891,9 +7897,9 @@ focusstack(const Arg *arg)
 	Client *c = NULL, *i, *s;
 	Monitor *m = selmon;
 	XEvent xev;
-	#if PATCH_MOUSE_POINTER_WARPING
+	#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 	int warp = 1;
-	#endif // PATCH_MOUSE_POINTER_WARPING
+	#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 
 	if (!(s = m->sel) && !(s = m->stack))
 		return;
@@ -7932,10 +7938,10 @@ focusstack(const Arg *arg)
 				|| ismodalparent(c)
 				#endif // PATCH_MODAL_SUPPORT
 				); c = c->next);
-		#if PATCH_MOUSE_POINTER_WARPING
+		#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 		if (arg->i > 1)
 			warp = 0;
-		#endif // PATCH_MOUSE_POINTER_WARPING
+		#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 	} else {
 		for (i = m->clients; i != s; i = i->next)
 			if (
@@ -7974,10 +7980,10 @@ focusstack(const Arg *arg)
 					#endif // PATCH_MODAL_SUPPORT
 					)
 					c = i;
-		#if PATCH_MOUSE_POINTER_WARPING
+		#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 		if (arg->i < -1)
 			warp = 0;
-		#endif // PATCH_MOUSE_POINTER_WARPING
+		#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 	}
 
 	if (c) {
@@ -8056,7 +8062,19 @@ focusstack(const Arg *arg)
 				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
 				warptoclient(c, 0);
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			#endif // PATCH_MOUSE_POINTER_WARPING
+			#elif PATCH_FOCUS_FOLLOWS_MOUSE
+			if (warp && !ismouseoverclient(c)) {
+				if (
+					c->isfullscreen
+					#if PATCH_FLAG_FAKEFULLSCREEN
+					&& c->fakefullscreen != 1
+					#endif // PATCH_FLAG_FAKEFULLSCREEN
+					)
+					XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->mx + (selmon->mw / 2), selmon->my + (selmon->mh / 2));
+				else
+					XWarpPointer(dpy, None, root, 0, 0, 0, 0, c->x + (c->w / 2), c->y + (c->h / 2));
+			}
+			#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 		}
 	}
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &xev));
@@ -9225,7 +9243,7 @@ handlexevent(struct epoll_event *ev)
 					showcursor();
 				#if 0 //PATCH_FOCUS_FOLLOWS_MOUSE
 				if (selmon->sel)
-					checkmouseoverclient(selmon->sel);
+					checkmouseoverclient();
 				#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 				break;
 			}
@@ -9269,7 +9287,7 @@ handlexevent(struct epoll_event *ev)
 					#if 0
 						#if PATCH_FOCUS_FOLLOWS_MOUSE
 						if (selmon->sel)
-							checkmouseoverclient(selmon->sel);
+							checkmouseoverclient();
 						#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 					#endif
 
@@ -9456,7 +9474,7 @@ hidecursor(void)
 void
 hidewin(const Arg *arg) {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 	Client *c = selmon->sel;
@@ -9746,6 +9764,19 @@ ismodalparent(Client *c)
 }
 #endif // PATCH_MODAL_SUPPORT
 
+#if PATCH_FOCUS_FOLLOWS_MOUSE
+int
+ismouseoverclient(Client *c)
+{
+	int x, y;
+	if (!getrootptr(&x, &y))
+		return 0;
+
+	Client *r = getclientatcoords(x, y, 0);
+	return (r == c ? 1 : 0);
+}
+#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+
 #ifdef XINERAMA
 static int
 isuniquegeom(XineramaScreenInfo *unique, size_t n, XineramaScreenInfo *info)
@@ -9886,7 +9917,7 @@ void
 killclient(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c;
 	if (!selmon || !(c = selmon->sel))
@@ -10073,7 +10104,7 @@ killgroup(const Arg *arg)
 	if (!arg || !(arg->ui & (KILLGROUP_BY_NAME | KILLGROUP_BY_CLASS | KILLGROUP_BY_INSTANCE)))
 		return;
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
@@ -12297,7 +12328,7 @@ movefloat(const Arg *arg)
 		return;
 
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 	Client *c;
@@ -12372,7 +12403,7 @@ void
 movemouse(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 	int x, y, ocx, ocy, nx, ny;
@@ -12580,7 +12611,7 @@ movemouse(const Arg *arg)
 void
 moveorplace(const Arg *arg) {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if ((!selmon->lt[selmon->sellt]->arrange || (selmon->sel && selmon->sel->isfloating)))
 		movemouse(&(Arg){.i = 0});
@@ -12593,7 +12624,7 @@ void
 movetiled(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *d, *c;
 	if (!(c = selmon->sel) || c->isfloating || (c->isfullscreen
@@ -14413,7 +14444,7 @@ void
 placemouse(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	int x, y, px, py, ocx, ocy, nx = -9999, ny = -9999, freemove = 0;
 	Client *c, *r = NULL, *at, *prevr;
@@ -14573,7 +14604,7 @@ placemouse(const Arg *arg)
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 }
 
-#if PATCH_MOUSE_POINTER_WARPING
+#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 int
 pointoverbar(Monitor *m, int x, int y, int check_clients)
 {
@@ -14582,6 +14613,9 @@ pointoverbar(Monitor *m, int x, int y, int check_clients)
 	int a, w = 1, h = 1;
 	int i;
 	Client *c;
+
+	if (x < 0 && y < 0)
+		getrootptr(&x, &y);
 	/*
 	Monitor *m;
 
@@ -14624,7 +14658,7 @@ pointoverbar(Monitor *m, int x, int y, int check_clients)
 
 	return 1;
 }
-#endif // PATCH_MOUSE_POINTER_WARPING
+#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 
 void
 populate_charcode_map(void)
@@ -15231,7 +15265,7 @@ void
 refocuspointer(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (selmon->sel)
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
@@ -15952,7 +15986,7 @@ void
 togglealwaysontop(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
@@ -16005,7 +16039,7 @@ void
 toggleisgame(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!selmon->sel)
 		return;
@@ -16123,7 +16157,7 @@ void
 resizemouse(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	int opx, opy, ocx, ocy, och, ocw, nx, ny, nw, nh;
 	Client *c;
@@ -16258,7 +16292,7 @@ void
 resizeorfacts(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Monitor *m = selmon;
 
@@ -16797,7 +16831,7 @@ run(void)
 				showcursor();
 			#if 0 //PATCH_FOCUS_FOLLOWS_MOUSE
 			if (selmon->sel)
-				checkmouseoverclient(selmon->sel);
+				checkmouseoverclient();
 			#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 			break;
 		}
@@ -16840,7 +16874,7 @@ run(void)
 				#if 0
 					#if PATCH_FOCUS_FOLLOWS_MOUSE
 					if (selmon->sel)
-						checkmouseoverclient(selmon->sel);
+						checkmouseoverclient();
 					#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 				#endif
 
@@ -16899,7 +16933,7 @@ run(void)
 		// BROKEN - tiled clients with popups that overlap other clients will lose focus when pointer strays over the overlapped client;
 		if (ev.type == motion_type) {
 			if (selmon->sel)
-				checkmouseoverclient(selmon->sel);
+				checkmouseoverclient();
 			break;
 		}
 		else
@@ -16915,7 +16949,7 @@ run(void)
 			XGetEventData(dpy, cookie);
 			XIDeviceEvent *xie = (XIDeviceEvent *)cookie->data;
 			if (xie->evtype == XI_RawMotion && selmon->sel)
-				checkmouseoverclient(selmon->sel);
+				checkmouseoverclient();
 			XFreeEventData(dpy, cookie);
 		}
 		#endif
@@ -16951,7 +16985,7 @@ run(void)
 				showcursor();
 			#if 0 //PATCH_FOCUS_FOLLOWS_MOUSE
 			if (selmon->sel)
-				checkmouseoverclient(selmon->sel);
+				checkmouseoverclient();
 			#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 			break;
 		}
@@ -16994,7 +17028,7 @@ run(void)
 				#if 0
 					#if PATCH_FOCUS_FOLLOWS_MOUSE
 					if (selmon->sel)
-						checkmouseoverclient(selmon->sel);
+						checkmouseoverclient();
 					#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 				#endif
 
@@ -17053,7 +17087,7 @@ run(void)
 		// BROKEN - tiled clients with popups that overlap other clients will lose focus when pointer strays over the overlapped client;
 		if (ev.type == motion_type) {
 			if (selmon->sel)
-				checkmouseoverclient(selmon->sel);
+				checkmouseoverclient();
 			break;
 		}
 		else
@@ -17069,7 +17103,7 @@ run(void)
 			XGetEventData(dpy, cookie);
 			XIDeviceEvent *xie = (XIDeviceEvent *)cookie->data;
 			if (xie->evtype == XI_RawMotion && selmon->sel)
-				checkmouseoverclient(selmon->sel);
+				checkmouseoverclient();
 			XFreeEventData(dpy, cookie);
 		}
 		#endif
@@ -18224,7 +18258,19 @@ setlayout(const Arg *arg)
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		warptoclient(selmon->sel, 0);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-	#endif // PATCH_MOUSE_POINTER_WARPING
+	#elif PATCH_FOCUS_FOLLOWS_MOUSE
+	if (selmon->sel && !ismouseoverclient(selmon->sel) && !pointoverbar(selmon, -1, -1, 1)) {
+		if (
+			selmon->sel->isfullscreen
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			&& selmon->sel->fakefullscreen != 1
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+			)
+			XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->mx + (selmon->mw / 2), selmon->my + (selmon->mh / 2));
+		else
+			XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->sel->x + (selmon->sel->w / 2), selmon->sel->y + (selmon->sel->h / 2));
+	}
+	#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 }
 
 void
@@ -18299,7 +18345,7 @@ setnumdesktops(void)
 void
 setcfact(const Arg *arg) {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	float f;
 	Client *c;
@@ -20838,16 +20884,9 @@ altTabStart(const Arg *arg)
 									continue;
 							}
 							bev = event.xbutton;
-							#if PATCH_MOUSE_POINTER_WARPING
 							if (bev.button == 1 || bev.button == 3) {
-							#else // NO PATCH_MOUSE_POINTER_WARPING
-							if (bev.button == 1) {
-							#endif // PATCH_MOUSE_POINTER_WARPING
-
 								if (bev.x < altTabMon->tx || bev.x > (altTabMon->tx + altTabMon->maxWTab) ||
 									bev.y < altTabMon->ty || bev.y > (altTabMon->ty + altTabMon->maxHTab)) {
-									if (event.type == ButtonRelease)
-										continue;
 									highlight(NULL);
 									break;
 								}
@@ -21078,13 +21117,26 @@ altTabStart(const Arg *arg)
 				}
 			}
 			#if PATCH_MOUSE_POINTER_WARPING
-			if ((!isAltMouse || !same) && mon_mask)
+			//if ((!isAltMouse || !same) && mon_mask)
+			if (mon_mask && !ismouseoverclient(selmon->sel) && !pointoverbar(selmon, -1, -1, 1))
 				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, smoothwarp, 0);
+				warptoclient(selmon->sel, smoothwarp, 0);
 				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, 0);
+				warptoclient(selmon->sel, 0);
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-			#endif // PATCH_MOUSE_POINTER_WARPING
+			#elif PATCH_FOCUS_FOLLOWS_MOUSE
+			if (mon_mask && !ismouseoverclient(selmon->sel) && !pointoverbar(selmon, -1, -1, 1)) {
+				if (
+					selmon->sel->isfullscreen
+					#if PATCH_FLAG_FAKEFULLSCREEN
+					&& selmon->sel->fakefullscreen != 1
+					#endif // PATCH_FLAG_FAKEFULLSCREEN
+					)
+					XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->mx + (selmon->mw / 2), selmon->my + (selmon->mh / 2));
+				else
+					XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->sel->x + (selmon->sel->w / 2), selmon->sel->y + (selmon->sel->h / 2));
+			}
+			#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 			XUngrabPointer(dpy, CurrentTime);
 		}
 	}
@@ -21095,7 +21147,7 @@ void
 tag(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c;
 	if (!(c = selmon->sel) || !(arg->ui & TAGMASK)
@@ -21161,7 +21213,7 @@ void
 tagmon(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	if (!c || !mons->next
@@ -21324,7 +21376,7 @@ void
 togglefakefullscreen(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	if (!c)
@@ -21363,7 +21415,7 @@ void
 togglefloating(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	togglefloatingex(selmon->sel);
 }
@@ -21470,7 +21522,7 @@ void
 togglefullscreen(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	if (!c)
@@ -21532,7 +21584,7 @@ void
 togglepause(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c;
 	if (!(c = selmon->sel) || !c->pid)
@@ -21631,7 +21683,7 @@ void
 togglesticky(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	if (!c)
@@ -21667,7 +21719,7 @@ void
 toggletag(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	toggletagex(selmon->sel, arg->ui);
 }
@@ -23595,11 +23647,13 @@ viewkeyholdclient(const Arg *arg)
 		focusmonex(c->mon);
 	focus(c, 1);
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_MOUSE_POINTER_WARPING
 	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	warptoclient(c, 0, 1);
 	#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	warptoclient(c, 1);
 	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	#endif // PATCH_MOUSE_POINTER_WARPING
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 }
 #endif // PATCH_KEY_HOLD
@@ -24399,7 +24453,7 @@ void
 zoom(const Arg *arg)
 {
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	checkmouseoverclient(selmon->sel);
+	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	Client *c = selmon->sel;
 	Client *t = c;
