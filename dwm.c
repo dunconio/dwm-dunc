@@ -19987,6 +19987,12 @@ altTabEnd(void)
 		altTabMon->tabwin = None;
 	}
 	altTabMon = NULL;
+
+	#if PATCH_ALT_TAGS
+	if (selmon->alttags)
+		selmon->alttags = 0;
+	#endif // PATCH_ALT_TAGS
+
 	drawbars();
 }
 
