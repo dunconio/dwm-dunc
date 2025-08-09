@@ -9165,6 +9165,7 @@ Client *
 guessnextfocus(Client *c, Monitor *m)
 {
 	Client *sel = NULL;
+	int x, y;
 	if (!c) {
 		if (!m)
 			m = selmon;
@@ -9173,8 +9174,15 @@ guessnextfocus(Client *c, Monitor *m)
 		if (!m)
 			m = c->mon;
 
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	if (!sel && getrootptr(&x, &y)) {
+ 		if ((sel = getclientatcoords(x, y, True)) && sel == c)
+			sel = NULL;
+	}
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+
 	// use prevsel if it's visible and on the same monitor;
-	if (c && c->prevsel && validclient(c->prevsel)
+	if (!sel && c && c->prevsel && validclient(c->prevsel)
 		&& ISVISIBLE(c->prevsel) && !MINIMIZED(c->prevsel)
 		&& c->prevsel->mon == c->mon
 		#if PATCH_FLAG_HIDDEN
@@ -9209,7 +9217,6 @@ guessnextfocus(Client *c, Monitor *m)
 		sel = getactivegameclient(m);
 	#endif // PATCH_FLAG_GAME
 
-	int x, y;
 	if (!sel && getrootptr(&x, &y)) {
  		if ((sel = getclientatcoords(x, y, True)) && sel == c)
 			sel = NULL;
@@ -11711,6 +11718,17 @@ manage(Window w, XWindowAttributes *wa)
 		takefocus = 0;
 	}
 	#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN
+
+	if (!nonstop && !c->isfixed && !c->isfloating
+	) {
+		logdatetime(stderr);
+		fprintf(stderr, "c:\"%s\" x:%i y:%i old w:%i h:%i ", c->name, c->x, c->y, c->w, c->h);
+		if (c->x < c->mon->wx)
+			c->x = c->mon->wx;
+		if (c->y < c->mon->wy)
+			c->y = c->mon->wy;
+		fprintf(stderr, "new x:%i y:%i\n", c->x, c->y);
+	}
 
 	if (!nonstop && !ISVISIBLE(c) && !c->isfixed && !c->isfloating
 		#if PATCH_FLAG_IGNORED
