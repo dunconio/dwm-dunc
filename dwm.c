@@ -9165,6 +9165,9 @@ Client *
 guessnextfocus(Client *c, Monitor *m)
 {
 	Client *sel = NULL;
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	int a, w = 1, h = 1;
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	int x, y;
 	if (!c) {
 		if (!m)
@@ -9175,10 +9178,7 @@ guessnextfocus(Client *c, Monitor *m)
 			m = c->mon;
 
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
-	if (!sel && getrootptr(&x, &y)) {
- 		if ((sel = getclientatcoords(x, y, True)) && sel == c)
-			sel = NULL;
-	}
+	getrootptr(&x, &y);
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 	// use prevsel if it's visible and on the same monitor;
@@ -9188,6 +9188,9 @@ guessnextfocus(Client *c, Monitor *m)
 		#if PATCH_FLAG_HIDDEN
 		&& !c->prevsel->ishidden
 		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_FOCUS_FOLLOWS_MOUSE
+		&& (a = INTERSECTC(x, y, w, h, c->prevsel))
+		#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 		)
 		sel = c->prevsel;
 
@@ -9198,6 +9201,9 @@ guessnextfocus(Client *c, Monitor *m)
 		#if PATCH_FLAG_HIDDEN
 		&& !c->parent->ishidden
 		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_FOCUS_FOLLOWS_MOUSE
+		&& (a = INTERSECTC(x, y, w, h, c->parent))
+		#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 		) {
 		sel = c->parent;
 		// if floating client has autofocus=0 then look at its parent instead;
@@ -9217,7 +9223,11 @@ guessnextfocus(Client *c, Monitor *m)
 		sel = getactivegameclient(m);
 	#endif // PATCH_FLAG_GAME
 
-	if (!sel && getrootptr(&x, &y)) {
+	if (!sel
+		#if !PATCH_FOCUS_FOLLOWS_MOUSE
+		&& getrootptr(&x, &y)
+		#endif // !PATCH_FOCUS_FOLLOWS_MOUSE
+		) {
  		if ((sel = getclientatcoords(x, y, True)) && sel == c)
 			sel = NULL;
 	}
