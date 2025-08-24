@@ -18305,6 +18305,7 @@ setfullscreen(Client *c, int fullscreen)
 		c->oldstate = c->isfloating | (1 << 1);
 		c->bw = 0;
 		c->isfloating = 1;
+		c->fakefullscreen = 0;
 
 		// if this window isn't visible, don't change it yet
 		//if ((c->tags & c->mon->tagset[c->mon->seltags]) > 0) {
@@ -21678,20 +21679,40 @@ togglefakefullscreen(const Arg *arg)
 		return;
 	#endif // PATCH_SHOW_DESKTOP
 
-	if (c->fakefullscreen != 1 && c->isfullscreen) { // exit fullscreen --> fake fullscreen
-		c->fakefullscreen = 2;
-		setfullscreen(c, 0);
-	} else if (c->fakefullscreen == 1) {
-		setfullscreen(c, 0);
-		c->fakefullscreen = 0;
-	} else {
-		c->fakefullscreen = 1;
-		setfullscreen(c, 1);
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	int prevfullscreen = c->isfullscreen;
+	int prevfakefullscreen = c->fakefullscreen;
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+	if(c->isfullscreen) {
+		if (c->fakefullscreen != 1) { // exit fullscreen --> fake fullscreen
+			c->fakefullscreen = 2;
+			setfullscreen(c, 0);
+		} else if (c->fakefullscreen == 1) {
+			c->fakefullscreen = 2;
+			setfullscreen(c, 1);
+		}
 	}
+	else if (c->fakefullscreen == 1)
+		c->fakefullscreen = 0;
+	else
+		c->fakefullscreen = 1;
 
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
+
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	if((c->fakefullscreen == 1 && c->isfullscreen && !prevfakefullscreen) || (!c->isfullscreen && prevfullscreen && !prevfakefullscreen))
+		#if PATCH_MOUSE_POINTER_WARPING
+		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		warptoclient(c, 0, 0);
+		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		warptoclient(c, 0);
+		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		#else // NO PATCH_MOUSE_POINTER_WARPING
+		XWarpPointer(dpy, None, root, 0, 0, 0, 0, c->x + (c->w / 2), c->y + (c->h / 2));
+		#endif // PATCH_MOUSE_POINTER_WARPING
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 }
 #endif // PATCH_FLAG_FAKEFULLSCREEN
 
