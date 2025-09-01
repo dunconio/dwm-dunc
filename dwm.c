@@ -1052,7 +1052,7 @@ struct Client {
 	#if PATCH_FLAG_NEVER_FOCUS
 	int neverfocus_override;
 	#endif // PATCH_FLAG_NEVER_FOCUS
-	int oldstate, isfullscreen
+	int oldstate, isfullscreen, lostfullscreen
 		#if PATCH_TERMINAL_SWALLOWING
 		, isterminal , noswallow
 		#endif // PATCH_TERMINAL_SWALLOWING
@@ -7891,6 +7891,16 @@ focus(Client *c, int force)
 		if (altTabMon)
 			return;
 		#endif // PATCH_ALTTAB
+		if(c->lostfullscreen)
+		{
+			c->lostfullscreen = 0;
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			if(c->fakefullscreen != 1)
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+			{
+				setfullscreen(c, 1);
+			}
+		}
 		setfocus(c);
 		#if PATCH_CLIENT_OPACITY
 		opacity(c, 1);
@@ -8179,8 +8189,10 @@ focusstack(const Arg *arg)
 					#endif // PATCH_FLAG_ALWAYSONTOP
 					)
 					return;
-				else
+				else {
+					s->lostfullscreen = 1;
 					setfullscreen(s, 0);
+				}
 			}
 
 			#if PATCH_FLAG_PAUSE_ON_INVISIBLE
@@ -11299,7 +11311,10 @@ losefullscreen(Client *active, Client *next)
 			minimize(sel);
 		else
 		#endif // PATCH_FLAG_GAME
-		setfullscreen(sel, 0);
+		{
+			sel->lostfullscreen = 1;
+			setfullscreen(sel, 0);
+		}
 	}
 }
 
@@ -18109,6 +18124,8 @@ setdefaultvalues(Client *c)
 	c->isgamestrict = 0;
 	#endif // PATCH_FLAG_GAME_STRICT
 	#endif // PATCH_FLAG_GAME
+	c->isfullscreen = 0;
+	c->lostfullscreen = 0;
 	#if PATCH_FLAG_FAKEFULLSCREEN
 	c->fakefullscreen = fakefullscreen_by_default;
 	#endif // PATCH_FLAG_FAKEFULLSCREEN
@@ -21335,7 +21352,10 @@ altTabStart(const Arg *arg)
 				}
 				else
 				#endif // PATCH_FLAG_GAME
-				setfullscreen(c->mon->sel, 0);
+				{
+					c->mon->sel->lostfullscreen = 1;
+					setfullscreen(c->mon->sel, 0);
+				}
 			}
 
 			if (altTabMon->isAlt & ALTTAB_MOUSE) {
