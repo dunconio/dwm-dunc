@@ -7645,6 +7645,7 @@ enternotify(XEvent *e)
 	}
 
 	if (c && !c->dormant
+		&& (!c->lostfullscreen || solitary(c) || c->mon != selm)
 		#if PATCH_FLAG_PANEL
 		&& !c->ispanel
 		#endif // PATCH_FLAG_PANEL
@@ -7658,6 +7659,7 @@ enternotify(XEvent *e)
 			drawbar(m, 1);
 	}
 	else if (c && !c->dormant
+		&& (!c->lostfullscreen || solitary(c) || c->mon != selm)
 		#if PATCH_FLAG_IGNORED
 		&& !c->isignored
 		#endif // PATCH_FLAG_IGNORED
