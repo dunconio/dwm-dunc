@@ -1413,9 +1413,12 @@ static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interac
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 #if PATCH_CLASS_STACKING
-static void arrangemon_process_classstack(Client *c);
+static void arrangemon_process_classstack(Client *c, int added_to_stack);
 #endif // PATCH_CLASS_STACKING
 static void attach(Client *c);
+#if PATCH_CLASS_STACKING
+static int attach_stackhead(Client *c);
+#endif // PATCH_CLASS_STACKING
 #if PATCH_ATTACH_BELOW_AND_NEWMASTER
 static void attachBelow(Client *c);
 static void attachstackBelow(Client *c);
@@ -2517,14 +2520,21 @@ applyrulesdeferred(Client *c, char *oldtitle)
 			c->mon = mm;
 			if (c->monindex == -1)
 				c->monindex = mm->num;
-			#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-			attachBelow(c);
-			//	attachstack(c);
-			attachstackBelow(c);
-			#else // NO PATCH_ATTACH_BELOW_AND_NEWMASTER
-			attach(c);
-			attachstack(c);
-			#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+			#if PATCH_CLASS_STACKING
+			if(!attach_stackhead(c))
+			{
+			#endif // PATCH_CLASS_STACKING
+				#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+				attachBelow(c);
+				//	attachstack(c);
+				attachstackBelow(c);
+				#else // NO PATCH_ATTACH_BELOW_AND_NEWMASTER
+				attach(c);
+				attachstack(c);
+				#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+			#if PATCH_CLASS_STACKING
+			}
+			#endif // PATCH_CLASS_STACKING
 
 			if (sel && m == mm && ISVISIBLE(c)) {
 				mm->sel = c;
@@ -3551,7 +3561,7 @@ arrangemon(Monitor *m)
 	{
 		#if PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
 		if (tabHighlight && altTabMon && altTabMon->isAlt && !(altTabMon->isAlt & ALTTAB_MOUSE) && altTabMon->highlight && altTabMon->highlight->mon == m)
-			arrangemon_process_classstack(altTabMon->highlight);
+			arrangemon_process_classstack(altTabMon->highlight, 1);
 		#endif // PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
 		for (c = m->stack; c; c = c->snext)
 		{
@@ -3561,7 +3571,7 @@ arrangemon(Monitor *m)
 				#endif // PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
 				)
 				continue;
-			arrangemon_process_classstack(c);
+			arrangemon_process_classstack(c, 1);
 		}
 
 		if (m->lt[m->sellt]->arrange)
@@ -3592,12 +3602,12 @@ arrangemon(Monitor *m)
 
 #if PATCH_CLASS_STACKING
 void
-arrangemon_process_classstack(Client *c)
+arrangemon_process_classstack(Client *c, int added_to_stack)
 {
 	XClassHint ch = { NULL, NULL };
 	XClassHint ch2 = { NULL, NULL };
 
-	if (!c->snext || c->isfloating || !ISVISIBLE(c) || c->isstacked
+	if ((added_to_stack && (!c->snext || !ISVISIBLE(c))) || c->isfloating || c->isstacked
 		#if PATCH_FLAG_HIDDEN
 		|| c->ishidden
 		#endif // PATCH_FLAG_HIDDEN
@@ -3618,7 +3628,7 @@ arrangemon_process_classstack(Client *c)
 		if (!ch.res_class)
 			return;
 	}
-	for (Client *c2 = c->snext; c2; c2 = c2->snext)
+	for (Client *c2 = added_to_stack ? c->snext : c->mon->stack; c2; c2 = c2->snext)
 	{
 		if (c2->isfloating || !ISVISIBLE(c2) || c2->isstacked
 			#if PATCH_FLAG_HIDDEN
@@ -3657,7 +3667,7 @@ arrangemon_process_classstack(Client *c)
 		XFree(ch.res_class);
 		ch.res_class = NULL;
 	}
-	if (ISVISIBLE(c) &&
+	if (added_to_stack && ISVISIBLE(c) &&
 		(
 			(c->mon == selmon && c->isstackhead && c->mon->sel == c)
 			#if PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
@@ -3680,6 +3690,105 @@ arrangemon_process_classstack(Client *c)
 		XSetWindowBorder(dpy, c->win, scheme[SchemeUrg][ColBorder].pixel);
 	
 }
+
+int
+attach_stackhead(Client *c)
+{
+	if (c->isfloating || !ISVISIBLE(c)
+		#if PATCH_FLAG_HIDDEN
+		|| c->ishidden
+		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_FLAG_IGNORED
+		|| c->isignored
+		#endif // PATCH_FLAG_IGNORED
+		#if PATCH_FLAG_PANEL
+		|| c->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		|| c->isdesktop || c->ondesktop
+		#endif // PATCH_SHOW_DESKTOP
+	) return 0;
+	
+	if(!c->isstacked)
+	{
+		arrangemon_process_classstack(c, 0);
+		if(!(c->isstackhead || c->isstacked))
+			return 0;
+	}
+	Client *h, *sh = c->isstacked;
+
+	if(!sh)
+	{
+		for(sh = c->mon->stack; sh; sh = sh->snext)
+		{
+			if (sh->isfloating || !ISVISIBLE(sh)
+				#if PATCH_FLAG_HIDDEN
+				|| sh->ishidden
+				#endif // PATCH_FLAG_HIDDEN
+				#if PATCH_FLAG_IGNORED
+				|| sh->isignored
+				#endif // PATCH_FLAG_IGNORED
+				#if PATCH_FLAG_PANEL
+				|| sh->ispanel
+				#endif // PATCH_FLAG_PANEL
+				#if PATCH_SHOW_DESKTOP
+				|| sh->isdesktop || sh->ondesktop
+				#endif // PATCH_SHOW_DESKTOP
+			) continue;
+			break;
+		}
+		if(!sh)
+			return 0;
+	}
+
+	for(h = c->mon->clients; h && h->next; h = h->next)
+	{
+		if(h == sh)
+		{
+			h->isstacked = c;
+			h->isstackhead = 0;
+			c->isstacked = NULL;
+			c->isstackhead = 1;
+			attach(c);
+			attachstack(c);
+fprintf(stderr, "attach at top of stack");
+			return 1;
+		}
+		if(h->next == sh)
+		{
+			h->next->isstacked = c;
+			h->next->isstackhead = 0;
+			c->next = h->next;
+			h->next = c;
+			c->isstacked = NULL;
+			c->isstackhead = 1;
+fprintf(stderr, "attach after h:%s", h->name);
+			break;
+		}
+	}
+	if(!c->isstackhead)
+		return 0;
+
+	for(h = c->mon->stack; h && h->snext; h = h->snext)
+	{
+		if(c->next == h)
+		{
+			attachstack(c);
+			return 1;
+		}
+		if(c->next == h->snext)
+		{
+			c->sprev = h;
+			h->snext->sprev = c;
+			c->snext = h->snext->snext;
+			h->snext = c;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+
 #endif // PATCH_CLASS_STACKING
 
 void
@@ -11867,43 +11976,51 @@ manage(Window w, XWindowAttributes *wa)
 	}
 	#endif // PATCH_SHOW_DESKTOP
 
-	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-	if (
-		((nonstop & 1) || c->newmaster || (
-			((ISVISIBLE(c) && c->mon == selmon) || (c->tags & c->mon->tagset[c->mon->seltags]))
-			&& c->mon->lt[c->mon->sellt]->arrange == monocle
-		)) &&
-		((!c->mon->sel || !c->mon->sel->isfullscreen
-			#if PATCH_FLAG_FAKEFULLSCREEN
-			|| c->mon->sel->fakefullscreen == 1
-			#endif // PATCH_FLAG_FAKEFULLSCREEN
-			#if PATCH_FLAG_GAME
-			|| (c->mon->sel->isgame && c->isgame)
-			|| (c->isgame && c->isfullscreen
+
+	#if PATCH_CLASS_STACKING
+	if(!attach_stackhead(c))
+	{
+	#endif // PATCH_CLASS_STACKING
+		#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+		if (
+			((nonstop & 1) || c->newmaster || (
+				((ISVISIBLE(c) && c->mon == selmon) || (c->tags & c->mon->tagset[c->mon->seltags]))
+				&& c->mon->lt[c->mon->sellt]->arrange == monocle
+			)) &&
+			((!c->mon->sel || !c->mon->sel->isfullscreen
 				#if PATCH_FLAG_FAKEFULLSCREEN
-				&& c->fakefullscreen != 1
+				|| c->mon->sel->fakefullscreen == 1
 				#endif // PATCH_FLAG_FAKEFULLSCREEN
+				#if PATCH_FLAG_GAME
+				|| (c->mon->sel->isgame && c->isgame)
+				|| (c->isgame && c->isfullscreen
+					#if PATCH_FLAG_FAKEFULLSCREEN
+					&& c->fakefullscreen != 1
+					#endif // PATCH_FLAG_FAKEFULLSCREEN
+				)
+				#endif // PATCH_FLAG_GAME
+			) || !ISVISIBLE(c)) &&
+			!(0
+			#if PATCH_FLAG_IGNORED
+			|| c->isignored
+			#endif // PATCH_FLAG_IGNORED
+			#if PATCH_FLAG_PANEL
+			|| c->ispanel
+			#endif // PATCH_FLAG_PANEL
 			)
-			#endif // PATCH_FLAG_GAME
-		) || !ISVISIBLE(c)) &&
-		!(0
-		#if PATCH_FLAG_IGNORED
-		|| c->isignored
-		#endif // PATCH_FLAG_IGNORED
-		#if PATCH_FLAG_PANEL
-		|| c->ispanel
-		#endif // PATCH_FLAG_PANEL
-		)
-	){
-	#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
-		attach(c);
-		attachstack(c);
-	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-	} else {
-		attachBelow(c);
-		attachstackBelow(c);
+		){
+		#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+			attach(c);
+			attachstack(c);
+		#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+		} else {
+			attachBelow(c);
+			attachstackBelow(c);
+		}
+		#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+	#if PATCH_CLASS_STACKING
 	}
-	#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+	#endif // PATCH_CLASS_STACKING
 	XChangeProperty(dpy, root, netatom[NetClientList], XA_WINDOW, 32, PropModeAppend,
 		(unsigned char *) &(c->win), 1);
 
