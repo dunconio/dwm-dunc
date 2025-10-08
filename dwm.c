@@ -3751,7 +3751,6 @@ attach_stackhead(Client *c)
 			c->isstackhead = 1;
 			attach(c);
 			attachstack(c);
-fprintf(stderr, "attach at top of stack");
 			return 1;
 		}
 		if(h->next == sh)
@@ -3762,7 +3761,6 @@ fprintf(stderr, "attach at top of stack");
 			h->next = c;
 			c->isstacked = NULL;
 			c->isstackhead = 1;
-fprintf(stderr, "attach after h:%s", h->name);
 			break;
 		}
 	}
@@ -7716,6 +7714,9 @@ enternotify(XEvent *e)
 
 	if ((ev->mode != NotifyNormal || ev->detail == NotifyInferior) && ev->window != root)
 		return;
+	if (ev->window == root)
+		return;
+
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	Monitor *selm = selmon;
 	Client *sel = selmon->sel;
@@ -7743,9 +7744,6 @@ enternotify(XEvent *e)
 		return;
 	}
 
-	if (ev->window == root)
-		return;
-
 	Monitor *m = c ? c->mon : wintomon(ev->window);
 	if (m && m != selmon) {
 		focusmonex(m);
@@ -7754,7 +7752,7 @@ enternotify(XEvent *e)
 	}
 
 	if (c && !c->dormant
-		&& (!c->lostfullscreen || solitary(c) || c->mon != selm)
+		&& (!c->lostfullscreen || solitary(c))
 		#if PATCH_FLAG_PANEL
 		&& !c->ispanel
 		#endif // PATCH_FLAG_PANEL
