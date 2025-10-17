@@ -17962,22 +17962,27 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		c->mon = m;
 		c->monindex = m->num;
 		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
-		#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-		if (m->lt[m->sellt]->arrange != &monocle &&
-			(!c->isfullscreen
-			#if PATCH_FLAG_FAKEFULLSCREEN
-			|| c->fakefullscreen == 1
-			#endif // PATCH_FLAG_FAKEFULLSCREEN
-		)) {
-			attachBelow(c);
-			attachstackBelow(c);
-		}
-		else
-		#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+		#if PATCH_CLASS_STACKING
+		if(!attach_stackhead(c))
+		#endif // PATCH_CLASS_STACKING
 		{
-			attach(c);
-			attachstackex(c);
-			m->sel = c;
+			#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+			if (m->lt[m->sellt]->arrange != &monocle &&
+				(!c->isfullscreen
+				#if PATCH_FLAG_FAKEFULLSCREEN
+				|| c->fakefullscreen == 1
+				#endif // PATCH_FLAG_FAKEFULLSCREEN
+			)) {
+				attachBelow(c);
+				attachstackBelow(c);
+			}
+			else
+			#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+			{
+				attach(c);
+				attachstackex(c);
+				m->sel = c;
+			}
 		}
 		// move the client if it is floating;
 		if (c->isfloating) {
