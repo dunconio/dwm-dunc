@@ -538,10 +538,6 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_CLASS_STACKING
 	{ R_S,		"set-class-stack",				"use this string as class for class stacking" },
 	#endif // PATCH_CLASS_STACKING
-	#if PATCH_CLIENT_OPACITY
-	{ R_N|R_I,	"set-opacity-active",			"level of opacity for client when active" },
-	{ R_N|R_I,	"set-opacity-inactive",			"level of opacity for client when inactive" },
-	#endif // PATCH_CLIENT_OPACITY
 	#if PATCH_MOUSE_POINTER_HIDING
 	{ R_BOOL,	"set-cursor-autohide",			"true to hide cursor when stationary while this client is focused" },
 	{ R_BOOL,	"set-cursor-hide-on-keys",		"true to hide cursor when keys are pressed while this client is focused" },
@@ -620,6 +616,10 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_TERMINAL_SWALLOWING
 	{ R_BOOL,	"set-noswallow",				"never swallow this client" },
 	#endif // PATCH_TERMINAL_SWALLOWING
+	#if PATCH_CLIENT_OPACITY
+	{ R_N|R_I,	"set-opacity-active",			"level of opacity for client when active" },
+	{ R_N|R_I,	"set-opacity-inactive",			"level of opacity for client when inactive" },
+	#endif // PATCH_CLIENT_OPACITY
 	{ R_BOOL,	"set-panel",					"client is a floating panel window, whose visibility will match the bar's; excluded from mouse warp focus, stacking, alt-tab" },
 	#if PATCH_FLAG_PARENT
 	{ R_A|R_S,	"set-parent-begins",			"treat client as if its parent is the specified window (same class if rule deferred) - substring match from the start" },
