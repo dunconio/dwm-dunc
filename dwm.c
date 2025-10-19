@@ -469,6 +469,20 @@ static const supported_rules_json supported_rules[] = {
 	#endif // PATCH_SHOW_DESKTOP
 	{ R_BOOL,	"if-fixed-size",				"false if the client is resizable or fullscreen, true if fixed size" },
 	{ R_BOOL,	"if-has-parent",				"client has a parent" },
+	#if PATCH_ACTIVE_CLIENT_CHECKS
+	{ R_A|R_S,	"if-active-instance-begins",		"substring matching from the start of the active client's instance" },
+	{ R_A|R_S,	"if-active-instance-contains",		"substring matching on the active client's instance" },
+	{ R_A|R_S,	"if-active-instance-ends",			"substring matching from the end of the active client's instance" },
+	{ R_A|R_S,	"if-active-instance-is",			"exact full string matching on the active client's instance" },
+	{ R_A|R_S,	"if-active-role-begins",			"substring matching from the start of the active client's role" },
+	{ R_A|R_S,	"if-active-role-contains",			"substring matching on the active client's role" },
+	{ R_A|R_S,	"if-active-role-ends",				"substring matching from the end of the active client's role" },
+	{ R_A|R_S,	"if-active-role-is",				"exact full string matching on the active client's role" },
+	{ R_A|R_S,	"if-active-title-begins",			"substring matching from the start of the active client's title" },
+	{ R_A|R_S,	"if-active-title-contains",			"substring matching on the active client's title" },
+	{ R_A|R_S,	"if-active-title-ends",				"substring matching from the end of the active client's title" },
+	{ R_A|R_S,	"if-active-title-is",				"exact full string matching on the active client's title" },
+	#endif // PATCH_ACTIVE_CLIENT_CHECKS
 	{ R_A|R_S,	"if-instance-begins",			"substring matching from the start of instance" },
 	{ R_A|R_S,	"if-instance-contains",			"substring matching on instance" },
 	{ R_A|R_S,	"if-instance-ends",				"substring matching from the end of instance" },
@@ -506,6 +520,9 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 	{ R_BOOL,	"set-autohide",					"whether to minimize/iconify the client when it shouldn't be visible" },
 	#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
+	#if PATCH_FLAG_CAN_LOSE_FOCUS
+	{ R_BOOL,	"set-can-lose-focus",			"allow the client to lose focus when active" },
+	#endif // PATCH_FLAG_CAN_LOSE_FOCUS
 	#if PATCH_FLAG_CENTRED
 	{ R_I,		"set-centred",					"1:centre of monitor, 2:centre of parent client" },
 	#endif // PATCH_FLAG_CENTRED
@@ -1079,6 +1096,9 @@ struct Client {
 	#if PATCH_FLAG_STICKY
 	int issticky;
 	#endif // PATCH_FLAG_STICKY
+	#if PATCH_FLAG_CAN_LOSE_FOCUS
+	int canlosefocus;
+	#endif // PATCH_FLAG_CAN_LOSE_FOCUS
 	#if PATCH_FLAG_CENTRED
 	int iscentred;
 	int iscentred_override;
@@ -2557,10 +2577,16 @@ int
 applyrules_stringtest(cJSON *rule_node, const char *string, int string_len, int match_type)
 {
 	int i, len;
+	const char *empty_string = "";
 	const char *test_string;
 	cJSON *r_arrayitem;
 
-	if (string_len == -1)
+	if(string == NULL)
+	{
+		string_len = 0;
+		string = empty_string;
+	}
+	else if (string_len == -1)
 		string_len = strlen(string);
 
 	// check if the rule has an array of values or is just a plain string;
@@ -2679,6 +2705,26 @@ applyrules(Client *c, int deferred, char *oldtitle)
 	XClassHint pch = { NULL, NULL };
 	Client *p, *pp;
 	#endif // PATCH_FLAG_PARENT
+
+	#if PATCH_ACTIVE_CLIENT_CHECKS
+	char active_role[64];
+	active_role[0] = 0;
+	XClassHint ach = { NULL, NULL };
+	const char *active_title = NULL;
+	size_t sz_active_title = 0;
+	size_t sz_active_role = 0;
+	if (selmon->sel) {
+		active_title = selmon->sel->name;
+		XGetClassHint(dpy, selmon->sel->win, &ach);
+		sz_active_title = strlen(active_title);
+		gettextprop(selmon->sel->win, wmatom[WMWindowRole], active_role, sizeof(active_role));
+		sz_active_role = strlen(active_role);
+	}
+	const char *active_class = ach.res_class ? ach.res_class : broken;
+	const char *active_instance = ach.res_name  ? ach.res_name  : broken;
+	size_t sz_active_class = (active_class == broken ? 0 : strlen(active_class));
+	size_t sz_active_instance = (active_instance == broken ? 0 : strlen(active_instance));
+	#endif // PATCH_ACTIVE_CLIENT_CHECKS
 
 	/* rule matching */
 	XGetClassHint(dpy, c->win, &ch);
@@ -2828,6 +2874,12 @@ applyrules(Client *c, int deferred, char *oldtitle)
 
 		// only match when the rule has at least one string-matching entry;
 		if (!(
+				#if PATCH_ACTIVE_CLIENT_CHECKS
+				STRINGMATCHABLE(r_json, "if-active-class") ||
+				STRINGMATCHABLE(r_json, "if-active-instance") ||
+				STRINGMATCHABLE(r_json, "if-active-title") ||
+				STRINGMATCHABLE(r_json, "if-active-role") ||
+				#endif // PATCH_ACTIVE_CLIENT_CHECKS
 				STRINGMATCHABLE(r_json, "if-class") ||
 				STRINGMATCHABLE(r_json, "if-instance") ||
 				STRINGMATCHABLE(r_json, "if-title") ||
@@ -2842,7 +2894,14 @@ applyrules(Client *c, int deferred, char *oldtitle)
 			) && (!deferred || !(STRINGMATCHABLE(r_json, "if-title-was")))
 		) continue;
 
-		if (STRINGMATCH(r_json, class, sz_class, "if-class") &&
+		if (
+			#if PATCH_ACTIVE_CLIENT_CHECKS
+			STRINGMATCH(r_json, active_class, sz_active_class, "if-active-class") &&
+			STRINGMATCH(r_json, active_instance, sz_active_instance, "if-active-instance") &&
+			STRINGMATCH(r_json, active_role, sz_active_role, "if-active-role") &&
+			STRINGMATCH(r_json, active_title, sz_active_title, "if-active-title") &&
+			#endif // PATCH_ACTIVE_CLIENT_CHECKS
+			STRINGMATCH(r_json, class, sz_class, "if-class") &&
 			STRINGMATCH(r_json, instance, sz_instance, "if-instance") &&
 			STRINGMATCH(r_json, role, sz_role, "if-role") &&
 			STRINGMATCH(r_json, p_class, sz_p_class, "if-parent-class") &&
@@ -3105,6 +3164,9 @@ skip_parenting:
 			#if PATCH_FLAG_NEVER_RESIZE
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-never-resize")) && json_isboolean(r_node)) c->neverresize = r_node->valueint;
 			#endif // PATCH_FLAG_NEVER_RESIZE
+			#if PATCH_FLAG_CAN_LOSE_FOCUS
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-can-lose-focus")) && json_isboolean(r_node)) c->canlosefocus = r_node->valueint;
+			#endif // PATCH_FLAG_CAN_LOSE_FOCUS
 			#if PATCH_FLAG_CENTRED
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-centred")) && cJSON_IsNumeric(r_node)) c->iscentred = c->iscentred_override = r_node->valueint;
 			#endif // PATCH_FLAG_CENTRED
@@ -4758,6 +4820,9 @@ clientmessage(XEvent *e)
 				#if PATCH_SHOW_DESKTOP
 				(showdesktop && c->mon->showdesktop) ||
 				#endif // PATCH_SHOW_DESKTOP
+				#if PATCH_FLAG_CAN_LOSE_FOCUS
+				(selmon->sel && selmon->sel->canlosefocus) ||
+				#endif // PATCH_FLAG_CAN_LOSE_FOCUS
 				0
 			) {
 				if (!ISVISIBLE(c))
@@ -18202,6 +18267,9 @@ setdefaultvalues(Client *c)
 	c->stackclass = NULL;
 	#endif // PATCH_CLASS_STACKING
 	c->tags = 0;
+	#if PATCH_FLAG_CAN_LOSE_FOCUS
+	c->canlosefocus = 0;
+	#endif // PATCH_FLAG_CAN_LOSE_FOCUS
 	#if PATCH_FLAG_CENTRED
 	c->iscentred = 0;
 	c->iscentred_override = -1;

@@ -42,6 +42,7 @@ These can be enabled/disabled by editing `patches.h`
 
 | Core Functionality Patch | Details |
 |---|---|
+| `PATCH_ACTIVE_CLIENT_CHECKS` | Support querying the active client's state while setting rules for (other) clients; |
 | `PATCH_ALPHA_CHANNEL` | Add transparency to dwm windows and borders.<br /><ul><li>Colour schemes can be in the format #rrggbbaa</li></ul> |
 | `PATCH_ALT_TAGS` | Tags can have an alternative character, which will be shown by default.<br /><ul><li>Triggering the `togglealttags` function will show the normal tag character while the key is pressed, and will temporarily reveal the bar if it is hidden.</li></ul> |
 | `PATCH_ALTTAB` | Alt-tab task switcher with bells on.<ul><li>provides standard alt-tab switcher and mouse-based drop-down switcher on the WinTitle bar element;</li><li>client switching for: -</li></li><ul><li>the current tag on the current or all monitors;</li><li>clients matching the current class on the current or all monitors;</li><li>all clients on the current or all monitors;</li></ul></ul> |
@@ -113,6 +114,7 @@ These can be enabled/disabled by editing `patches.h`
 | Client Flag Patch | Details |
 |---|---|
 | `PATCH_FLAG_ALWAYSONTOP` | Client will appear above clients of the same type;<br>Can be toggled; |
+| `PATCH_FLAG_CAN_LOSE_FOCUS` | Client can lose focus while active; |
 | `PATCH_FLAG_CENTRED` | Centre floating clients relative to the monitor or the parent client; |
 | `PATCH_FLAG_FAKEFULLSCREEN` | Client will be made fullscreen within its tile;<br>Can be toggled; |
 | `PATCH_FLAG_FLOAT_ALIGNMENT` | Floating clients initial position and/or fixed alignment; |
