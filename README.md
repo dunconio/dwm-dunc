@@ -113,6 +113,7 @@ These can be enabled/disabled by editing `patches.h`
 
 | Client Flag Patch | Details |
 |---|---|
+| `PATCH_FLAG_ACTIVATION_CLICK` | Send mouse click of specified button to client on focus; |
 | `PATCH_FLAG_ALWAYSONTOP` | Client will appear above clients of the same type;<br>Can be toggled; |
 | `PATCH_FLAG_CAN_LOSE_FOCUS` | Client can lose focus while active; |
 | `PATCH_FLAG_CENTRED` | Centre floating clients relative to the monitor or the parent client; |

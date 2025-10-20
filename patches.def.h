@@ -82,6 +82,7 @@
 #define PATCH_XFTLIB_EMOJI_WORKAROUND		0	// workaround for a crash with colour emojis on some systems (set to 0 when XftLib >= 2.3.5);
 
 // Additional client flags
+#define PATCH_FLAG_ACTIVATION_CLICK			1	// Send mouse button down and up on focus;
 #define PATCH_FLAG_ALWAYSONTOP				1
 #define PATCH_FLAG_CAN_LOSE_FOCUS			1	// Allow a matching client to lose focus when active;
 #define PATCH_FLAG_CENTRED					1

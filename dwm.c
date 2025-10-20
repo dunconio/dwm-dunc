@@ -470,6 +470,10 @@ static const supported_rules_json supported_rules[] = {
 	{ R_BOOL,	"if-fixed-size",				"false if the client is resizable or fullscreen, true if fixed size" },
 	{ R_BOOL,	"if-has-parent",				"client has a parent" },
 	#if PATCH_ACTIVE_CLIENT_CHECKS
+	{ R_A|R_S,	"if-active-class-begins",			"substring matching from the start of the active client's class" },
+	{ R_A|R_S,	"if-active-class-contains",			"substring matching on the active client's class" },
+	{ R_A|R_S,	"if-active-class-ends",				"substring matching from the end of the active client's class" },
+	{ R_A|R_S,	"if-active-class-is",				"exact full string matching on the active client's class" },
 	{ R_A|R_S,	"if-active-instance-begins",		"substring matching from the start of the active client's instance" },
 	{ R_A|R_S,	"if-active-instance-contains",		"substring matching on the active client's instance" },
 	{ R_A|R_S,	"if-active-instance-ends",			"substring matching from the end of the active client's instance" },
@@ -483,166 +487,220 @@ static const supported_rules_json supported_rules[] = {
 	{ R_A|R_S,	"if-active-title-ends",				"substring matching from the end of the active client's title" },
 	{ R_A|R_S,	"if-active-title-is",				"exact full string matching on the active client's title" },
 	#endif // PATCH_ACTIVE_CLIENT_CHECKS
-	{ R_A|R_S,	"if-instance-begins",			"substring matching from the start of instance" },
-	{ R_A|R_S,	"if-instance-contains",			"substring matching on instance" },
-	{ R_A|R_S,	"if-instance-ends",				"substring matching from the end of instance" },
-	{ R_A|R_S,	"if-instance-is",				"exact full string matching on instance" },
-	{ R_A|R_S,	"if-parent-class-begins",		"substring matching from the start of parent's class" },
-	{ R_A|R_S,	"if-parent-class-contains",		"substring matching on parent's class" },
-	{ R_A|R_S,	"if-parent-class-ends",			"substring matching from the end of parent's class" },
-	{ R_A|R_S,	"if-parent-class-is",			"exact full string matching on parent's class" },
-	{ R_A|R_S,	"if-parent-instance-begins",	"substring matching from the start of parent's instance" },
-	{ R_A|R_S,	"if-parent-instance-contains",	"substring matching on parent's instance" },
-	{ R_A|R_S,	"if-parent-instance-ends",		"substring matching from the end of parent's instance" },
-	{ R_A|R_S,	"if-parent-instance-is",		"exact full string matching on parent's instance" },
-	{ R_A|R_S,	"if-parent-role-begins",		"substring matching from the start of parent's role" },
-	{ R_A|R_S,	"if-parent-role-contains",		"substring matching on parent's role" },
-	{ R_A|R_S,	"if-parent-role-ends",			"substring matching from the end of parent's role" },
-	{ R_A|R_S,	"if-parent-role-is",			"exact full string matching on parent's role" },
-	{ R_A|R_S,	"if-parent-title-begins",		"substring matching from the start of parent's title" },
-	{ R_A|R_S,	"if-parent-title-contains",		"substring matching on parent's title" },
-	{ R_A|R_S,	"if-parent-title-ends",			"substring matching from the end of parent's title" },
-	{ R_A|R_S,	"if-parent-title-is",			"exact full string matching on parent's title" },
-	{ R_A|R_S,	"if-role-begins",				"substring matching from the start of role" },
-	{ R_A|R_S,	"if-role-contains",				"substring matching on role" },
-	{ R_A|R_S,	"if-role-ends",					"substring matching from the end of role" },
-	{ R_A|R_S,	"if-role-is",					"exact full string matching on role" },
-	{ R_A|R_S,	"if-title-begins",				"substring matching from the start of title" },
-	{ R_A|R_S,	"if-title-contains",			"substring matching on title" },
-	{ R_A|R_S,	"if-title-ends",				"substring matching from the end of title" },
-	{ R_A|R_S,	"if-title-is",					"exact full string matching on title" },
-	{ R_A|R_S,	"if-title-was",					"for deferred rule matching, the exact title prior to changing" },
-	{ R_BOOL,	"log-rule",						"log when a client matches the rule" },
+	{ R_A|R_S,	"if-instance-begins",				"substring matching from the start of instance" },
+	{ R_A|R_S,	"if-instance-contains",				"substring matching on instance" },
+	{ R_A|R_S,	"if-instance-ends",					"substring matching from the end of instance" },
+	{ R_A|R_S,	"if-instance-is",					"exact full string matching on instance" },
+	#if PATCH_ACTIVE_CLIENT_CHECKS
+	{ R_A|R_S,	"if-not-active-class-begins",		"substring matching from the start of the active client's class (inverted)" },
+	{ R_A|R_S,	"if-not-active-class-contains",		"substring matching on the active client's class (inverted)" },
+	{ R_A|R_S,	"if-not-active-class-ends",			"substring matching from the end of the active client's class (inverted)" },
+	{ R_A|R_S,	"if-not-active-class-is",			"exact full string matching on the active client's class (inverted)" },
+	{ R_A|R_S,	"if-not-active-instance-begins",	"substring matching from the start of the active client's instance (inverted)" },
+	{ R_A|R_S,	"if-not-active-instance-contains",	"substring matching on the active client's instance (inverted)" },
+	{ R_A|R_S,	"if-not-active-instance-ends",		"substring matching from the end of the active client's instance (inverted)" },
+	{ R_A|R_S,	"if-not-active-instance-is",		"exact full string matching on the active client's instance (inverted)" },
+	{ R_A|R_S,	"if-not-active-role-begins",		"substring matching from the start of the active client's role (inverted)" },
+	{ R_A|R_S,	"if-not-active-role-contains",		"substring matching on the active client's role (inverted)" },
+	{ R_A|R_S,	"if-not-active-role-ends",			"substring matching from the end of the active client's role (inverted)" },
+	{ R_A|R_S,	"if-not-active-role-is",			"exact full string matching on the active client's role (inverted)" },
+	{ R_A|R_S,	"if-not-active-title-begins",		"substring matching from the start of the active client's title (inverted)" },
+	{ R_A|R_S,	"if-not-active-title-contains",		"substring matching on the active client's title (inverted)" },
+	{ R_A|R_S,	"if-not-active-title-ends",			"substring matching from the end of the active client's title (inverted)" },
+	{ R_A|R_S,	"if-not-active-title-is",			"exact full string matching on the active client's title (inverted)" },
+	#endif // PATCH_ACTIVE_CLIENT_CHECKS
+	{ R_A|R_S,	"if-not-class-begins",				"substring matching from the start of class (inverted)" },
+	{ R_A|R_S,	"if-not-class-contains",			"substring matching on class (inverted)" },
+	{ R_A|R_S,	"if-not-class-ends",				"substring matching from the end of class (inverted)" },
+	{ R_A|R_S,	"if-not-class-is",					"exact full string matching on class (inverted)" },
+	{ R_A|R_S,	"if-not-instance-begins",			"substring matching from the start of instance (inverted)" },
+	{ R_A|R_S,	"if-not-instance-contains",			"substring matching on instance (inverted)" },
+	{ R_A|R_S,	"if-not-instance-ends",				"substring matching from the end of instance (inverted)" },
+	{ R_A|R_S,	"if-not-instance-is",				"exact full string matching on instance (inverted)" },
+	{ R_A|R_S,	"if-not-parent-class-begins",		"substring matching from the start of parent's class (inverted)" },
+	{ R_A|R_S,	"if-not-parent-class-contains",		"substring matching on parent's class (inverted)" },
+	{ R_A|R_S,	"if-not-parent-class-ends",			"substring matching from the end of parent's class (inverted)" },
+	{ R_A|R_S,	"if-not-parent-class-is",			"exact full string matching on parent's class (inverted)" },
+	{ R_A|R_S,	"if-not-parent-instance-begins",	"substring matching from the start of parent's instance (inverted)" },
+	{ R_A|R_S,	"if-not-parent-instance-contains",	"substring matching on parent's instance (inverted)" },
+	{ R_A|R_S,	"if-not-parent-instance-ends",		"substring matching from the end of parent's instance (inverted)" },
+	{ R_A|R_S,	"if-not-parent-instance-is",		"exact full string matching on parent's instance (inverted)" },
+	{ R_A|R_S,	"if-not-parent-role-begins",		"substring matching from the start of parent's role (inverted)" },
+	{ R_A|R_S,	"if-not-parent-role-contains",		"substring matching on parent's role (inverted)" },
+	{ R_A|R_S,	"if-not-parent-role-ends",			"substring matching from the end of parent's role (inverted)" },
+	{ R_A|R_S,	"if-not-parent-role-is",			"exact full string matching on parent's role (inverted)" },
+	{ R_A|R_S,	"if-not-parent-title-begins",		"substring matching from the start of parent's title (inverted)" },
+	{ R_A|R_S,	"if-not-parent-title-contains",		"substring matching on parent's title (inverted)" },
+	{ R_A|R_S,	"if-not-parent-title-ends",			"substring matching from the end of parent's title (inverted)" },
+	{ R_A|R_S,	"if-not-parent-title-is",			"exact full string matching on parent's title (inverted)" },
+	{ R_A|R_S,	"if-not-role-begins",				"substring matching from the start of role (inverted)" },
+	{ R_A|R_S,	"if-not-role-contains",				"substring matching on role (inverted)" },
+	{ R_A|R_S,	"if-not-role-ends",					"substring matching from the end of role (inverted)" },
+	{ R_A|R_S,	"if-not-role-is",					"exact full string matching on role (inverted)" },
+	{ R_A|R_S,	"if-not-title-begins",				"substring matching from the start of title (inverted)" },
+	{ R_A|R_S,	"if-not-title-contains",			"substring matching on title (inverted)" },
+	{ R_A|R_S,	"if-not-title-ends",				"substring matching from the end of title (inverted)" },
+	{ R_A|R_S,	"if-not-title-is",					"exact full string matching on title (inverted)" },
+	{ R_A|R_S,	"if-not-title-was",					"for deferred rule matching, the exact title prior to changing (inverted)" },
+	{ R_A|R_S,	"if-parent-class-begins",			"substring matching from the start of parent's class" },
+	{ R_A|R_S,	"if-parent-class-contains",			"substring matching on parent's class" },
+	{ R_A|R_S,	"if-parent-class-ends",				"substring matching from the end of parent's class" },
+	{ R_A|R_S,	"if-parent-class-is",				"exact full string matching on parent's class" },
+	{ R_A|R_S,	"if-parent-instance-begins",		"substring matching from the start of parent's instance" },
+	{ R_A|R_S,	"if-parent-instance-contains",		"substring matching on parent's instance" },
+	{ R_A|R_S,	"if-parent-instance-ends",			"substring matching from the end of parent's instance" },
+	{ R_A|R_S,	"if-parent-instance-is",			"exact full string matching on parent's instance" },
+	{ R_A|R_S,	"if-parent-role-begins",			"substring matching from the start of parent's role" },
+	{ R_A|R_S,	"if-parent-role-contains",			"substring matching on parent's role" },
+	{ R_A|R_S,	"if-parent-role-ends",				"substring matching from the end of parent's role" },
+	{ R_A|R_S,	"if-parent-role-is",				"exact full string matching on parent's role" },
+	{ R_A|R_S,	"if-parent-title-begins",			"substring matching from the start of parent's title" },
+	{ R_A|R_S,	"if-parent-title-contains",			"substring matching on parent's title" },
+	{ R_A|R_S,	"if-parent-title-ends",				"substring matching from the end of parent's title" },
+	{ R_A|R_S,	"if-parent-title-is",				"exact full string matching on parent's title" },
+	{ R_A|R_S,	"if-role-begins",					"substring matching from the start of role" },
+	{ R_A|R_S,	"if-role-contains",					"substring matching on role" },
+	{ R_A|R_S,	"if-role-ends",						"substring matching from the end of role" },
+	{ R_A|R_S,	"if-role-is",						"exact full string matching on role" },
+	{ R_A|R_S,	"if-title-begins",					"substring matching from the start of title" },
+	{ R_A|R_S,	"if-title-contains",				"substring matching on title" },
+	{ R_A|R_S,	"if-title-ends",					"substring matching from the end of title" },
+	{ R_A|R_S,	"if-title-is",						"exact full string matching on title" },
+	{ R_A|R_S,	"if-title-was",						"for deferred rule matching, the exact title prior to changing" },
+	{ R_BOOL,	"log-rule",							"log when a client matches the rule" },
+	#if PATCH_FLAG_ACTIVATION_CLICK
+	{ R_I,		"set-activation-click",				"send a mouse click of specified button on client activation" },
+	#endif // PATCH_FLAG_ACTIVATION_CLICK
 	#if PATCH_FLAG_ALWAYSONTOP
-	{ R_BOOL,	"set-alwaysontop",				"this client will appear above others; if tiled: only while focused" },
+	{ R_BOOL,	"set-alwaysontop",					"this client will appear above others; if tiled: only while focused" },
 	#endif // PATCH_FLAG_ALWAYSONTOP
-	{ R_BOOL,	"set-autofocus",				"whether to auto focus the client (floating clients only), defaults to true" },
+	{ R_BOOL,	"set-autofocus",					"whether to auto focus the client (floating clients only), defaults to true" },
 	#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
-	{ R_BOOL,	"set-autohide",					"whether to minimize/iconify the client when it shouldn't be visible" },
+	{ R_BOOL,	"set-autohide",						"whether to minimize/iconify the client when it shouldn't be visible" },
 	#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 	#if PATCH_FLAG_CAN_LOSE_FOCUS
-	{ R_BOOL,	"set-can-lose-focus",			"allow the client to lose focus when active" },
+	{ R_BOOL,	"set-can-lose-focus",				"allow the client to lose focus when active" },
 	#endif // PATCH_FLAG_CAN_LOSE_FOCUS
 	#if PATCH_FLAG_CENTRED
-	{ R_I,		"set-centred",					"1:centre of monitor, 2:centre of parent client" },
+	{ R_I,		"set-centred",						"1:centre of monitor, 2:centre of parent client" },
 	#endif // PATCH_FLAG_CENTRED
 	#if PATCH_CFACTS
-	{ R_N,		"set-cfact",					"client scale factor, value between 0.25 and 4.0" },
+	{ R_N,		"set-cfact",						"client scale factor, value between 0.25 and 4.0" },
 	#endif // PATCH_CFACTS
 	#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
-	{ R_S,		"set-class-display",			"display this string instead of the class in tag bar" },
+	{ R_S,		"set-class-display",				"display this string instead of the class in tag bar" },
 	#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
 	#if PATCH_ALTTAB
-	{ R_S,		"set-class-group",				"use this string as class for alttab class switcher" },
+	{ R_S,		"set-class-group",					"use this string as class for alttab class switcher" },
 	#endif // PATCH_ALTTAB
 	#if PATCH_CLASS_STACKING
-	{ R_S,		"set-class-stack",				"use this string as class for class stacking" },
+	{ R_S,		"set-class-stack",					"use this string as class for class stacking" },
 	#endif // PATCH_CLASS_STACKING
 	#if PATCH_MOUSE_POINTER_HIDING
-	{ R_BOOL,	"set-cursor-autohide",			"true to hide cursor when stationary while this client is focused" },
-	{ R_BOOL,	"set-cursor-hide-on-keys",		"true to hide cursor when keys are pressed while this client is focused" },
+	{ R_BOOL,	"set-cursor-autohide",				"true to hide cursor when stationary while this client is focused" },
+	{ R_BOOL,	"set-cursor-hide-on-keys",			"true to hide cursor when keys are pressed while this client is focused" },
 	#endif // PATCH_MOUSE_POINTER_HIDING
 	#if PATCH_SHOW_DESKTOP
-	{ R_BOOL,	"set-desktop",					"true to make the client a desktop window"},
+	{ R_BOOL,	"set-desktop",						"true to make the client a desktop window"},
 	#endif // PATCH_SHOW_DESKTOP
 	#if PATCH_FLAG_FAKEFULLSCREEN
-	{ R_BOOL,	"set-fakefullscreen",			"when going fullscreen this client will be constrained to its tile" },
+	{ R_BOOL,	"set-fakefullscreen",				"when going fullscreen this client will be constrained to its tile" },
 	#endif // PATCH_FLAG_FAKEFULLSCREEN
-	{ R_BOOL,	"set-floating",					"override the default tiling/floating behaviour for this client" },
-	{ R_I|R_N,	"set-floating-width",			"floating client width at creation, integer for absolute width, decimal fraction for relative width" },
-	{ R_I|R_N,	"set-floating-height",			"floating client height at creation, integer for absolute height, decimal fraction for relative height" },
+	{ R_BOOL,	"set-floating",						"override the default tiling/floating behaviour for this client" },
+	{ R_I|R_N,	"set-floating-width",				"floating client width at creation, integer for absolute width, decimal fraction for relative width" },
+	{ R_I|R_N,	"set-floating-height",				"floating client height at creation, integer for absolute height, decimal fraction for relative height" },
 	#if PATCH_FLAG_FLOAT_ALIGNMENT
-	{ R_N|R_I,	"set-floating-x",				"floating client initial position: decimal fraction between 0 and 1 for relative position, OR > 1 for absolute position" },
-	{ R_N|R_I,	"set-floating-y",				"floating client initial position: decimal fraction between 0 and 1 for relative position, OR > 1 for absolute position" },
-	{ R_N|R_I,	"set-float-align-x",			"floating client fixed alignment: -1:not aligned, decimal fraction between 0 and 1 for relative position" },
-	{ R_N|R_I,	"set-float-align-y",			"floating client fixed alignment: -1:not aligned, decimal fraction between 0 and 1 for relative position" },
+	{ R_N|R_I,	"set-floating-x",					"floating client initial position: decimal fraction between 0 and 1 for relative position, OR > 1 for absolute position" },
+	{ R_N|R_I,	"set-floating-y",					"floating client initial position: decimal fraction between 0 and 1 for relative position, OR > 1 for absolute position" },
+	{ R_N|R_I,	"set-float-align-x",				"floating client fixed alignment: -1:not aligned, decimal fraction between 0 and 1 for relative position" },
+	{ R_N|R_I,	"set-float-align-y",				"floating client fixed alignment: -1:not aligned, decimal fraction between 0 and 1 for relative position" },
 	#endif // PATCH_FLAG_FLOAT_ALIGNMENT
 	#if PATCH_MOUSE_POINTER_WARPING
-	{ R_N,		"set-focus-origin-dx",			"mouse warp relative to client centre - x (decimal fraction)" },
-	{ R_N,		"set-focus-origin-dy",			"mouse warp relative to client centre - y (decimal fraction)" },
+	{ R_N,		"set-focus-origin-dx",				"mouse warp relative to client centre - x (decimal fraction)" },
+	{ R_N,		"set-focus-origin-dy",				"mouse warp relative to client centre - y (decimal fraction)" },
 	#endif // PATCH_MOUSE_POINTER_WARPING
 	#if PATCH_FLAG_FOLLOW_PARENT
-	{ R_BOOL,	"set-follow-parent",			"true to ensure this client's tags match its parent's, and stays on the same monitor as its parent" },
+	{ R_BOOL,	"set-follow-parent",				"true to ensure this client's tags match its parent's, and stays on the same monitor as its parent" },
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 	#if PATCH_FLAG_GAME
 	#if PATCH_FLAG_GAME_STRICT
-	{ R_BOOL,	"set-game",						"fullscreen clients will be minimized and unminimized when they lose or gain focus (on the same monitor)" },
-	{ R_BOOL,	"set-game-strict",				"fullscreen clients will be minimized and unminimized whenever they lose or gain focus" },
+	{ R_BOOL,	"set-game",							"fullscreen clients will be minimized and unminimized when they lose or gain focus (on the same monitor)" },
+	{ R_BOOL,	"set-game-strict",					"fullscreen clients will be minimized and unminimized whenever they lose or gain focus" },
 	#else // NO PATCH_FLAG_GAME_STRICT
-	{ R_BOOL,	"set-game",						"fullscreen clients will be minimized and unminimized when they lose or gain focus" },
+	{ R_BOOL,	"set-game",							"fullscreen clients will be minimized and unminimized when they lose or gain focus" },
 	#endif // PATCH_FLAG_GAME_STRICT
 	#endif // PATCH_FLAG_GAME
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_FLAG_GREEDY_FOCUS
-	{ R_BOOL,	"set-greedy-focus",				"client won't lose focus due to mouse movement" },
+	{ R_BOOL,	"set-greedy-focus",					"client won't lose focus due to mouse movement" },
 	#endif // PATCH_FLAG_GREEDY_FOCUS
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_FLAG_HIDDEN
-	{ R_BOOL,	"set-hidden",					"client will be hidden by default" },
+	{ R_BOOL,	"set-hidden",						"client will be hidden by default" },
 	#endif // PATCH_FLAG_HIDDEN
 	#if PATCH_WINDOW_ICONS
 	#if PATCH_WINDOW_ICONS_CUSTOM_ICONS
-	{ R_S,		"set-icon",						"the icon image file will be loaded and used instead of the client's icon" },
+	{ R_S,		"set-icon",							"the icon image file will be loaded and used instead of the client's icon" },
 	#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS
 	#endif // PATCH_WINDOW_ICONS
 	#if PATCH_FLAG_IGNORED
-	{ R_BOOL,	"set-ignored",					"client will be ignored from stacking, focus, alt-tab, etc." },
+	{ R_BOOL,	"set-ignored",						"client will be ignored from stacking, focus, alt-tab, etc." },
 	#endif // PATCH_FLAG_IGNORED
 	#if PATCH_WINDOW_ICONS
 	#if PATCH_WINDOW_ICONS_CUSTOM_ICONS
-	{ R_S,		"set-missing-icon",				"the icon image file will be loaded and used for the client instead of no icon" },
+	{ R_S,		"set-missing-icon",					"the icon image file will be loaded and used for the client instead of no icon" },
 	#endif // PATCH_WINDOW_ICONS_CUSTOM_ICONS
 	#endif // PATCH_WINDOW_ICONS
 	#if PATCH_MODAL_SUPPORT
-	{ R_BOOL,	"set-modal",					"client will be marked as modal (for when clients implement modality improperly)" },
+	{ R_BOOL,	"set-modal",						"client will be marked as modal (for when clients implement modality improperly)" },
 	#endif // PATCH_MODAL_SUPPORT
-	{ R_I,		"set-monitor",					"set monitor number (0+) for this client" },
-	{ R_BOOL,	"set-never-focus",				"prevent the client from being focused automatically" },
+	{ R_I,		"set-monitor",						"set monitor number (0+) for this client" },
+	{ R_BOOL,	"set-never-focus",					"prevent the client from being focused automatically" },
 	#if PATCH_FLAG_NEVER_FULLSCREEN
-	{ R_BOOL,	"set-never-fullscreen",			"prevent the client from being made fullscreen" },
+	{ R_BOOL,	"set-never-fullscreen",				"prevent the client from being made fullscreen" },
 	#endif // PATCH_FLAG_NEVER_FULLSCREEN
 	#if PATCH_FLAG_NEVER_MOVE
-	{ R_BOOL,	"set-never-move",				"prevent the application from moving the client" },
+	{ R_BOOL,	"set-never-move",					"prevent the application from moving the client" },
 	#endif // PATCH_FLAG_NEVER_MOVE
 	#if PATCH_FLAG_PARENT
-	{ R_BOOL,	"set-never-parent",				"prevent the client from being treated as the parent to any other" },
+	{ R_BOOL,	"set-never-parent",					"prevent the client from being treated as the parent to any other" },
 	#endif // PATCH_FLAG_PARENT
 	#if PATCH_FLAG_NEVER_RESIZE
-	{ R_BOOL,	"set-never-resize",				"prevent the application from resizing the client" },
+	{ R_BOOL,	"set-never-resize",					"prevent the application from resizing the client" },
 	#endif // PATCH_FLAG_NEVER_RESIZE
 	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-	{ R_BOOL,	"set-newmaster",				"client always created as a new master, otherwise client goes onto the stack" },
+	{ R_BOOL,	"set-newmaster",					"client always created as a new master, otherwise client goes onto the stack" },
 	#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 	#if PATCH_TERMINAL_SWALLOWING
-	{ R_BOOL,	"set-noswallow",				"never swallow this client" },
+	{ R_BOOL,	"set-noswallow",					"never swallow this client" },
 	#endif // PATCH_TERMINAL_SWALLOWING
 	#if PATCH_CLIENT_OPACITY
-	{ R_N|R_I,	"set-opacity-active",			"level of opacity for client when active" },
-	{ R_N|R_I,	"set-opacity-inactive",			"level of opacity for client when inactive" },
+	{ R_N|R_I,	"set-opacity-active",				"level of opacity for client when active" },
+	{ R_N|R_I,	"set-opacity-inactive",				"level of opacity for client when inactive" },
 	#endif // PATCH_CLIENT_OPACITY
-	{ R_BOOL,	"set-panel",					"client is a floating panel window, whose visibility will match the bar's; excluded from mouse warp focus, stacking, alt-tab" },
+	{ R_BOOL,	"set-panel",						"client is a floating panel window, whose visibility will match the bar's; excluded from mouse warp focus, stacking, alt-tab" },
 	#if PATCH_FLAG_PARENT
-	{ R_A|R_S,	"set-parent-begins",			"treat client as if its parent is the specified window (same class if rule deferred) - substring match from the start" },
-	{ R_A|R_S,	"set-parent-contains",			"treat client as if its parent is the specified window (same class if rule deferred) - substring match" },
-	{ R_A|R_S,	"set-parent-ends",				"treat client as if its parent is the specified window (same class if rule deferred) - substring match from the end" },
-	{ R_BOOL,	"set-parent-guess",				"treat client as if its parent is the client that was focused when it was mapped, or the most recently focused (use with caution)" },
-	{ R_A|R_S,	"set-parent-is",				"treat client as if its parent is the specified window (same class if rule deferred) - exact name match" },
+	{ R_A|R_S,	"set-parent-begins",				"treat client as if its parent is the specified window (same class if rule deferred) - substring match from the start" },
+	{ R_A|R_S,	"set-parent-contains",				"treat client as if its parent is the specified window (same class if rule deferred) - substring match" },
+	{ R_A|R_S,	"set-parent-ends",					"treat client as if its parent is the specified window (same class if rule deferred) - substring match from the end" },
+	{ R_BOOL,	"set-parent-guess",					"treat client as if its parent is the client that was focused when it was mapped, or the most recently focused (use with caution)" },
+	{ R_A|R_S,	"set-parent-is",					"treat client as if its parent is the specified window (same class if rule deferred) - exact name match" },
 	#endif // PATCH_FLAG_PARENT
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
-	{ R_BOOL,	"set-pause-on-invisible",		"client process will be sent SIGSTOP when not visible, and SIGCONT when visible, killed, or unmanaged" },
+	{ R_BOOL,	"set-pause-on-invisible",			"client process will be sent SIGSTOP when not visible, and SIGCONT when visible, killed, or unmanaged" },
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
 	#if PATCH_FLAG_STICKY
-	{ R_BOOL,	"set-sticky",					"client appears on all tags" },
+	{ R_BOOL,	"set-sticky",						"client appears on all tags" },
 	#endif // PATCH_FLAG_STICKY
-	{ R_I,		"set-tags-mask",				"sets the tag mask applied to the client" },
+	{ R_I,		"set-tags-mask",					"sets the tag mask applied to the client" },
 	#if PATCH_TERMINAL_SWALLOWING
-	{ R_BOOL,	"set-terminal",					"true to indicate this client is a terminal" },
+	{ R_BOOL,	"set-terminal",						"true to indicate this client is a terminal" },
 	#endif // PATCH_TERMINAL_SWALLOWING
 	#if PATCH_FLAG_TITLE
-	{ R_S,		"set-title",					"show the specified title in place of the client's" },
+	{ R_S,		"set-title",						"show the specified title in place of the client's" },
 	#endif // PATCH_FLAG_TITLE
-	{ R_BOOL,	"set-top-level",				"true to indicate this client should be treated as top level (ultimate parent)" },
-	{ R_BOOL,	"set-urgent",					"clients will be focused when created, switching tag view if necessary" },
+	{ R_BOOL,	"set-top-level",					"true to indicate this client should be treated as top level (ultimate parent)" },
+	{ R_BOOL,	"set-urgent",						"clients will be focused when created, switching tag view if necessary" },
 };
 
 
@@ -811,6 +869,12 @@ static int debug_sensitivity_on = 0;
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 #define OPAQUE                  0xffU
 
+#define NOT_STRINGMATCH(JSON,VARNAME,sz_VARNAME,TEXT)	( \
+	(!cJSON_HasObjectItem(JSON, TEXT"-is") || napplyrules_stringtest(cJSON_GetObjectItemCaseSensitive(JSON, TEXT"-is"), VARNAME, sz_VARNAME, APPLYRULES_STRING_EXACT)) && \
+	(!cJSON_HasObjectItem(JSON, TEXT"-contains") || napplyrules_stringtest(cJSON_GetObjectItemCaseSensitive(JSON, TEXT"-contains"), VARNAME, sz_VARNAME, APPLYRULES_STRING_CONTAINS)) && \
+	(!cJSON_HasObjectItem(JSON, TEXT"-begins") || napplyrules_stringtest(cJSON_GetObjectItemCaseSensitive(JSON, TEXT"-begins"), VARNAME, sz_VARNAME, APPLYRULES_STRING_BEGINS)) && \
+	(!cJSON_HasObjectItem(JSON, TEXT"-ends") || napplyrules_stringtest(cJSON_GetObjectItemCaseSensitive(JSON, TEXT"-ends"), VARNAME, sz_VARNAME, APPLYRULES_STRING_ENDS)) \
+)
 #define STRINGMATCH(JSON,VARNAME,sz_VARNAME,TEXT)	( \
 	(!cJSON_HasObjectItem(JSON, TEXT"-is") || applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(JSON, TEXT"-is"), VARNAME, sz_VARNAME, APPLYRULES_STRING_EXACT)) && \
 	(!cJSON_HasObjectItem(JSON, TEXT"-contains") || applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(JSON, TEXT"-contains"), VARNAME, sz_VARNAME, APPLYRULES_STRING_CONTAINS)) && \
@@ -1119,6 +1183,9 @@ struct Client {
 	#if PATCH_FLAG_NEVER_FULLSCREEN
 	int neverfullscreen;
 	#endif // PATCH_FLAG_NEVER_FULLSCREEN
+	#if PATCH_FLAG_ACTIVATION_CLICK
+	int activationclick;
+	#endif // PATCH_FLAG_ACTIVATION_CLICK
 	#if PATCH_FLAG_ALWAYSONTOP
 	int alwaysontop;
 	#endif // PATCH_FLAG_ALWAYSONTOP
@@ -2641,6 +2708,18 @@ applyrules_stringtest(cJSON *rule_node, const char *string, int string_len, int 
 }
 
 int
+napplyrules_stringtest(cJSON *rule_node, const char *string, int string_len, int match_type)
+{
+	int res = !applyrules_stringtest(rule_node, string, string_len, match_type);
+	if(!res)
+	{
+		logdatetime(stderr);
+		fprintf(stderr,"applyrules_stringtest(%s, %u): %i\n", string, match_type, res);
+	}
+	return res;
+}
+
+int
 json_isboolean(cJSON *node)
 {
 	if (cJSON_IsBool(node))
@@ -2877,13 +2956,21 @@ applyrules(Client *c, int deferred, char *oldtitle)
 				#if PATCH_ACTIVE_CLIENT_CHECKS
 				STRINGMATCHABLE(r_json, "if-active-class") ||
 				STRINGMATCHABLE(r_json, "if-active-instance") ||
-				STRINGMATCHABLE(r_json, "if-active-title") ||
 				STRINGMATCHABLE(r_json, "if-active-role") ||
+				STRINGMATCHABLE(r_json, "if-active-title") ||
+				STRINGMATCHABLE(r_json, "if-not-active-class") ||
+				STRINGMATCHABLE(r_json, "if-not-active-instance") ||
+				STRINGMATCHABLE(r_json, "if-not-active-role") ||
+				STRINGMATCHABLE(r_json, "if-not-active-title") ||
 				#endif // PATCH_ACTIVE_CLIENT_CHECKS
 				STRINGMATCHABLE(r_json, "if-class") ||
 				STRINGMATCHABLE(r_json, "if-instance") ||
-				STRINGMATCHABLE(r_json, "if-title") ||
 				STRINGMATCHABLE(r_json, "if-role") ||
+				STRINGMATCHABLE(r_json, "if-title") ||
+				STRINGMATCHABLE(r_json, "if-not-class") ||
+				STRINGMATCHABLE(r_json, "if-not-instance") ||
+				STRINGMATCHABLE(r_json, "if-not-role") ||
+				STRINGMATCHABLE(r_json, "if-not-title") ||
 				STRINGMATCHABLE(r_json, "if-parent-class") ||
 				STRINGMATCHABLE(r_json, "if-parent-instance") ||
 				STRINGMATCHABLE(r_json, "if-parent-title") ||
@@ -2891,11 +2978,22 @@ applyrules(Client *c, int deferred, char *oldtitle)
 				#if PATCH_SHOW_DESKTOP
 				|| is_desktop == 1
 				#endif // PATCH_SHOW_DESKTOP
-			) && (!deferred || !(STRINGMATCHABLE(r_json, "if-title-was")))
+			) && (!deferred || !(cJSON_HasObjectItem(r_json, "if-title-was") || cJSON_HasObjectItem(r_json, "if-not-title-was")))
 		) continue;
 
 		if (
+			NOT_STRINGMATCH(r_json, class, sz_class, "if-not-class") &&
+			NOT_STRINGMATCH(r_json, instance, sz_instance, "if-not-instance") &&
+			NOT_STRINGMATCH(r_json, role, sz_role, "if-not-role") &&
+			NOT_STRINGMATCH(r_json, p_class, sz_p_class, "if-not-parent-class") &&
+			NOT_STRINGMATCH(r_json, p_instance, sz_p_instance, "if-not-parent-instance") &&
+			NOT_STRINGMATCH(r_json, p_role, sz_p_role, "if-not-parent-role") &&
+			NOT_STRINGMATCH(r_json, p_title, sz_p_title, "if-not-parent-title") &&
 			#if PATCH_ACTIVE_CLIENT_CHECKS
+			NOT_STRINGMATCH(r_json, active_class, sz_active_class, "if-not-active-class") &&
+			NOT_STRINGMATCH(r_json, active_instance, sz_active_instance, "if-not-active-instance") &&
+			NOT_STRINGMATCH(r_json, active_role, sz_active_role, "if-not-active-role") &&
+			NOT_STRINGMATCH(r_json, active_title, sz_active_title, "if-not-active-title") &&
 			STRINGMATCH(r_json, active_class, sz_active_class, "if-active-class") &&
 			STRINGMATCH(r_json, active_instance, sz_active_instance, "if-active-instance") &&
 			STRINGMATCH(r_json, active_role, sz_active_role, "if-active-role") &&
@@ -2914,18 +3012,30 @@ applyrules(Client *c, int deferred, char *oldtitle)
 			&& (is_desktop == -1 || (is_desktop == c->wasdesktop))
 			#endif // PATCH_SHOW_DESKTOP
 		) {
-			match = STRINGMATCH(r_json, c->name, sz_title, "if-title");
+			match = STRINGMATCH(r_json, c->name, sz_title, "if-title") && NOT_STRINGMATCH(r_json, c->name, sz_title, "if-not-title");
 
-			if (defer && !match && !deferred)
-				c->ruledefer = 1;
-			else if (defer && !match && deferred && cJSON_HasObjectItem(r_json, "if-title-was")
-			) {
-				if (oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT))
-					c->ruledefer = -1;
+			if (defer) {
+				if (!match && !deferred)
+					c->ruledefer = 1;
+				else if (!match && deferred) {
+					if (cJSON_HasObjectItem(r_json, "if-title-was")) {
+						if (oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT))
+							c->ruledefer = -1;
+					}
+					if (cJSON_HasObjectItem(r_json, "if-not-title-was")) {
+						if (oldtitle && !applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-not-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT))
+							c->ruledefer = -1;
+					}
+				}
+				else if (deferred && match) {
+					if (cJSON_HasObjectItem(r_json, "if-title-was")) {
+						match = (oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
+					}
+					if (cJSON_HasObjectItem(r_json, "if-not-title-was")) {
+						match = (oldtitle && !applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-not-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
+					}
+				}
 			}
-			else if (deferred && match && defer && cJSON_HasObjectItem(r_json, "if-title-was"))
-				match = (oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
-
 			if (!match)
 				continue;
 
@@ -3265,6 +3375,9 @@ skip_parenting:
 			#if PATCH_FLAG_NEVER_FULLSCREEN
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-never-fullscreen")) && json_isboolean(r_node)) c->neverfullscreen = r_node->valueint;
 			#endif // PATCH_FLAG_NEVER_FULLSCREEN
+			#if PATCH_FLAG_ACTIVATION_CLICK
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-activation-click")) && cJSON_IsInteger(r_node)) c->activationclick = r_node->valueint;
+			#endif // PATCH_FLAG_ACTIVATION_CLICK
 			#if PATCH_FLAG_ALWAYSONTOP
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-alwaysontop")) && json_isboolean(r_node)) c->alwaysontop = r_node->valueint;
 			#endif // PATCH_FLAG_ALWAYSONTOP
@@ -13227,6 +13340,8 @@ parselayoutjson(cJSON *layout)
 				}
 
 			if (!found) {
+				if(strstr(L->string, "//") == L->string || strstr(L->string, "#") == L->string || strstr(L->string, ";") == L->string)
+					continue;
 				string = cJSON_GetObjectItemCaseSensitive(unsupported, L->string);
 				if (string) cJSON_SetNumberValue(string, string->valuedouble + 1);
 				else cJSON_AddNumberToObject(unsupported, L->string, 1);
@@ -13558,7 +13673,9 @@ parselayoutjson(cJSON *layout)
 			else if (strcmp(L->string, "custom-tag-icons")==0) {
 				if (cJSON_IsArray(L)) {
 					int sz = cJSON_GetArraySize(L);
-					if (sz && sz <= LENGTH(tags)) {
+					if (sz <= 0)
+						continue;
+					if (sz <= LENGTH(tags)) {
 						cJSON *e = NULL;
 						for (int j = 0; j < sz; j++)
 							if ((e = cJSON_GetArrayItem(L, j)) && cJSON_IsString(e))
@@ -13801,7 +13918,7 @@ parselayoutjson(cJSON *layout)
 					title_align = L->valueint;
 					continue;
 				}
-				cJSON_AddNumberToObject(unsupported_mon, "\"title-align\" must contain an integer value", 0);
+				cJSON_AddNumberToObject(unsupported, "\"title-align\" must contain an integer value", 0);
 			}
 
 			else if (strcmp(L->string, "title-border-width")==0) {
@@ -14176,6 +14293,8 @@ parselayoutjson(cJSON *layout)
 								}
 
 							if (!found) {
+								if(strstr(c->string, "//") == c->string || strstr(c->string, "#") == c->string || strstr(c->string, ";") == c->string)
+									continue;
 								string = cJSON_GetObjectItemCaseSensitive(unsupported_mon, c->string);
 								if (string) cJSON_SetNumberValue(string, string->valuedouble + 1);
 								else cJSON_AddNumberToObject(unsupported_mon, c->string, 1);
@@ -14336,6 +14455,8 @@ parselayoutjson(cJSON *layout)
 													}
 
 												if (!found) {
+													if(strstr(e->string, "//") == e->string || strstr(e->string, "#") == e->string || strstr(e->string, ";") == e->string)
+														continue;
 													string = cJSON_GetObjectItemCaseSensitive(unsupported_tag, e->string);
 													if (string) cJSON_SetNumberValue(string, string->valuedouble + 1);
 													else cJSON_AddNumberToObject(unsupported_tag, e->string, 1);
@@ -14835,6 +14956,10 @@ parserulesjson(cJSON *rules)
 					}
 
 				if (!found) {
+					if(strstr(c->string, "//") == c->string || strstr(c->string, "#") == c->string || strstr(c->string, ";") == c->string) {
+						cJSON_Delete(cJSON_DetachItemViaPointer(r, c));
+						continue;
+					}
 					cJSON *string = cJSON_GetObjectItemCaseSensitive(unsupported, c->string);
 					if (string) cJSON_SetNumberValue(string, string->valuedouble + 1);
 					else cJSON_AddNumberToObject(unsupported, c->string, 1);
@@ -14846,8 +14971,12 @@ parserulesjson(cJSON *rules)
 		if (!(
 				STRINGMATCHABLE(r, "if-class") ||
 				STRINGMATCHABLE(r, "if-instance") ||
-				STRINGMATCHABLE(r, "if-title") ||
 				STRINGMATCHABLE(r, "if-role") ||
+				STRINGMATCHABLE(r, "if-title") ||
+				STRINGMATCHABLE(r, "if-not-class") ||
+				STRINGMATCHABLE(r, "if-not-instance") ||
+				STRINGMATCHABLE(r, "if-not-role") ||
+				STRINGMATCHABLE(r, "if-not-title") ||
 				STRINGMATCHABLE(r, "if-parent-title")
 		))
 			unmatchable++;
@@ -18305,6 +18434,9 @@ setdefaultvalues(Client *c)
 	c->isterminal = 0;
 	c->noswallow = 0;
 	#endif // PATCH_TERMINAL_SWALLOWING
+	#if PATCH_FLAG_ACTIVATION_CLICK
+	c->activationclick = 0;
+	#endif // PATCH_FLAG_ACTIVATION_CLICK
 	#if PATCH_FLAG_ALWAYSONTOP
 	c->alwaysontop = 0;
 	#endif // PATCH_FLAG_ALWAYSONTOP
@@ -18420,7 +18552,7 @@ setfocus(Client *c)
 		#if PATCH_SHOW_DESKTOP
 		&& !c->isdesktop
 		#endif // PATCH_SHOW_DESKTOP
-	)
+		)
 		raiseclient(c);
 
 	#if PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
@@ -18438,6 +18570,33 @@ setfocus(Client *c)
 			XA_WINDOW, 32, PropModeReplace,
 			(unsigned char *) &(c->win), 1);
 		sendevent(c->win, wmatom[WMTakeFocus], NoEventMask, wmatom[WMTakeFocus], CurrentTime, 0, 0, 0);
+		#if PATCH_FLAG_ACTIVATION_CLICK
+		if (c->activationclick) {
+			struct timespec ts = { .tv_sec = 0, .tv_nsec = 1000000 };
+			int dummy, root_x, root_y;
+			unsigned int mask;
+			Window wdummy;
+			XQueryPointer(dpy, root, &wdummy, &wdummy, &root_x, &root_y, &dummy, &dummy, &mask);
+
+			XButtonEvent xbpe;
+			xbpe.window = c->win;
+			xbpe.button = c->activationclick;
+			xbpe.display = dpy;
+			xbpe.root = root;
+			xbpe.same_screen = True;
+			xbpe.state = mask;
+			xbpe.subwindow = None;
+			xbpe.time = CurrentTime;
+			xbpe.type = ButtonPress;
+			XTranslateCoordinates(dpy, xbpe.root, xbpe.window, xbpe.x_root, xbpe.y_root, &xbpe.x, &xbpe.y, &xbpe.subwindow);
+			XSendEvent(dpy, c->win, True, ButtonPressMask, (XEvent *)&xbpe);
+			XFlush(dpy);
+			nanosleep(&ts, NULL);
+			xbpe.type = ButtonRelease;
+			XSendEvent(dpy, c->win, True, ButtonReleaseMask, (XEvent *)&xbpe);
+			XFlush(dpy);
+		}
+		#endif // PATCH_FLAG_ACTIVATION_CLICK
 	}
 
 	#if PATCH_TORCH
