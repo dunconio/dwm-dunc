@@ -1114,7 +1114,7 @@ struct Client {
 	int dormant;
 	int isfixed, isfloating, isurgent;
 	#if PATCH_CLASS_STACKING
-	Client *isstacked;		// tiled window whose position is to be matched;
+	Client *stackhead;		// tiled window whose position is to be matched;
 	int isstackhead;
 	#endif // PATCH_CLASS_STACKING
 	#if PATCH_SHOW_DESKTOP
@@ -1671,6 +1671,9 @@ static void grabbuttons(Client *c, int focused);
 static int grabinputs(int keyboard, int mouse, Cursor cursor);
 #endif // PATCH_ALTTAB || PATCH_TORCH
 static void grabkeys(void);
+#if PATCH_CLASS_STACKING
+static void groupallclassstacks(Monitor *m);
+#endif // PATCH_CLASS_STACKING
 static Client *guessnextfocus(Client *c, Monitor *m);	// derive the next valid client to focus;
 #if PATCH_IPC
 static int handlexevent(struct epoll_event *ev);
@@ -1756,6 +1759,9 @@ static Client *nextstack(Client *c, int isfloating);
 static Client *nexttaggedafter(Client *c, unsigned int tags);
 #endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 static Client *nexttiled(Client *c);
+#if PATCH_CLASS_STACKING
+static Client *nexttiledall(Client *c);
+#endif // PATCH_CLASS_STACKING
 #if PATCH_CLIENT_OPACITY
 static void opacity(Client *c, int focused);
 #endif // PATCH_CLIENT_OPACITY
@@ -3712,7 +3718,7 @@ arrangemon(Monitor *m)
 	}
 
 	#if PATCH_CLASS_STACKING
-	if (m == selmon && !m->class_stacking && m->sel && m->sel->isstackhead && ISVISIBLE(m->sel)
+	if (m == selmon && !m->class_stacking && m->sel && (m->sel->isstackhead || m->sel->stackhead) && ISVISIBLE(m->sel)
 		#if PATCH_FLAG_HIDDEN
 		&& !m->sel->ishidden
 		#endif // PATCH_FLAG_HIDDEN
@@ -3729,7 +3735,7 @@ arrangemon(Monitor *m)
 		XSetWindowBorder(dpy, m->sel->win, scheme[SchemeSel][ColBorder].pixel);
 
 	for (c = m->clients; c; c = c->next) {
-		c->isstacked = NULL;
+		c->stackhead = NULL;
 		c->isstackhead = 0;
 	}
 	if (m->class_stacking)
@@ -3749,15 +3755,18 @@ arrangemon(Monitor *m)
 			arrangemon_process_classstack(c, 1);
 		}
 
+		groupallclassstacks(m);
+
 		if (m->lt[m->sellt]->arrange)
 			m->lt[m->sellt]->arrange(m);
 
 		for (c = m->clients; c; c = c->next)
 		{
-			if (!c->isstacked)
-				continue;
 			// force class-stacked clients to match the position/dimensions of the stack head client;
-			resizeclient(c, c->isstacked->x, c->isstacked->y, c->isstacked->w, c->isstacked->h, 0);
+			if (c->stackhead)
+				resizeclient(c, c->stackhead->x, c->stackhead->y, c->stackhead->w, c->stackhead->h, 0);
+			else if (c->isstackhead && m->sel == c)
+				XSetWindowBorder(dpy, c->win, scheme[SchemeUrg][ColBorder].pixel);
 		}
 	}
 	else
@@ -3782,7 +3791,7 @@ arrangemon_process_classstack(Client *c, int added_to_stack)
 	XClassHint ch = { NULL, NULL };
 	XClassHint ch2 = { NULL, NULL };
 
-	if ((added_to_stack && (!c->snext || !ISVISIBLE(c))) || c->isfloating || c->isstacked
+	if ((added_to_stack && (!c->snext || !ISVISIBLE(c))) || c->isfloating || c->stackhead
 		#if PATCH_FLAG_HIDDEN
 		|| c->ishidden
 		#endif // PATCH_FLAG_HIDDEN
@@ -3805,7 +3814,7 @@ arrangemon_process_classstack(Client *c, int added_to_stack)
 	}
 	for (Client *c2 = added_to_stack ? c->snext : c->mon->stack; c2; c2 = c2->snext)
 	{
-		if (c2->isfloating || !ISVISIBLE(c2) || c2->isstacked
+		if (c2->isfloating || !ISVISIBLE(c2) || c2->stackhead
 			#if PATCH_FLAG_HIDDEN
 			|| c2->ishidden
 			#endif // PATCH_FLAG_HIDDEN
@@ -3824,18 +3833,18 @@ arrangemon_process_classstack(Client *c, int added_to_stack)
 				(c->stackclass && strcmp(ch2.res_class, c->stackclass) == 0) ||
 				(!c->stackclass && strcmp(ch.res_class, ch2.res_class) == 0)
 				)
-				c2->isstacked = c;
+				c2->stackhead = c;
 		}
 		else if (
 			(c->stackclass && strcmp(c->stackclass, c2->stackclass) == 0) ||
 			(!c->stackclass && strcmp(ch.res_class, c2->stackclass) == 0)
 			)
-			c2->isstacked = c;
+			c2->stackhead = c;
 		if (ch2.res_class) {
 			XFree(ch2.res_class);
 			ch2.res_class = NULL;
 		}
-		if (c2->isstacked)
+		if (c2->stackhead)
 			c->isstackhead = 1;
 	}
 	if (ch.res_class) {
@@ -3844,7 +3853,7 @@ arrangemon_process_classstack(Client *c, int added_to_stack)
 	}
 	if (added_to_stack && ISVISIBLE(c) &&
 		(
-			(c->mon == selmon && c->isstackhead && c->mon->sel == c)
+			(c->mon == selmon && (c->isstackhead || c->stackhead) && c->mon->sel == c)
 			#if PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
 			|| (tabHighlight && altTabMon && altTabMon->isAlt && !(altTabMon->isAlt & ALTTAB_MOUSE) && altTabMon->highlight == c)
 			#endif // PATCH_ALTTAB && PATCH_ALTTAB_HIGHLIGHT
@@ -3884,13 +3893,13 @@ attach_stackhead(Client *c)
 		#endif // PATCH_SHOW_DESKTOP
 	) return 0;
 	
-	if(!c->isstacked)
+	if(!c->stackhead)
 	{
 		arrangemon_process_classstack(c, 0);
-		if(!(c->isstackhead || c->isstacked))
+		if(!(c->isstackhead || c->stackhead))
 			return 0;
 	}
-	Client *h, *sh = c->isstacked;
+	Client *h, *sh = c->stackhead;
 
 	if(!sh)
 	{
@@ -3920,9 +3929,9 @@ attach_stackhead(Client *c)
 	{
 		if(h == sh)
 		{
-			h->isstacked = c;
+			h->stackhead = c;
 			h->isstackhead = 0;
-			c->isstacked = NULL;
+			c->stackhead = NULL;
 			c->isstackhead = 1;
 			attach(c);
 			attachstack(c);
@@ -3930,11 +3939,11 @@ attach_stackhead(Client *c)
 		}
 		if(h->next == sh)
 		{
-			h->next->isstacked = c;
+			h->next->stackhead = c;
 			h->next->isstackhead = 0;
 			c->next = h->next;
 			h->next = c;
-			c->isstacked = NULL;
+			c->stackhead = NULL;
 			c->isstackhead = 1;
 			break;
 		}
@@ -3960,7 +3969,6 @@ attach_stackhead(Client *c)
 	}
 	return 0;
 }
-
 
 #endif // PATCH_CLASS_STACKING
 
@@ -5719,16 +5727,16 @@ detachstackex(Client *c)
 	if (c->snext)
 		c->snext->sprev = (*tc)->sprev;
 	*tc = c->snext;
-
-	for (int i = 0; i < LENGTH(tags); i++)
-		if (c->mon->focusontag[i] == c)
-			c->mon->focusontag[i] = NULL;
 }
 
 void
 detachstack(Client *c)
 {
 	detachstackex(c);
+
+	for (int i = 0; i < LENGTH(tags); i++)
+		if (c->mon->focusontag[i] == c)
+			c->mon->focusontag[i] = NULL;
 
 	Client *t;
 	if (c == c->mon->sel) {
@@ -7264,7 +7272,11 @@ drawbar(Monitor *m, int skiptags)
 
 			if (m->lt[m->sellt]->arrange == monocle)
 			{
+				#if PATCH_CLASS_STACKING
+				for (c = nexttiledall(m->clients), a = 0, s = 0; c; c = nexttiledall(c->next), a++)
+				#else // NO PATCH_CLASS_STACKING
 				for (c = nexttiled(m->clients), a = 0, s = 0; c; c = nexttiled(c->next), a++)
+				#endif // PATCH_CLASS_STACKING
 					if (c == m->stack)
 						s = a + 1;
 				if (!s && a)
@@ -8118,15 +8130,15 @@ focus(Client *c, int force)
 	if (c) {
 
 		#if PATCH_CLASS_STACKING
-		if (c->isstacked)
+		if (c->stackhead)
 		{
 			for (Client *cc = c->mon->clients; cc; cc = cc->next)
-				if (cc->isstacked == c->isstacked && cc != c) {
-					cc->isstacked = c;
+				if (cc->stackhead == c->stackhead && cc != c) {
+					cc->stackhead = c;
 					cc->isstackhead = 0;
 				}
-			c->isstacked->isstacked = c;
-			c->isstacked = NULL;
+			c->stackhead->stackhead = c;
+			c->stackhead = NULL;
 			c->isstackhead = 1;
 		}
 		#endif // PATCH_CLASS_STACKING
@@ -9630,6 +9642,45 @@ grabkeys(void)
 	}
 }
 
+#if PATCH_CLASS_STACKING
+void
+groupallclassstacks(Monitor *m)
+{
+	Client *c, *head;
+	unsigned int count = 0, i = 0;
+	for (c = m->stack; c; c = c->snext)
+		if (c->stackhead)
+			++count;
+	if (!count)
+		return;
+
+	Client **stack = (Client **) malloc(count * sizeof(Client *));
+
+	for (c = m->stack; c; c = c->snext)
+		if (c->stackhead && !c->isstackhead)
+			stack[i++] = c;
+
+	for (i = 0; i < count; ++i) {
+		detachstack(stack[i]);
+		detach(stack[i]);
+	}
+
+	for (i = 0; i < count; ++i) {
+		c = stack[count - 1 - i];
+		head = c->stackhead;
+		c->next = head->next;
+		if ((c->snext = head->snext))
+			c->snext->sprev = c;
+		head->next = c;
+		head->snext = c;
+		c->sprev = head;
+		if (m->sel == c)
+			m->sel = head;
+	}
+	free(stack);
+
+}
+#endif // PATCH_CLASS_STACKING
 
 Client *
 guessnextfocus(Client *c, Monitor *m)
@@ -9983,7 +10034,7 @@ hidewin(const Arg *arg) {
 				#endif // PATCH_PERSISTENT_METADATA
 			}
 		#if PATCH_CLASS_STACKING
-		c->isstacked = NULL;
+		c->stackhead = NULL;
 		#endif // PATCH_CLASS_STACKING
 		focus(NULL, 0);
 		h = NULL;
@@ -10106,7 +10157,7 @@ highlight(Client *c)
 		#if PATCH_CLASS_STACKING
 		else if (c->mon != selmon)
 			arrangemon(c->mon);
-		if (c->mon->class_stacking && (c->isstackhead || c->isstacked))
+		if (c->mon->class_stacking && (c->isstackhead || c->stackhead))
 			XSetWindowBorder(dpy, c->win, scheme[SchemeUrg][ColBorder].pixel);
 		else
 		#endif // PATCH_CLASS_STACKING
@@ -10168,7 +10219,7 @@ highlight(Client *c)
 
 				#if PATCH_CLASS_STACKING
 				// without the restack() class-stacked clients' z-order doesn't get readjusted properly;
-				if (altTabMon && altTabMon->highlight && (altTabMon->highlight->isstacked || altTabMon->highlight->isstackhead)) {
+				if (altTabMon && altTabMon->highlight && (altTabMon->highlight->stackhead || altTabMon->highlight->isstackhead)) {
 					restack(c->mon);
 				}
 				#endif // PATCH_CLASS_STACKING
@@ -11523,7 +11574,7 @@ logdiagnostics_client_common(Client *c, const char *indent1, const char *indent2
 		"",
 		#endif // PATCH_FLAG_PANEL
 		#if PATCH_CLASS_STACKING
-		(c->isstacked ? "=" : "_"),
+		(c->stackhead ? "=" : "_"),
 		#else // NO PATCH_CLASS_STACKING
 		"",
 		#endif // PATCH_CLASS_STACKING
@@ -13156,6 +13207,9 @@ movetiled(const Arg *arg)
 	#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 
 	int count = arg->i;
+	if (!count)
+		return;
+
 	if (count > 0) {
 		// down;
 		while (count) {
@@ -13185,7 +13239,11 @@ movetiled(const Arg *arg)
 			++count;
 		}
 	}
-	else return;
+
+	#if PATCH_CLASS_STACKING
+	if (c->isstackhead)
+		groupallclassstacks(c->mon);
+	#endif // PATCH_CLASS_STACKING
 
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
@@ -13289,7 +13347,7 @@ prevtiled(Client *c)
 			|| i->isdesktop
 			#endif // PATCH_SHOW_DESKTOP
 			#if PATCH_CLASS_STACKING
-			|| i->isstacked
+			|| i->stackhead
 			#endif // PATCH_CLASS_STACKING
 		)) r = i;
 	return r;
@@ -13313,11 +13371,33 @@ nexttiled(Client *c)
 		|| c->isdesktop
 		#endif // PATCH_SHOW_DESKTOP
 		#if PATCH_CLASS_STACKING
-		|| c->isstacked
+		|| c->stackhead
 		#endif // PATCH_CLASS_STACKING
 	); c = c->next);
 	return c;
 }
+
+#if PATCH_CLASS_STACKING
+Client *
+nexttiledall(Client *c)
+{
+	for (; c && (c->isfloating || !ISVISIBLE(c)
+		#if PATCH_FLAG_HIDDEN
+		|| c->ishidden
+		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_FLAG_IGNORED
+		|| c->isignored
+		#endif // PATCH_FLAG_IGNORED
+		#if PATCH_FLAG_PANEL
+		|| c->ispanel
+		#endif // PATCH_FLAG_PANEL
+		#if PATCH_SHOW_DESKTOP
+		|| c->isdesktop
+		#endif // PATCH_SHOW_DESKTOP
+	); c = c->next);
+	return c;
+}
+#endif // PATCH_CLASS_STACKING
 
 int
 parselayoutjson(cJSON *layout)
@@ -15733,7 +15813,6 @@ read_socket(IPCMessageType *msg_type, uint32_t *msg_size, char **msg)
 }
 #endif // PATCH_IPC
 
-
 Client *
 recttoclient(int x, int y, int w, int h, int onlyfocusable)
 {
@@ -16160,8 +16239,8 @@ resizeclient(Client *c, int x, int y, int w, int h, int save_old)
 		return;
 
 	#if PATCH_CLASS_STACKING
-	if (c->isstacked)
-		wc.border_width = solitary(c->isstacked) ? 0 : c->bw;
+	if (c->stackhead)
+		wc.border_width = solitary(c->stackhead) ? 0 : c->bw;
 	else
 	#endif // PATCH_CLASS_STACKING
 	{
@@ -17000,7 +17079,7 @@ restack(Monitor *m)
 	if (tabHighlight && altTabMon && altTabMon->isAlt && !(altTabMon->isAlt & ALTTAB_MOUSE)) {
 
 		#if PATCH_CLASS_STACKING
-		if (altTabMon->highlight && altTabMon->highlight->isstacked
+		if (altTabMon->highlight && altTabMon->highlight->stackhead
 			#if PATCH_SHOW_DESKTOP
 			&& !altTabMon->highlight->isdesktop
 			#endif // PATCH_SHOW_DESKTOP
