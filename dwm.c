@@ -12161,10 +12161,10 @@ manage(Window w, XWindowAttributes *wa)
 					|| c->isgame
 					#endif // PATCH_FLAG_GAME
 				)
-					&& c->mon->sel->isfullscreen
-					#if PATCH_FLAG_FAKEFULLSCREEN
-					&& c->mon->sel->fakefullscreen != 1
-					#endif // PATCH_FLAG_FAKEFULLSCREEN
+				&& c->mon->sel->isfullscreen
+				#if PATCH_FLAG_FAKEFULLSCREEN
+				&& c->mon->sel->fakefullscreen != 1
+				#endif // PATCH_FLAG_FAKEFULLSCREEN
 				)
 				#if PATCH_FLAG_GAME
 				|| (c->mon->sel->isgame && !c->isgame)
@@ -12205,7 +12205,11 @@ manage(Window w, XWindowAttributes *wa)
 
 
 	#if PATCH_CLASS_STACKING
-	if(!attach_stackhead(c))
+	if(attach_stackhead(c)) {
+		if (c->mon == selmon)
+			takefocus = 1;
+	}
+	else
 	{
 	#endif // PATCH_CLASS_STACKING
 		#if PATCH_ATTACH_BELOW_AND_NEWMASTER
