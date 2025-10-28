@@ -862,7 +862,6 @@ static int debug_sensitivity_on = 0;
 	#define MINIMIZED(C)            ((getstate(C->win) == IconicState) && !C->dormant)
 #endif // PATCH_FLAG_IGNORED
 
-#define LENGTH(X)               (sizeof X / sizeof X[0])
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)

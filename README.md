@@ -9,7 +9,7 @@
 ## dwm - dynamic window manager
 
 dwm is an extremely fast, small, and dynamic window manager for X.
-This custom fork is based on dwm 6.5.
+This custom fork is based on dwm 6.6.
 
 ### Key Changes from stock dwm:
 * The core Rule array is replaced by run-time rule processing logic, reading from a json file;
