@@ -616,8 +616,9 @@ static const supported_rules_json supported_rules[] = {
 	{ R_N|R_I,	"set-float-align-y",				"floating client fixed alignment: -1:not aligned, decimal fraction between 0 and 1 for relative position" },
 	#endif // PATCH_FLAG_FLOAT_ALIGNMENT
 	#if PATCH_MOUSE_POINTER_WARPING
-	{ R_N,		"set-focus-origin-dx",				"mouse warp relative to client centre - x (decimal fraction)" },
-	{ R_N,		"set-focus-origin-dy",				"mouse warp relative to client centre - y (decimal fraction)" },
+	{ R_BOOL,	"set-focus-origin-absolute",		"mouse warp locations correspond to absolute pixel coordinates" },
+	{ R_N|R_I,	"set-focus-origin-dx",				"mouse warp relative to client centre - x (decimal fraction)" },
+	{ R_N|R_I,	"set-focus-origin-dy",				"mouse warp relative to client centre - y (decimal fraction)" },
 	#endif // PATCH_MOUSE_POINTER_WARPING
 	#if PATCH_FLAG_FOLLOW_PARENT
 	{ R_BOOL,	"set-follow-parent",				"true to ensure this client's tags match its parent's, and stays on the same monitor as its parent" },
@@ -1170,6 +1171,12 @@ struct Client {
 	#if PATCH_MOUSE_POINTER_WARPING
 	float focusdx;
 	float focusdy;
+	int focusabs;
+	#if PATCH_MOUSE_POINTER_WARPING_RECALL
+	int lastdx;
+	int lastdy;
+	int nolastcoords;
+	#endif // PATCH_MOUSE_POINTER_WARPING_RECALL
 	#endif // PATCH_MOUSE_POINTER_WARPING
 	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 	int newmaster;
@@ -1654,6 +1661,7 @@ static pid_t getprocessid(const char *procname);
 static int getprocname(pid_t pid, char *buffer, size_t buffer_size, char **procname, char **parameters);
 #if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 static int getrelativeptr(Client *c, int *x, int *y);
+static int getrelativeptrex(Client *c, int *x, int *y);
 #endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
@@ -1716,6 +1724,10 @@ static void killclient(const Arg *arg);
 static void killclientex(Client *c, int sigterm);
 static void killgroup(const Arg *arg);
 static void killwin(Window w);
+#if PATCH_MOUSE_POINTER_WARPING_RECALL
+static void lastcoordsrecall(Client *c, int reset, int relative, int *px, int *py);
+static void lastcoordsstore(Client *c);
+#endif // PATCH_MOUSE_POINTER_WARPING_RECALL
 static int layoutstringtoindex(const char *layout);
 static int line_to_buffer(const char *text, char *buffer, size_t buffer_size, size_t line_length, size_t *index);
 #if PATCH_LOG_DIAGNOSTICS
@@ -2776,6 +2788,7 @@ applyrules(Client *c, int deferred, char *oldtitle)
 		return 0;
 	#endif // DEBUGGING
 	int matched = 0;
+	int parsed = 0;
 	Monitor *m;
 	const char *class, *instance;
 	#if PATCH_LOG_DIAGNOSTICS
@@ -3045,6 +3058,15 @@ applyrules(Client *c, int deferred, char *oldtitle)
 			if (!match)
 				continue;
 
+			// use to prevent spamming the same warning messages when re-using a rule;
+			parsed = ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "parsed")) && json_isboolean(r_node)) ? r_node->valueint : 0;
+			if (!parsed) {
+				if (r_node)
+					cJSON_SetIntValue(r_node, 1);
+				else
+					cJSON_AddNumberToObject(r_json, "parsed", 1);
+			}
+
 			#if PATCH_LOG_DIAGNOSTICS
 			int logrule = ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "log-rule")) && json_isboolean(r_node)) ? r_node->valueint : 0;
 			m = c->mon ? c->mon : selmon;
@@ -3241,7 +3263,7 @@ skip_parenting:
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-active")) && cJSON_IsNumeric(r_node)) {
 				c->opacity = r_node->valuedouble;
 				if (c->opacity <= 0 || c->opacity > 1.0f) {
-					if (config_warnings) {
+					if (config_warnings && !parsed) {
 						logdatetime(stderr);
 						fprintf(stderr, "dwm: warning: set-opacity-active value must be greater than 0 and less than or equal to 1.\n");
 					}
@@ -3251,7 +3273,7 @@ skip_parenting:
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-opacity-inactive")) && cJSON_IsNumeric(r_node)) {
 				c->unfocusopacity = r_node->valuedouble;
 				if (c->unfocusopacity <= 0 || c->unfocusopacity > 1.0f) {
-					if (config_warnings) {
+					if (config_warnings && !parsed) {
 						logdatetime(stderr);
 						fprintf(stderr, "dwm: warning: set-opacity-inactive value must be greater than 0 and less than or equal to 1.\n");
 					}
@@ -3293,24 +3315,37 @@ skip_parenting:
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-terminal")) && json_isboolean(r_node)) c->isterminal = r_node->valueint;
 			#endif // PATCH_TERMINAL_SWALLOWING
 			#if PATCH_MOUSE_POINTER_WARPING
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dx")) && cJSON_IsNumber(r_node)) {
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-absolute")) && json_isboolean(r_node)) c->focusabs = r_node->valueint;
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dx")) && cJSON_IsNumeric(r_node)) {
 				c->focusdx = r_node->valuedouble;
-				if (c->focusdx < -2 || c->focusdx > 2) {
-					if (config_warnings) {
+				if (
+					!c->focusabs && (c->focusdx < -2 || c->focusdx > 2)
+				) {
+					if (config_warnings && !parsed) {
 						logdatetime(stderr);
-						fprintf(stderr, "dwm: warning: focus-origin-dx value must be between -2 and 2.\n");
+						fprintf(stderr, "dwm: warning: focus-origin-dx relative value must be between -2 and 2.\n");
 					}
 					c->focusdx = 1;
 				}
+				else if (c->focusabs & cJSON_IsNumber(r_node) && config_warnings && !parsed) {
+					logdatetime(stderr);
+					fprintf(stderr, "dwm: warning: focus-origin-dx absolute value should be an integer.\n");
+				}
 			}
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dy")) && cJSON_IsNumber(r_node)) {
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-focus-origin-dy")) && cJSON_IsNumeric(r_node)) {
 				c->focusdy = r_node->valuedouble;
-				if (c->focusdy < -2 || c->focusdy > 2) {
-					if (config_warnings) {
+				if (
+					!c->focusabs && (c->focusdy < -2 || c->focusdy > 2)
+				) {
+					if (config_warnings && !parsed) {
 						logdatetime(stderr);
-						fprintf(stderr, "dwm: warning: focus-origin-dy value must be between -2 and 2.\n");
+						fprintf(stderr, "dwm: warning: focus-origin-dy relative value must be between -2 and 2.\n");
 					}
 					c->focusdy = 1;
+				}
+				else if (c->focusabs & cJSON_IsNumber(r_node) && config_warnings && !parsed) {
+					logdatetime(stderr);
+					fprintf(stderr, "dwm: warning: focus-origin-dy absolute value should be an integer.\n");
 				}
 			}
 			#endif // PATCH_MOUSE_POINTER_WARPING
@@ -8340,6 +8375,13 @@ focusmon(const Arg *arg)
 		return;
 	#endif // PATCH_CONSTRAIN_MOUSE && PATCH_FOCUS_FOLLOWS_MOUSE
 
+	#if PATCH_MOUSE_POINTER_WARPING
+	#if PATCH_MOUSE_POINTER_WARPING_RECALL
+	if (selmon->sel)
+		lastcoordsstore(selmon->sel);
+	#endif // PATCH_MOUSE_POINTER_WARPING_RECALL
+	#endif // PATCH_MOUSE_POINTER_WARPING
+
 	focusmonex(m);
 
 	focus(m->sel, 0);
@@ -8347,6 +8389,7 @@ focusmon(const Arg *arg)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	if (!m->sel)
 		XWarpPointer(dpy, None, root, 0, 0, 0, 0, m->wx + (m->ww / 2), m->wy + (m->wh / 2));
+	#if !PATCH_MOUSE_POINTER_WARPING
 	else if (
 		m->sel->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
@@ -8356,6 +8399,7 @@ focusmon(const Arg *arg)
 		XWarpPointer(dpy, None, root, 0, 0, 0, 0, m->mx + (m->mw / 2), m->my + (m->mh / 2));
 	else
 		XWarpPointer(dpy, None, root, 0, 0, 0, 0, m->sel->x + (m->sel->w / 2), m->sel->y + (m->sel->h / 2));
+	#endif // !PATCH_MOUSE_POINTER_WARPING
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 	#if PATCH_MOUSE_POINTER_WARPING
@@ -8529,6 +8573,13 @@ focusstack(const Arg *arg)
 				}
 			}
 			#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
+
+			#if PATCH_MOUSE_POINTER_WARPING
+			#if PATCH_MOUSE_POINTER_WARPING_RECALL
+			if (warp && c != s)
+				lastcoordsstore(s);
+			#endif // PATCH_MOUSE_POINTER_WARPING_RECALL
+			#endif // PATCH_MOUSE_POINTER_WARPING
 
 			if (c != s
 				#if PATCH_FLAG_GAME
@@ -9351,14 +9402,35 @@ getrelativeptr(Client *c, int *x, int *y)
 	int di;
 	unsigned int dui;
 	Window dummy;
+	int ok = 1;
 
-	if (!XQueryPointer(dpy, c->win, &dummy, &dummy, &di, &di, x, y, &dui)
-	|| (*x < 0 || *y < 0 || *x > (c->w + 2*c->bw) || *y > (c->h + 2*c->bw) )
-		) {
+	if (!XQueryPointer(dpy, c->win, &dummy, &dummy, &di, &di, x, y, &dui))
+		ok = 0;
+	else {
+		if (*x + c->bw < 0 || *y + c->bw < 0 || *x > (c->w + c->bw) || *y > (c->h + c->bw))
+			ok = 0;
+	}
+	if (!ok) {
 		*x = c->w / 2;
 		*y = c->h / 2;
 		return 0;
 	}
+	return 1;
+}
+
+int
+getrelativeptrex(Client *c, int *x, int *y)
+{
+	if (!c)
+		return 0;
+
+	int di;
+	unsigned int dui;
+	Window dummy;
+
+	if (!XQueryPointer(dpy, c->win, &dummy, &dummy, &di, &di, x, y, &dui))
+		return 0;
+
 	return 1;
 }
 #endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
@@ -9909,34 +9981,34 @@ hidecursor(void)
 	if (cursorhiding)
 		return;
 
-	int x, y;
+	int x = 0, y = 0;
 	Client *c;
 	if ((c = selmon->sel)) {
 
 		if (getrootptr(&cursormove_x, &cursormove_y)) {
 
 			#if PATCH_MOUSE_POINTER_WARPING
-			if (c->focusdx != 1.0f) {
-				if (c->focusdx < 0)
-					x = c->x + c->w + c->focusdx * c->w/2;
-				else
-					x = c->x + c->focusdx * c->w/2;
+			#if PATCH_MOUSE_POINTER_WARPING_RECALL
+			lastcoordsrecall(c, 1, 1, &x, &y);
+			#else // NO PATCH_MOUSE_POINTER_WARPING_RECALL
+			if (c->focusabs) {
+				x = c->focusdx + (c->focusdx < 0 ? c->w : 0);
+				y = c->focusdy + (c->focusdy < 0 ? c->h : 0);
 			}
-			else
-			#endif // PATCH_MOUSE_POINTER_WARPING
-				x = c->x + c->w + c->bw;
-			#if PATCH_MOUSE_POINTER_WARPING
-			if (c->focusdy != 1.0f) {
-				if (c->focusdy < 0)
-					y = c->y + c->h + c->focusdy * c->h/2;
+			else {
+				if (c->focusdx != 1.0f)
+					x = c->focusdx * c->w/2 + (c->focusdx < 0 ? c->w : 0);
 				else
-					y = c->y + c->focusdy * c->h/2;
+					x = c->w;
+				if (c->focusdy != 1.0f)
+					y = c->focusdy * c->h/2 + (c->focusdy < 0 ? c->h : 0);
+				else
+					y = c->h;
 			}
-			else
+			#endif // !PATCH_MOUSE_POINTER_WARPING_RECALL
+			XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, x, y);
+			XSync(dpy, False);
 			#endif // PATCH_MOUSE_POINTER_WARPING
-				y = c->y + c->h + c->bw;
-
-			XWarpPointer(dpy, None, root, 0, 0, 0, 0, x, y);
 		}
 		else {
 			cursormove_x = -1;
@@ -10765,6 +10837,67 @@ killwin(Window w)
 	}
 }
 
+#if PATCH_MOUSE_POINTER_WARPING
+#if PATCH_MOUSE_POINTER_WARPING_RECALL
+void
+lastcoordsrecall(Client *c, int reset, int relative, int *px, int *py)
+{
+	int x = c->w/2;
+	int y = c->h/2;
+
+	if (c->nolastcoords || reset) {
+		if (c->focusabs) {
+			x = c->focusdx + (c->focusdx < 0 ? c->w : 0);
+			y = c->focusdy + (c->focusdy < 0 ? c->h : 0);
+		} else {
+			if (c->focusdx != 1.0f)
+				x = (int) ((float) c->focusdx * (int) c->w/2 + (c->focusdx < 0 ? c->w : 0));
+			if (c->focusdy != 1.0f)
+				y = (int) ((float) c->focusdy * (int) c->h/2 + (c->focusdy < 0 ? c->w : 0));
+		}
+	}
+	else {
+		x = c->lastdx + (c->lastdx < 0 ? c->w : 0);
+		y = c->lastdy + (c->lastdy < 0 ? c->h : 0);
+	}
+
+	if (x < 0 || x > c->w)
+		x = c->w/2;
+	if (y < 0 || y > c->h)
+		y = c->h/2;
+
+	c->lastdx = x;
+	c->lastdy = y;
+	c->nolastcoords = 0;
+
+	if (relative) {
+		*px = x;
+		*px = y;
+	}
+	else {
+		*px = x + c->x + c->bw;
+		*py = y + c->y + c->bw;
+	}
+}
+
+void
+lastcoordsstore(Client *c)
+{
+	int px, py;
+	if (!getrelativeptrex(c, &px, &py))
+		return;
+
+	// store existing coordinates;
+	if (px < 0 || px > c->w || py < 0 || py > c->h)
+		return;
+
+	c->lastdx = px;
+	c->lastdy = py;
+	c->nolastcoords = 0;
+}
+#endif // PATCH_MOUSE_POINTER_WARPING_RECALL
+#endif // PATCH_MOUSE_POINTER_WARPING
+
 #if PATCH_LOG_DIAGNOSTICS
 void
 logdiagnostics_stacktiled(Monitor *m, const char *title, const char *indent)
@@ -11405,14 +11538,14 @@ logdiagnostics(const Arg *arg)
 
 		#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 		int x, y;
-		if (m == selmon && m->sel && getrelativeptr(m->sel, &x, &y)) {
+		if (m == selmon && m->sel && getrelativeptrex(m->sel, &x, &y)) {
 			fprintf(stderr,
 				"\n    Pointer relative position: %f, %f",
-				(float) x / (m->sel->w / 2), (float) y / (m->sel->h / 2)
+				(float) x / ((m->sel->w + m->sel->bw) / 2), (float) y / ((m->sel->h + m->sel->bw) / 2)
 			);
 			fprintf(stderr,
 				" and %f, %f (\"%s\")\n",
-				(float) -(m->sel->w - x) / (m->sel->w / 2), (float) -(m->sel->h - y) / (m->sel->h / 2),
+				(float) -(m->sel->w + m->sel->bw - x) / ((m->sel->w + m->sel->bw) / 2), (float) -(m->sel->h + m->sel->bw - y) / ((m->sel->h + m->sel->bw) / 2),
 				m->sel->name
 			);
 		}
@@ -11616,6 +11749,11 @@ void
 logrules(const Arg *arg)
 {
 	char *json_buffer;
+
+	for (cJSON *r_json = (rules_json ? rules_json->child : NULL); r_json; r_json = r_json->next)
+		if (cJSON_HasObjectItem(r_json, "parsed"))
+			cJSON_DeleteItemFromObject(r_json, "parsed");
+
 	if (arg->ui)
 		json_buffer = cJSON_Print(rules_json);
 	else {
@@ -13202,12 +13340,8 @@ movetiled(const Arg *arg)
 	) return;
 
 	#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
-	unsigned int cw, ch;
-	float sfw, sfh;
 	int px, py;
 	getrelativeptr(c, &px, &py);
-	cw = c->w;
-	ch = c->h;
 	#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 
 	int count = arg->i;
@@ -13256,9 +13390,7 @@ movetiled(const Arg *arg)
 	arrange(c->mon);
 
 	#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
-	sfw = ((float) c->w / cw);
-	sfh = ((float) c->h / ch);
-	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, px*sfw, py*sfh);
+	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, px, py);
 	#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
 }
 #endif // PATCH_MOVE_TILED_WINDOWS
@@ -18492,6 +18624,12 @@ setdefaultvalues(Client *c)
 	#if PATCH_MOUSE_POINTER_WARPING
 	c->focusdx = 1;
 	c->focusdy = 1;
+	#if PATCH_MOUSE_POINTER_WARPING_RECALL
+	c->focusabs = 0;
+	c->lastdx = 1;
+	c->lastdy = 1;
+	c->nolastcoords = 1;
+	#endif // PATCH_MOUSE_POINTER_WARPING_RECALL
 	#endif // PATCH_MOUSE_POINTER_WARPING
 	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 	c->newmaster = 0;
@@ -21271,12 +21409,16 @@ altTabStart(const Arg *arg)
 		altTabMon->altTabN = 0;
 		altTabMon->altTabSel = selmon->sel;
 
-		#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
+		#if (PATCH_MOUSE_POINTER_WARPING && !PATCH_MOUSE_POINTER_WARPING_RECALL) || PATCH_FOCUS_FOLLOWS_MOUSE
 		// store mouse coords in case we cancel alt-tab or the client doesn't change;
 		int px, py;
 		if (!(altTabMon->isAlt & ALTTAB_MOUSE) && !getrootptr(&px, &py))
 			px = 0;
-		#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
+		#endif // (PATCH_MOUSE_POINTER_WARPING && !PATCH_MOUSE_POINTER_WARPING_RECALL) || PATCH_FOCUS_FOLLOWS_MOUSE
+		#if PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+		if (!(altTabMon->isAlt & ALTTAB_MOUSE) && selmon->sel)
+			lastcoordsstore(selmon->sel);
+		#endif // PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
 
 		//m = NULL;
 		#if PATCH_FLAG_HIDDEN
@@ -24688,6 +24830,15 @@ warptoclient(Client *c, int force)
 		return;
 	#endif // PATCH_CONSTRAIN_MOUSE
 
+	#if PATCH_MOUSE_POINTER_WARPING_RECALL
+	if (c && c != selmon->sel
+		#if PATCH_ALTTAB
+		&& !altTabMon
+		#endif // PATCH_ALTTAB
+		)
+		lastcoordsstore(selmon->sel);
+	#endif // PATCH_MOUSE_POINTER_WARPING_RECALL
+
 	// get target zone;
 	if (c) {
 		if (c->isfullscreen
@@ -24701,28 +24852,30 @@ warptoclient(Client *c, int force)
 			th = selmon->mh;
 			tpx = tx + tw / 2;
 			tpy = ty + th / 2;
-		}
-		else {
-			tx = c->x;
-			ty = c->y;
+		} else {
+			tx = c->x + c->bw;
+			ty = c->y + c->bw;
 			tw = c->w;
 			th = c->h;
 			#if PATCH_ALTTAB
 			if (altTabMon) {
-				tpx = c->x + c->w/2;
-				tpy = c->y + c->h/2;
+				tpx = c->x + c->bw + c->w/2;
+				tpy = c->y + c->bw + c->h/2;
 			}
 			else
 			#endif // NO PATCH_ALTTAB
 			{
-				if (c->focusdx < 0)
-					tpx = c->x + c->w + c->focusdx * c->w/2;
-				else
-					tpx = c->x + c->focusdx * c->w/2;
-				if (c->focusdy < 0)
-					tpy = c->y + c->h + c->focusdy * c->h/2;
-				else
-					tpy = c->y + c->focusdy * c->h/2;
+				#if PATCH_MOUSE_POINTER_WARPING_RECALL
+				lastcoordsrecall(c, 0, 0, &tpx, &tpy);
+				#else // NO PATCH_MOUSE_POINTER_WARPING_RECALL
+				if (c->focusabs) {
+					tpx = c->x + c->bw + c->focusdx + (c->focusdx < 0 ? c->w : 0);
+					tpy = c->y + c->bw + c->focusdy + (c->focusdy < 0 ? c->h : 0);
+				} else {
+					tpx = c->x + c->bw + c->focusdx * c->w/2 + (c->focusdx < 0 ? c->w : 0);
+					tpy = c->y + c->bw + c->focusdy * c->h/2 + (c->focusdy < 0 ? c->h : 0);
+				}
+				#endif // PATCH_MOUSE_POINTER_WARPING_RECALL
 			}
 		}
 	}

@@ -32,6 +32,7 @@
 #define PATCH_MODAL_SUPPORT					1	// Ensures floating modal child clients get focused appropriately;
 #define PATCH_MOUSE_POINTER_HIDING			1	// Support for hiding the mouse pointer when idle or typing;
 #define PATCH_MOUSE_POINTER_WARPING			1	// See mousewarp_disable in config.def.h;
+#define PATCH_MOUSE_POINTER_WARPING_RECALL	1	// Store and recall mouse pointer absolute position on keyboard navigation;
 #define PATCH_MOUSE_POINTER_WARPING_SMOOTH	1	// enable smooth warping in some instances;
 #define PATCH_MOVE_FLOATING_WINDOWS			1
 #define PATCH_MOVE_TILED_WINDOWS			1

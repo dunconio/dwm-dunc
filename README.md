@@ -73,6 +73,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_MIRROR_LAYOUT` | Swap the master and stack areas where applicable; |
 | `PATCH_MODAL_SUPPORT` | Ensures floating modal child clients get focused appropriately |
 | `PATCH_MOUSE_POINTER_HIDING` | Support for hiding the mouse pointer when idle or typing; |
+| `PATCH_MOUSE_POINTER_WARPING_RECALL` | Automatically store and recall the mouse pointer location when navigating between clients with the keyboard; |
 | `PATCH_MOUSE_POINTER_WARPING` | Warp the mouse pointer to visible clients that take focus when created, or after another client is closed; |
 | <ul>`PATCH_MOUSE_POINTER_WARPING_SMOOTH`</ul> | Use a fluid warping movement rather than instantaneous warping; |
 | `PATCH_MOVE_FLOATING_WINDOWS` | Move floating clients with the keyboard; |
