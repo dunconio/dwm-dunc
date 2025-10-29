@@ -69,7 +69,8 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_HIDE_VACANT_TAGS` | Hides vacant tags (except the current active tag); |
 | `PATCH_IPC` | Provides socket-based message handling; |
 | `PATCH_LOG_DIAGNOSTICS` | Diagnostic functions that log to `stderr`; |
-| `PATCH_KEY_HOLD` | Enable use of 'synthetic' key qualifier mask `ModKeyHoldMask` (in `config.h`) to trigger the function when the key combination is held (long enough to repeat);<ul><li>This augments the existing functionality of synthetic mask `ModKeyNoRepeatMask` to only trigger function on initial key press (ignores key repeats);</li><li>Without either synthetic mask, all key repeats will re-trigger the function.</li></ul> |
+| `PATCH_KEY_HOLD` | Enable use of 'synthetic' key qualifier mask `ModKeyHoldMask` (in `config.h`) to trigger the function when the key combination is held (long enough to repeat);<ul><li>This augments the existing functionality of synthetic mask `ModKeyNoRepeatMask` to only trigger function on initial key press (ignores key repeats);</li><li>Without either synthetic mask, all key repeats will re-trigger the function.</li></ul>Overrides the `view-on-tag` layout JSON setting;<br />Secondary view functionality is executed upon key hold, e.g. when sending a client to a different tag, or a different monitor. |
+| <ul>`PATCH_KEY_HOLD_TO_REVERT_VIEW`</ul> | Secondary view functionality is the default, and key holding will revert the view/focus to what it was at the point the key was first pressed. |
 | `PATCH_MIRROR_LAYOUT` | Swap the master and stack areas where applicable; |
 | `PATCH_MODAL_SUPPORT` | Ensures floating modal child clients get focused appropriately |
 | `PATCH_MOUSE_POINTER_HIDING` | Support for hiding the mouse pointer when idle or typing; |
@@ -89,6 +90,7 @@ These can be enabled/disabled by editing `patches.h`
 | <ul>`PATCH_SHOW_DESKTOP_UNMANAGED`</ul> | Support an unmanaged desktop that will typically span the entire screen space; |
 | <ul>`PATCH_SHOW_DESKTOP_WITH_FLOATING`</ul> | Allow visible floating clients to remain visible while the desktop is shown; |
 | `PATCH_SHOW_MASTER_CLIENT_ON_TAG` | Shows the first `master` client on each tag on the bar; |
+| <ul>`PATCH_SHOW_MONOCLE_ACTIVE_CLIENT`</ul> | Show the active/focused client on a tag in monocle view; |
 | `PATCH_STATUS_ALLOW_FIXED_MONITOR` | Allow status to be drawn on non-active monitor if it's the only monitor allowed to display the status; |
 | `PATCH_STATUSCMD` | Supports using `dwmblocks` or similar to manage the status bar content; |
 | <ul>`PATCH_STATUSCMD_COLOURS`</ul> | Supports using status bar content with colour changes denoted by `^Cindex^`, where `index` is one of the following:<ul><li>a colour number between 1 and 15, corresponding to colour scheme `SchemeStatC1` - `SchemeStatC15`;</li><li>a X11 colour definition mnemonic, e.g. `red`, `pink`, `cyan`, etc.</li><li>a colour code in the form `#rgb`, `#rrggbb`, or `#rrggbbaa`;</li></ul> |

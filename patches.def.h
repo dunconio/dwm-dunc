@@ -27,6 +27,7 @@
 #define PATCH_HIDE_VACANT_TAGS				1
 #define PATCH_IPC							1	// socket-based message handling;
 #define PATCH_KEY_HOLD						1	// shortcut hold option to trigger extra action;
+#define PATCH_KEY_HOLD_TO_REVERT_VIEW		1 	// hold to switch back to the monitor/view active at the point the key was pressed;
 #define PATCH_LOG_DIAGNOSTICS				1
 #define PATCH_MIRROR_LAYOUT					1	// Swap the master and stack areas;
 #define PATCH_MODAL_SUPPORT					1	// Ensures floating modal child clients get focused appropriately;
@@ -47,6 +48,7 @@
 #define PATCH_SHOW_DESKTOP_UNMANAGED		1	// Don't manage desktop clients;
 #define PATCH_SHOW_DESKTOP_WITH_FLOATING	1	// Allow floating clients to be visible while the desktop is;
 #define PATCH_SHOW_MASTER_CLIENT_ON_TAG		1
+#define PATCH_SHOW_MONOCLE_ACTIVE_CLIENT	1	// Show the active/focused client on the tag in monocle view;
 #define PATCH_STATUS_ALLOW_FIXED_MONITOR	1	// Allow status to be drawn on non-active monitor if it's only allowed on that monitor;
 #define PATCH_STATUSCMD						1
 #define PATCH_STATUSCMD_COLOURS				1

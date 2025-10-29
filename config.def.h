@@ -370,12 +370,21 @@ static IPCCommand ipccommands[] = {
 #define MODKEY Mod4Mask
 //#define MODKEY Mod1Mask
 #if PATCH_KEY_HOLD
+#if PATCH_KEY_HOLD_TO_REVERT_VIEW
+#define TAGKEYS(KEY,TAG,TAGNAME) \
+	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG}, "View tag "TAGNAME }, \
+	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG}, "Toggle view tag "TAGNAME }, \
+	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, KEY, tag,          {.ui = 1 << TAG}, "Apply tag "TAGNAME" to client" }, \
+	{ MODKEY|ShiftMask|ModKeyHoldMask,KEY,viewkeypressmonview,{.ui = 1 << TAG}, "View client on tag "TAGNAME }, \
+	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG}, "Toggle tag "TAGNAME" to client" },
+#else // NO PATCH_KEY_HOLD_TO_REVERT_VIEW
 #define TAGKEYS(KEY,TAG,TAGNAME) \
 	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG}, "View tag "TAGNAME }, \
 	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG}, "Toggle view tag "TAGNAME }, \
 	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, KEY, tag,          {.ui = 1 << TAG}, "Apply tag "TAGNAME" to client" }, \
 	{ MODKEY|ShiftMask|ModKeyHoldMask, KEY, viewkeyholdclient,{.ui = 1 << TAG}, "View client on tag "TAGNAME }, \
 	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG}, "Toggle tag "TAGNAME" to client" },
+#endif // PATCH_KEY_HOLD_TO_REVERT_VIEW
 #else // NO PATCH_KEY_HOLD
 #define TAGKEYS(KEY,TAG,TAGNAME) \
 	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG}, "View tag "TAGNAME }, \
@@ -453,10 +462,17 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_Return, zoom,           {0}, DESCRIPTION_ZOOM },
 	{ MODKEY,                       XK_KP_Enter,zoom,          {0}, DESCRIPTION_ZOOM },
 #if PATCH_KEY_HOLD
+#if PATCH_KEY_HOLD_TO_REVERT_VIEW
+	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, XK_Left, tagmon,    {.i = -1 }, DESCRIPTION_TAGMON_BACKWARD },
+	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Left, viewkeypressmonview, {0}, DESCRIPTION_TAGMON_BACKWARD_VIEW },
+	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, XK_Right, tagmon,   {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
+	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Right, viewkeypressmonview, {0}, DESCRIPTION_TAGMON_FORWARD_VIEW },
+#else // NO PATCH_KEY_HOLD_TO_REVERT_VIEW
 	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, XK_Left, tagmon,    {.i = -1 }, DESCRIPTION_TAGMON_BACKWARD },
 	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Left, viewkeyholdclient, {0}, DESCRIPTION_TAGMON_BACKWARD_VIEW },
 	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, XK_Right, tagmon,   {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
 	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Right, viewkeyholdclient, {0}, DESCRIPTION_TAGMON_FORWARD_VIEW },
+#endif // PATCH_KEY_HOLD_TO_REVERT_VIEW
 #else // NO PATCH_KEY_HOLD
 	{ MODKEY|ShiftMask,             XK_Left,   tagmon,         {.i = -1 }, DESCRIPTION_TAGMON_BACKWARD },
 	{ MODKEY|ShiftMask,             XK_Right,  tagmon,         {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
