@@ -467,6 +467,8 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_SHOW_DESKTOP
 	{ R_BOOL,	"if-desktop",					"true if the client is a desktop window"},
 	#endif // PATCH_SHOW_DESKTOP
+	{ R_BOOL,	"if-dialog",					"match client with _NET_WM_WINDOW_TYPE value of _NET_WM_WINDOW_TYPE_DIALOG" },
+	{ R_BOOL,	"if-dock",						"match client with _NET_WM_WINDOW_TYPE value of _NET_WM_WINDOW_TYPE_DOCK" },
 	{ R_BOOL,	"if-fixed-size",				"false if the client is resizable or fullscreen, true if fixed size" },
 	{ R_BOOL,	"if-has-parent",				"client has a parent" },
 	#if PATCH_ACTIVE_CLIENT_CHECKS
@@ -492,6 +494,7 @@ static const supported_rules_json supported_rules[] = {
 	{ R_A|R_S,	"if-instance-ends",					"substring matching from the end of instance" },
 	{ R_A|R_S,	"if-instance-is",					"exact full string matching on instance" },
 	#if PATCH_ACTIVE_CLIENT_CHECKS
+	{ R_BOOL,	"if-menu",							"match client with _NET_WM_WINDOW_TYPE value of _NET_WM_WINDOW_TYPE_MENU" },
 	{ R_A|R_S,	"if-not-active-class-begins",		"substring matching from the start of the active client's class (inverted)" },
 	{ R_A|R_S,	"if-not-active-class-contains",		"substring matching on the active client's class (inverted)" },
 	{ R_A|R_S,	"if-not-active-class-ends",			"substring matching from the end of the active client's class (inverted)" },
@@ -558,10 +561,12 @@ static const supported_rules_json supported_rules[] = {
 	{ R_A|R_S,	"if-parent-title-contains",			"substring matching on parent's title" },
 	{ R_A|R_S,	"if-parent-title-ends",				"substring matching from the end of parent's title" },
 	{ R_A|R_S,	"if-parent-title-is",				"exact full string matching on parent's title" },
+	{ R_BOOL,	"if-popup-menu",					"match client with _NET_WM_WINDOW_TYPE value of _NET_WM_WINDOW_TYPE_POPUP_MENU" },
 	{ R_A|R_S,	"if-role-begins",					"substring matching from the start of role" },
 	{ R_A|R_S,	"if-role-contains",					"substring matching on role" },
 	{ R_A|R_S,	"if-role-ends",						"substring matching from the end of role" },
 	{ R_A|R_S,	"if-role-is",						"exact full string matching on role" },
+	{ R_BOOL,	"if-splash",						"match client with _NET_WM_WINDOW_TYPE value of _NET_WM_WINDOW_TYPE_SPLASH" },
 	{ R_A|R_S,	"if-title-begins",					"substring matching from the start of title" },
 	{ R_A|R_S,	"if-title-contains",				"substring matching on title" },
 	{ R_A|R_S,	"if-title-ends",					"substring matching from the end of title" },
@@ -596,6 +601,9 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_CLASS_STACKING
 	{ R_S,		"set-class-stack",					"use this string as class for class stacking" },
 	#endif // PATCH_CLASS_STACKING
+	#if PATCH_CONSTRAIN_MOUSE
+	{ R_BOOL,	"set-constrain-mouse",				"true to constrain the mouse pointer to the bounds of the client when focused" },
+	#endif // PATCH_CONSTRAIN_MOUSE
 	#if PATCH_MOUSE_POINTER_HIDING
 	{ R_BOOL,	"set-cursor-autohide",				"true to hide cursor when stationary while this client is focused" },
 	{ R_BOOL,	"set-cursor-hide-on-keys",			"true to hide cursor when keys are pressed while this client is focused" },
@@ -888,6 +896,9 @@ static int debug_sensitivity_on = 0;
 	cJSON_HasObjectItem(JSON, TEXT"-ends") \
 )
 
+#define WTYPEMATCH(JSON,ATOM,TEXT) ( \
+	!(r_node = cJSON_GetObjectItemCaseSensitive(JSON, "if-"TEXT)) || !json_isboolean(r_node) || (wtype == netatom[ATOM] ? !!r_node->valueint : !r_node->valueint) \
+)
 
 
 #define SYSTEM_TRAY_REQUEST_DOCK    0
@@ -991,9 +1002,7 @@ enum {	NetSupported, NetWMName,
 		NetWMWindowTypeDesktop,
 		#endif // PATCH_SHOW_DESKTOP
 		NetWMWindowTypeDialog, NetWMWindowTypeDock, NetWMWindowTypeSplash,
-		#if PATCH_ALTTAB
 		NetWMWindowTypeMenu, NetWMWindowTypePopupMenu,
-		#endif // PATCH_ALTTAB
 		#if PATCH_EWMH_TAGS
 		NetDesktopNames, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop,
 		#endif // PATCH_EWMH_TAGS
@@ -1148,6 +1157,9 @@ struct Client {
 	#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 	int autohide; // iconify when the client is hidden by showhide();
 	#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
+	#if PATCH_CONSTRAIN_MOUSE
+	int constrainmouse;
+	#endif // PATCH_CONSTRAIN_MOUSE
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_FLAG_GREEDY_FOCUS
 	int isgreedy;	// client doesn't want to lose focus due to mouse movement;
@@ -1545,6 +1557,7 @@ static int connect_to_socket();
 static void createbarrier(Client *c);
 #endif // PATCH_FLAG_GAME
 #if PATCH_CONSTRAIN_MOUSE
+static void createbarrierclient(Client *c);
 static void createbarriermon(Monitor *m);
 #endif // PATCH_CONSTRAIN_MOUSE
 #if PATCH_VIRTUAL_MONITORS
@@ -2138,6 +2151,7 @@ static PointerBarrier barrierBottom = 0;
 #endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
 #if PATCH_CONSTRAIN_MOUSE
 static Monitor *constrained = NULL;
+static Client *constrained_client = NULL;
 #endif // PATCH_CONSTRAIN_MOUSE
 
 #if PATCH_CUSTOM_TAG_ICONS
@@ -2610,6 +2624,10 @@ applyrulesdeferred(Client *c, char *oldtitle)
 			arrange(c->mon);
 			if (c->isurgent)
 				focus(c, 0);
+			#if PATCH_CONSTRAIN_MOUSE
+			else if (c->constrainmouse)
+				createbarrierclient(c);
+			#endif // PATCH_CONSTRAIN_MOUSE
 		}
 		if (m == mm && (c->tags == tags || ISVISIBLE(c))) {
 			if (c->monindex == -1)
@@ -2827,6 +2845,8 @@ applyrules(Client *c, int deferred, char *oldtitle)
 	size_t sz_active_instance = (active_instance == broken ? 0 : strlen(active_instance));
 	#endif // PATCH_ACTIVE_CLIENT_CHECKS
 
+	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
+
 	/* rule matching */
 	XGetClassHint(dpy, c->win, &ch);
 	class    = ch.res_class ? ch.res_class : broken;
@@ -2996,7 +3016,12 @@ applyrules(Client *c, int deferred, char *oldtitle)
 				STRINGMATCHABLE(r_json, "if-parent-class") ||
 				STRINGMATCHABLE(r_json, "if-parent-instance") ||
 				STRINGMATCHABLE(r_json, "if-parent-title") ||
-				STRINGMATCHABLE(r_json, "if-parent-role")
+				STRINGMATCHABLE(r_json, "if-parent-role") ||
+				cJSON_HasObjectItem(r_json, "if-dialog") ||
+				cJSON_HasObjectItem(r_json, "if-dock") ||
+				cJSON_HasObjectItem(r_json, "if-menu") ||
+				cJSON_HasObjectItem(r_json, "if-popup-menu") ||
+				cJSON_HasObjectItem(r_json, "if-splash")
 				#if PATCH_SHOW_DESKTOP
 				|| is_desktop == 1
 				#endif // PATCH_SHOW_DESKTOP
@@ -3028,6 +3053,11 @@ applyrules(Client *c, int deferred, char *oldtitle)
 			STRINGMATCH(r_json, p_instance, sz_p_instance, "if-parent-instance") &&
 			STRINGMATCH(r_json, p_role, sz_p_role, "if-parent-role") &&
 			STRINGMATCH(r_json, p_title, sz_p_title, "if-parent-title") &&
+			WTYPEMATCH(r_json, NetWMWindowTypeDialog, "dialog") &&
+			WTYPEMATCH(r_json, NetWMWindowTypeDock, "dock") &&
+			WTYPEMATCH(r_json, NetWMWindowTypeMenu, "menu") &&
+			WTYPEMATCH(r_json, NetWMWindowTypePopupMenu, "popup-menu") &&
+			WTYPEMATCH(r_json, NetWMWindowTypeSplash, "splash") &&
 			(has_parent == -1 || (has_parent && c->parent) || (!has_parent && !c->parent)) &&
 			(fixed_size == -1 || (c->isfixed == fixed_size || c->isfullscreen))
 			#if PATCH_SHOW_DESKTOP
@@ -3253,7 +3283,9 @@ skip_parenting:
 			#if PATCH_CLASS_STACKING
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-class-stack")) && cJSON_IsString(r_node)) c->stackclass = r_node->valuestring;
 			#endif // PATCH_CLASS_STACKING
-
+			#if PATCH_CONSTRAIN_MOUSE
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-constrain-mouse")) && json_isboolean(r_node)) c->constrainmouse = r_node->valueint;
+			#endif // PATCH_CONSTRAIN_MOUSE
 			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-class-display")) && cJSON_IsString(r_node)) c->dispclass = r_node->valuestring;
 			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
@@ -5245,16 +5277,12 @@ connect_to_socket()
 }
 #endif // PATCH_IPC
 
-#if PATCH_FLAG_GAME
+#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
 void
 createbarrier(Client *c)
 {
 	unsigned int x, y, w, h;
 	if (!c) return;
-	#if PATCH_CONSTRAIN_MOUSE
-	if (constrained)
-		return;
-	#endif // PATCH_CONSTRAIN_MOUSE
 	if (xfixes_support) {
 		destroybarrier();
 		if (c->isfullscreen
@@ -5270,27 +5298,39 @@ createbarrier(Client *c)
 		else {
 			x = c->x + c->bw;
 			y = c->y + c->bw;
-			w = c->w - 2*c->bw;
-			h = c->h - 2*c->bw;
+			w = c->w;
+			h = c->h;
 		}
-		barrierLeft = XFixesCreatePointerBarrier(dpy, root, x, y, x, (y + h), BarrierPositiveX, 0, NULL);
-		barrierRight = XFixesCreatePointerBarrier(dpy, root, (x + w), y, (x + w), (y + h), BarrierNegativeX, 0, NULL);
-		barrierTop = XFixesCreatePointerBarrier(dpy, root, x, y, (x + w), y, BarrierPositiveY, 0, NULL);
-		barrierBottom = XFixesCreatePointerBarrier(dpy, root, x, (y + h), (x + w), (y + h), BarrierNegativeY, 0, NULL);
+		XWarpPointer(dpy, None, root, 0, 0, 0, 0, x + w/2, y + h/2);
+		barrierLeft = XFixesCreatePointerBarrier(dpy, root, x, c->mon->my, x, c->mon->my + c->mon->mh, BarrierPositiveX, 0, NULL);
+		barrierRight = XFixesCreatePointerBarrier(dpy, root, (x + w), c->mon->my, (x + w), c->mon->my + c->mon->mh, BarrierNegativeX, 0, NULL);
+		barrierTop = XFixesCreatePointerBarrier(dpy, root, c->mon->mx, y, c->mon->mx + c->mon->mw, y, BarrierPositiveY, 0, NULL);
+		barrierBottom = XFixesCreatePointerBarrier(dpy, root, c->mon->mx, (y + h), c->mon->mx + c->mon->mw, (y + h), BarrierNegativeY, 0, NULL);
 	}
 }
 #endif // PATCH_FLAG_GAME
 #if PATCH_CONSTRAIN_MOUSE
 void
+createbarrierclient(Client *c)
+{
+	if (!xfixes_support)
+		return;
+	constrained = NULL;
+	constrained_client = c;
+	createbarrier(c);
+}
+
+void
 createbarriermon(Monitor *m)
 {
-	if (constrained)
+	if (constrained || constrained_client)
 		return;
 	Monitor *mm = (m ? m : selmon);
 	if (!mm) return;
 	if (xfixes_support) {
 		destroybarrier();
 		constrained = mm;
+		XWarpPointer(dpy, None, root, 0, 0, 0, 0, mm->mx + mm->mw / 2, mm->my + mm->mh / 2);
 		barrierLeft = XFixesCreatePointerBarrier(dpy, root, mm->mx, mm->my, mm->mx, (mm->my + mm->mh), BarrierPositiveX, 0, NULL);
 		barrierRight = XFixesCreatePointerBarrier(dpy, root, (mm->mx + mm->mw), mm->my, (mm->mx + mm->mw), (mm->my + mm->mh), BarrierNegativeX, 0, NULL);
 		barrierTop = XFixesCreatePointerBarrier(dpy, root, mm->mx, mm->my, (mm->mx + mm->mw), mm->my, BarrierPositiveY, 0, NULL);
@@ -5668,7 +5708,7 @@ void
 destroybarrier(void)
 {
 	#if PATCH_CONSTRAIN_MOUSE
-	if (constrained)
+	if (constrained || constrained_client)
 		return;
 	#endif // PATCH_CONSTRAIN_MOUSE
 	if (xfixes_support) {
@@ -5687,9 +5727,10 @@ destroybarrier(void)
 void
 destroybarriermon(void)
 {
-	if (!constrained)
+	if (!constrained && !constrained_client)
 		return;
 	constrained = NULL;
+	constrained_client = NULL;
 	destroybarrier();
 }
 #endif // PATCH_CONSTRAIN_MOUSE
@@ -6685,6 +6726,7 @@ drawbar(Monitor *m, int skiptags)
 							&& (
 								m->lt[m->sellt]->arrange != monocle
 								|| !m->focusontag[i]
+								|| !(m->focusontag[i]->tags & c->tags)
 								|| m->focusontag[i] == c
 							)
 							#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
@@ -8228,6 +8270,12 @@ focus(Client *c, int force)
 				drawbar(c->mon, 0);
 			}
 			#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
+			#if PATCH_CONSTRAIN_MOUSE
+			if (constrained || constrained_client)
+				destroybarriermon();
+			if (c->constrainmouse)
+				createbarrierclient(c);
+			#endif // PATCH_CONSTRAIN_MOUSE
 		}
 		/* Avoid flickering when another client appears and the border
 		* is restored */
@@ -8351,6 +8399,8 @@ focusmonex(Monitor *m)
 	#if PATCH_CONSTRAIN_MOUSE && PATCH_FOCUS_FOLLOWS_MOUSE
 	if (constrained)
 		return;
+	if (constrained_client)
+		destroybarriermon();
 	#endif // PATCH_CONSTRAIN_MOUSE && PATCH_FOCUS_FOLLOWS_MOUSE
 
 	#if PATCH_ALT_TAGS
@@ -13216,6 +13266,11 @@ movemouse(const Arg *arg)
 		XUnmapWindow(dpy, focuswin);
 	}
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	#if PATCH_CONSTRAIN_MOUSE
+	int was_cc = 0;
+	if ((was_cc = constrained_client == c))
+		destroybarriermon();
+	#endif // PATCH_CONSTRAIN_MOUSE
 	// prevent client moves via resize() triggering updates of
 	// the client's parent offset coordinates, sfxo & sfyo
 	nonstop = 1;
@@ -13271,7 +13326,6 @@ movemouse(const Arg *arg)
 	if (focuswin)
 		XMapWindow(dpy, focuswin);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-
 
 	#if PATCH_CROP_WINDOWS
 	if (arg && arg->i == 1 && c->crop);
@@ -13333,6 +13387,11 @@ movemouse(const Arg *arg)
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
+
+	#if PATCH_CONSTRAIN_MOUSE
+	if (was_cc && constrained_client != c)
+		createbarrierclient(c);
+	#endif // PATCH_CONSTRAIN_MOUSE
 }
 
 void
@@ -15330,6 +15389,11 @@ placemouse(const Arg *arg)
 		XUnmapWindow(dpy, focuswin);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
+	#if PATCH_CONSTRAIN_MOUSE
+	if (constrained_client == c)
+		destroybarriermon();
+	#endif // PATCH_CONSTRAIN_MOUSE
+
 	do {
 		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
 		switch (ev.type) {
@@ -16868,7 +16932,7 @@ toggleconstrain(const Arg *arg)
 	checkmouseovermonitor(selmon);
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	if (barrierLeft) {
-		if (constrained)
+		if (constrained || constrained_client)
 			destroybarriermon();
 	}
 	else
@@ -17049,6 +17113,11 @@ resizemouse(const Arg *arg)
 	if (focuswin)
 		XUnmapWindow(dpy, focuswin);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
+	#if PATCH_CONSTRAIN_MOUSE
+	int was_cc = 0;
+	if ((was_cc = constrained_client == c))
+		destroybarriermon();
+	#endif // PATCH_CONSTRAIN_MOUSE
 	do {
 		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
 		switch(ev.type) {
@@ -17126,7 +17195,10 @@ resizemouse(const Arg *arg)
 	if (focuswin)
 		XMapWindow(dpy, focuswin);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-
+	#if PATCH_CONSTRAIN_MOUSE
+	if (was_cc && constrained_client != c)
+		createbarrierclient(c);
+	#endif // PATCH_CONSTRAIN_MOUSE
 }
 
 #if PATCH_DRAG_FACTS
@@ -18649,6 +18721,9 @@ setdefaultvalues(Client *c)
 	c->displayname = NULL;
 	#endif // PATCH_FLAG_TITLE
 	c->autofocus = 1;
+	#if PATCH_CONSTRAIN_MOUSE
+	c->constrainmouse = 0;
+	#endif // PATCH_CONSTRAIN_MOUSE
 	#if PATCH_MOUSE_POINTER_HIDING
 	c->cursorautohide = -1;
 	c->cursorhideonkeys = -1;
@@ -19519,10 +19594,8 @@ setup(void)
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
 	netatom[NetWMWindowTypeSplash] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_SPLASH", False);
 	netatom[NetWMWindowTypeDock] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DOCK", False);
-	#if PATCH_ALTTAB
 	netatom[NetWMWindowTypeMenu] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_MENU", False);
 	netatom[NetWMWindowTypePopupMenu] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_POPUP_MENU", False);
-	#endif // PATCH_ALTTAB
 	#if PATCH_EWMH_TAGS
 	netatom[NetDesktopViewport] = XInternAtom(dpy, "_NET_DESKTOP_VIEWPORT", False);
 	netatom[NetNumberOfDesktops] = XInternAtom(dpy, "_NET_NUMBER_OF_DESKTOPS", False);
@@ -23507,9 +23580,9 @@ updategeom(void)
 	Monitor *m;
 
 	#if PATCH_CONSTRAIN_MOUSE
-	if (constrained) {
-		
-	}
+	Client *cc = constrained_client;
+	if (cc || constrained)
+		destroybarriermon();
 	#endif // PATCH_CONSTRAIN_MOUSE
 #ifdef XINERAMA
 	if (XineramaIsActive(dpy)) {
@@ -23652,6 +23725,10 @@ updategeom(void)
 		selmon = mons;
 		selmon = wintomon(root);
 	}
+	#if PATCH_CONSTRAIN_MOUSE
+	if (cc)
+		createbarrierclient(cc);
+	#endif // PATCH_CONSTRAIN_MOUSE
 	return dirty;
 }
 
