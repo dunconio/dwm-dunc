@@ -15352,6 +15352,9 @@ parserulesjson(cJSON *rules)
 				cJSON_GetObjectItemCaseSensitive(r, "if-menu") ||
 				cJSON_GetObjectItemCaseSensitive(r, "if-popup-menu") ||
 				cJSON_GetObjectItemCaseSensitive(r, "if-splash")
+				#if PATCH_SHOW_DESKTOP
+				|| cJSON_GetObjectItemCaseSensitive(r, "if-desktop")
+				#endif // PATCH_SHOW_DESKTOP
 			))
 			unmatchable++;
 
