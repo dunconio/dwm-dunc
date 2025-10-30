@@ -460,6 +460,7 @@ static const supported_rules_json supported_rules[] = {
 	{ R_IGNORE,	"comment",						"ignored" },
 	{ R_BOOL,	"defer-rule",					"if rule matches a client excluding its title, then wait until the title changes and reapply" },
 	{ R_BOOL,	"exclusive",					"rule will be applied after non-exclusive rules, and other rules will not apply" },
+	{ R_S,		"group-name",					"the name for the group of rules held in the this rule-group node's rules array" },
 	{ R_A|R_S,	"if-class-begins",				"substring matching from the start of class" },
 	{ R_A|R_S,	"if-class-contains",			"substring matching on class" },
 	{ R_A|R_S,	"if-class-ends",				"substring matching from the end of class" },
@@ -572,7 +573,9 @@ static const supported_rules_json supported_rules[] = {
 	{ R_A|R_S,	"if-title-ends",					"substring matching from the end of title" },
 	{ R_A|R_S,	"if-title-is",						"exact full string matching on title" },
 	{ R_A|R_S,	"if-title-was",						"for deferred rule matching, the exact title prior to changing" },
+	{ R_BOOL,	"ignore",							"ignore this rule or rule group" },
 	{ R_BOOL,	"log-rule",							"log when a client matches the rule" },
+	{ R_A,		"rules",							"contains an array of rules in a rule-group object" },
 	#if PATCH_FLAG_ACTIVATION_CLICK
 	{ R_I,		"set-activation-click",				"send a mouse click of specified button on client activation" },
 	#endif // PATCH_FLAG_ACTIVATION_CLICK
@@ -3017,11 +3020,11 @@ applyrules(Client *c, int deferred, char *oldtitle)
 				STRINGMATCHABLE(r_json, "if-parent-instance") ||
 				STRINGMATCHABLE(r_json, "if-parent-title") ||
 				STRINGMATCHABLE(r_json, "if-parent-role") ||
-				cJSON_HasObjectItem(r_json, "if-dialog") ||
-				cJSON_HasObjectItem(r_json, "if-dock") ||
-				cJSON_HasObjectItem(r_json, "if-menu") ||
-				cJSON_HasObjectItem(r_json, "if-popup-menu") ||
-				cJSON_HasObjectItem(r_json, "if-splash")
+				cJSON_GetObjectItemCaseSensitive(r_json, "if-dialog") ||
+				cJSON_GetObjectItemCaseSensitive(r_json, "if-dock") ||
+				cJSON_GetObjectItemCaseSensitive(r_json, "if-menu") ||
+				cJSON_GetObjectItemCaseSensitive(r_json, "if-popup-menu") ||
+				cJSON_GetObjectItemCaseSensitive(r_json, "if-splash")
 				#if PATCH_SHOW_DESKTOP
 				|| is_desktop == 1
 				#endif // PATCH_SHOW_DESKTOP
@@ -15182,11 +15185,14 @@ parserulesjson(cJSON *rules)
 {
 	cJSON *unsupported = ecalloc(1, sizeof(cJSON));
 	cJSON *unsupported_values = ecalloc(1, sizeof(cJSON));
-	unsigned int unmatchable = 0;
+	unsigned int changed = 0, ignore, unmatchable = 0, malformed_group = 0;
 	cJSON *c = NULL;
-	cJSON *next = NULL;
-	cJSON *stack = NULL;
+	cJSON *first_child = NULL;
 	cJSON *last = NULL;
+	cJSON *next = NULL;
+	cJSON *rule_group = NULL;
+	cJSON *rule_group_name = NULL;
+	cJSON *stack = NULL;
 
 	const char *supported_rules_type_errors[] = {
 		[R_A]    = "an array",
@@ -15197,6 +15203,64 @@ parserulesjson(cJSON *rules)
 	};
 	char buffer[256];
 
+
+	// flatten any rule groups;
+	for (cJSON *r = rules->child; r; last = r, r = next) {
+		next = r->next;
+		if (!(rule_group = cJSON_GetObjectItemCaseSensitive(r, "rules")))
+			continue;
+		ignore = 0;
+		for (cJSON *c = r->child; c; c = c->next) {
+			if (
+				!strcmp(c->string,"comment") ||
+				!strcmp(c->string,"ignore") ||
+				!strcmp(c->string,"group-name") ||
+				!strcmp(c->string,"rules")
+			) continue;
+			ignore = 1;
+			break;
+		}
+		if (ignore) {
+			++malformed_group;
+			cJSON_DeleteItemFromObjectCaseSensitive(r, "rules");
+			continue;
+		}
+		ignore = ((c = cJSON_GetObjectItemCaseSensitive(r, "ignore")) && json_isboolean(c) && c->valueint);
+		rule_group_name = cJSON_GetObjectItemCaseSensitive(r, "group-name");
+		first_child = rule_group->child;
+		while ((c = rule_group->child)) {
+			r->next = c;
+			rule_group->child = c->next;
+			c->next = next;
+			if (rule_group_name && !cJSON_GetObjectItemCaseSensitive(c, "group-name"))
+				cJSON_AddStringToObject(c, "group-name", rule_group_name->valuestring);
+			if (ignore && !cJSON_GetObjectItemCaseSensitive(c, "ignore"))
+				cJSON_AddIntegerToObject(c, "ignore", 1);
+			r = c;
+		}
+		if (first_child) {
+			if ((r = last))
+				last->next = first_child;
+			else
+				rules->child = first_child;
+			next = first_child;
+			++changed;
+		}
+	}
+
+	ignore = 0;
+	cJSON **tc = &rules->child, **nc;
+	while (*tc) {
+		nc = &(*tc)->next;
+		if ((c = cJSON_GetObjectItemCaseSensitive(*tc, "ignore")) && json_isboolean(c) && c->valueint) {
+			++ignore;
+			c = *tc;
+			*tc = *nc;
+		}
+		tc = nc;
+	}
+
+	last = NULL;
 	for (cJSON *r = rules->child; r; ) {
 
 		cJSON *tags = cJSON_GetObjectItemCaseSensitive(r, "set-tags-mask");
@@ -15281,8 +15345,14 @@ parserulesjson(cJSON *rules)
 				STRINGMATCHABLE(r, "if-not-instance") ||
 				STRINGMATCHABLE(r, "if-not-role") ||
 				STRINGMATCHABLE(r, "if-not-title") ||
-				STRINGMATCHABLE(r, "if-parent-title")
-		))
+				STRINGMATCHABLE(r, "if-parent-title") ||
+				cJSON_GetObjectItemCaseSensitive(r, "if-title-was") ||
+				cJSON_GetObjectItemCaseSensitive(r, "if-dialog") ||
+				cJSON_GetObjectItemCaseSensitive(r, "if-dock") ||
+				cJSON_GetObjectItemCaseSensitive(r, "if-menu") ||
+				cJSON_GetObjectItemCaseSensitive(r, "if-popup-menu") ||
+				cJSON_GetObjectItemCaseSensitive(r, "if-splash")
+			))
 			unmatchable++;
 
 		c = cJSON_GetObjectItemCaseSensitive(r, "exclusive");
@@ -15313,13 +15383,31 @@ parserulesjson(cJSON *rules)
 	}
 
 	if (config_warnings) {
+		if (malformed_group > 1) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: warning: rule group ignored - rule group also contains normal rule parameters (%ux).\n", malformed_group);
+		}
+		else if (malformed_group) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: warning: rule group ignored - rule group also contains normal rule parameters.\n");
+		}
+
+		if (changed > 1) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: note: %u valid rule groups identified.\n", changed);
+		}
+		else if (changed) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: note: %u valid rule group identified.\n", changed);
+		}
+
 		if (unmatchable > 1) {
 			logdatetime(stderr);
-			fprintf(stderr, "dwm: warning: rule skipped - missing string matching criteria (%ux).\n", unmatchable);
+			fprintf(stderr, "dwm: warning: rule will have no effect - missing client matching criteria (%ux).\n", unmatchable);
 		}
 		else if (unmatchable) {
 			logdatetime(stderr);
-			fprintf(stderr, "dwm: warning: rule skipped - missing string matching criteria.\n");
+			fprintf(stderr, "dwm: warning: rule will have no effect - missing client matching criteria.\n");
 		}
 
 		for (c = unsupported->child; c; c = c->next) {
@@ -15333,6 +15421,15 @@ parserulesjson(cJSON *rules)
 		for (c = unsupported_values->child; c; c = c->next) {
 			logdatetime(stderr);
 			fprintf(stderr, "dwm: warning: rule parameter ignored - \"%s\" %s.\n", c->string, c->valuestring);
+		}
+
+		if (ignore > 1) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: note: %u rules ignored - rule has \"ignore\" paramter set.\n", ignore);
+		}
+		else if (ignore) {
+			logdatetime(stderr);
+			fprintf(stderr, "dwm: note: %u rule ignored - rule has \"ignore\" paramter set.\n", ignore);
 		}
 	}
 
