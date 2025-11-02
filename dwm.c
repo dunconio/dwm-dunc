@@ -1731,9 +1731,9 @@ static int ismaster(Client *c);
 #if PATCH_MODAL_SUPPORT
 static int ismodalparent(Client *c);
 #endif // PATCH_MODAL_SUPPORT
-#if PATCH_FOCUS_FOLLOWS_MOUSE
+#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
 static int ismouseoverclient(Client *c);
-#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
 static int isdescprocess(pid_t p, pid_t c);
 #if PATCH_IPC
 static int is_float(const char *s);
@@ -1750,10 +1750,12 @@ static void killclient(const Arg *arg);
 static void killclientex(Client *c, int sigterm);
 static void killgroup(const Arg *arg);
 static void killwin(Window w);
+#if PATCH_MOUSE_POINTER_WARPING
 #if PATCH_MOUSE_POINTER_WARPING_RECALL
 static void lastcoordsrecall(Client *c, int reset, int relative, int *px, int *py);
 static void lastcoordsstore(Client *c);
 #endif // PATCH_MOUSE_POINTER_WARPING_RECALL
+#endif // PATCH_MOUSE_POINTER_WARPING
 static int layoutstringtoindex(const char *layout);
 static int line_to_buffer(const char *text, char *buffer, size_t buffer_size, size_t line_length, size_t *index);
 #if PATCH_LOG_DIAGNOSTICS
@@ -2631,17 +2633,21 @@ applyrulesdeferred(Client *c, char *oldtitle)
 					focus(c, 1);
 					#if PATCH_MOUSE_POINTER_WARPING
 					#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-					warptoclient(c, 1, 1);
+					warptoclient(c, !c->isurgent, 1);
 					#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
 					warptoclient(c, 1);
 					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+					#else // NO PATCH_MOUSE_POINTER_WARPING
+					#if PATCH_FOCUS_FOLLOWS_MOUSE
+					XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w/2, c->h/2);
+					#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 					#endif // PATCH_MOUSE_POINTER_WARPING
 				}
 				else
 					adjustfloatposition(c);
 			}
 			arrange(c->mon);
-			if (c->isurgent)
+			if (selmon->sel != c && c->isurgent)
 				focus(c, 0);
 			#if PATCH_FLAG_CONSTRAIN_MOUSE
 			else if (c->constrainmouse)
@@ -3281,7 +3287,7 @@ applyrules(Client *c, int deferred, char *oldtitle)
 				}
 				*/
 			}
-skip_parenting:
+	skip_parenting:
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-guess")) && json_isboolean(r_node) && r_node->valueint) {
 				if (!(m = selmon))
 					for (m = mons; m && !m->stack; m = m->next);
@@ -10136,7 +10142,9 @@ hidecursor(void)
 	if (cursorhiding)
 		return;
 
+	#if PATCH_MOUSE_POINTER_WARPING
 	int x = 0, y = 0;
+	#endif // PATCH_MOUSE_POINTER_WARPING
 	Client *c;
 	if ((c = selmon->sel)) {
 
@@ -10529,7 +10537,7 @@ ismodalparent(Client *c)
 }
 #endif // PATCH_MODAL_SUPPORT
 
-#if PATCH_FOCUS_FOLLOWS_MOUSE
+#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
 int
 ismouseoverclient(Client *c)
 {
@@ -10540,7 +10548,7 @@ ismouseoverclient(Client *c)
 	Client *r = getclientatcoords(x, y, 0);
 	return (r == c ? 1 : 0);
 }
-#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
 
 #ifdef XINERAMA
 static int
@@ -12539,7 +12547,7 @@ manage(Window w, XWindowAttributes *wa)
 			|| c->ispanel
 			#endif // PATCH_FLAG_PANEL
 			)
-		){
+		) {
 		#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
 			attach(c);
 			attachstack(c);
@@ -22281,12 +22289,12 @@ altTabStart(const Arg *arg)
 				}
 				selmon = (c && (altTabMon->isAlt & ALTTAB_SELMON_MASK) ? c->mon : selm);
 
-				#if PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
+				#if (PATCH_MOUSE_POINTER_WARPING && !PATCH_MOUSE_POINTER_WARPING_RECALL) || PATCH_FOCUS_FOLLOWS_MOUSE
 				// if the client to be selected is the same as before the alt-tab,
 				// then restore the mouse pointer to its starting position;
 				if (same && px && (altTabMon->isAlt & ALTTAB_SELMON_MASK))
 					XWarpPointer(dpy, None, root, 0, 0, 0, 0, px, py);
-				#endif // PATCH_MOUSE_POINTER_WARPING || PATCH_FOCUS_FOLLOWS_MOUSE
+				#endif // (PATCH_MOUSE_POINTER_WARPING && !PATCH_MOUSE_POINTER_WARPING_RECALL) || PATCH_FOCUS_FOLLOWS_MOUSE
 			}
 			altTabEnd(); // end the alt-tab functionality;
 
@@ -25106,8 +25114,10 @@ warppointer(void *arg)
 	// target area coords;
 	int tx = data->x;
 	int ty = data->y;
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	int tw = data->width;
 	int th = data->height;
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	// target pointer coords;
 	int tpx = data->targetx;
 	int tpy = data->targety;
