@@ -604,9 +604,9 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_CLASS_STACKING
 	{ R_S,		"set-class-stack",					"use this string as class for class stacking" },
 	#endif // PATCH_CLASS_STACKING
-	#if PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	{ R_BOOL,	"set-constrain-mouse",				"true to constrain the mouse pointer to the bounds of the client when focused" },
-	#endif // PATCH_CONSTRAIN_MOUSE
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 	#if PATCH_MOUSE_POINTER_HIDING
 	{ R_BOOL,	"set-cursor-autohide",				"true to hide cursor when stationary while this client is focused" },
 	{ R_BOOL,	"set-cursor-hide-on-keys",			"true to hide cursor when keys are pressed while this client is focused" },
@@ -1160,9 +1160,9 @@ struct Client {
 	#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
 	int autohide; // iconify when the client is hidden by showhide();
 	#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN || PATCH_FLAG_PANEL
-	#if PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	int constrainmouse;
-	#endif // PATCH_CONSTRAIN_MOUSE
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	#if PATCH_FLAG_GREEDY_FOCUS
 	int isgreedy;	// client doesn't want to lose focus due to mouse movement;
@@ -1556,11 +1556,16 @@ static void configurerequest(XEvent *e);
 #if PATCH_IPC
 static int connect_to_socket();
 #endif // PATCH_IPC
+#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
+static void createbarrier(Client *c, Monitor *m);
+#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
 #if PATCH_FLAG_GAME
-static void createbarrier(Client *c);
+static void createbarriergame(Client *c);
 #endif // PATCH_FLAG_GAME
-#if PATCH_CONSTRAIN_MOUSE
+#if PATCH_FLAG_CONSTRAIN_MOUSE
 static void createbarrierclient(Client *c);
+#endif // PATCH_FLAG_CONSTRAIN_MOUSE
+#if PATCH_CONSTRAIN_MOUSE
 static void createbarriermon(Monitor *m);
 #endif // PATCH_CONSTRAIN_MOUSE
 #if PATCH_VIRTUAL_MONITORS
@@ -1582,9 +1587,15 @@ static void cyclelayoutmouse(const Arg *arg);
 static int desktopvalid(Client *c);
 static int desktopvalidex(Client *c, unsigned int tagset, int show_desktop);
 #endif // PATCH_SHOW_DESKTOP
-#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
+#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
 static void destroybarrier(void);
-#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
+#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
+#if PATCH_FLAG_GAME
+static void destroybarriergame(void);
+#endif // PATCH_FLAG_GAME
+#if PATCH_FLAG_CONSTRAIN_MOUSE
+static void destroybarrierclient(void);
+#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 #if PATCH_CONSTRAIN_MOUSE
 static void destroybarriermon(void);
 #endif // PATCH_CONSTRAIN_MOUSE
@@ -2145,17 +2156,22 @@ static Monitor *status_always_on = NULL;
 static Client *game = NULL;
 #endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 
-#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
+#if PATCH_FLAG_GAME
+static Client *constrained_game = NULL;
+#endif // PATCH_FLAG_GAME
+#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
 static int xfixes_support = 0;
 static PointerBarrier barrierLeft = 0;
 static PointerBarrier barrierRight = 0;
 static PointerBarrier barrierTop = 0;
 static PointerBarrier barrierBottom = 0;
-#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
+#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
 #if PATCH_CONSTRAIN_MOUSE
 static Monitor *constrained = NULL;
-static Client *constrained_client = NULL;
 #endif // PATCH_CONSTRAIN_MOUSE
+#if PATCH_FLAG_CONSTRAIN_MOUSE
+static Client *constrained_client = NULL;
+#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 
 #if PATCH_CUSTOM_TAG_ICONS
 static Client *dummyc = NULL;
@@ -2627,10 +2643,10 @@ applyrulesdeferred(Client *c, char *oldtitle)
 			arrange(c->mon);
 			if (c->isurgent)
 				focus(c, 0);
-			#if PATCH_CONSTRAIN_MOUSE
+			#if PATCH_FLAG_CONSTRAIN_MOUSE
 			else if (c->constrainmouse)
 				createbarrierclient(c);
-			#endif // PATCH_CONSTRAIN_MOUSE
+			#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 		}
 		if (m == mm && (c->tags == tags || ISVISIBLE(c))) {
 			if (c->monindex == -1)
@@ -3286,9 +3302,9 @@ skip_parenting:
 			#if PATCH_CLASS_STACKING
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-class-stack")) && cJSON_IsString(r_node)) c->stackclass = r_node->valuestring;
 			#endif // PATCH_CLASS_STACKING
-			#if PATCH_CONSTRAIN_MOUSE
+			#if PATCH_FLAG_CONSTRAIN_MOUSE
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-constrain-mouse")) && json_isboolean(r_node)) c->constrainmouse = r_node->valueint;
-			#endif // PATCH_CONSTRAIN_MOUSE
+			#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 			#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-class-display")) && cJSON_IsString(r_node)) c->dispclass = r_node->valuestring;
 			#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
@@ -4716,6 +4732,12 @@ fprintf(stderr, "dwm: starting cleanup...\n");
 	#if PATCH_CONSTRAIN_MOUSE
 	constrained = NULL;
 	#endif // PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
+	constrained_client = NULL;
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_GAME
+	constrained_game = NULL;
+	#endif // PATCH_FLAG_GAME
 	#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
 	destroybarrier();
 	#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
@@ -5280,65 +5302,92 @@ connect_to_socket()
 }
 #endif // PATCH_IPC
 
-#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
+#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
 void
-createbarrier(Client *c)
+createbarrier(Client *c, Monitor *m)
 {
+	if (!xfixes_support || !(c || m))
+		return;
 	unsigned int x, y, w, h;
-	if (!c) return;
-	if (xfixes_support) {
-		destroybarrier();
-		if (c->isfullscreen
-			#if PATCH_FLAG_FAKEFULLSCREEN
-			&& c->fakefullscreen != 1
-			#endif // PATCH_FLAG_FAKEFULLSCREEN
-		) {
-			x = c->mon->mx;
-			y = c->mon->my;
-			w = c->mon->mw;
-			h = c->mon->mh;
-		}
-		else {
-			x = c->x + c->bw;
-			y = c->y + c->bw;
-			w = c->w;
-			h = c->h;
-		}
-		XWarpPointer(dpy, None, root, 0, 0, 0, 0, x + w/2, y + h/2);
-		barrierLeft = XFixesCreatePointerBarrier(dpy, root, x, c->mon->my, x, c->mon->my + c->mon->mh, BarrierPositiveX, 0, NULL);
-		barrierRight = XFixesCreatePointerBarrier(dpy, root, (x + w), c->mon->my, (x + w), c->mon->my + c->mon->mh, BarrierNegativeX, 0, NULL);
-		barrierTop = XFixesCreatePointerBarrier(dpy, root, c->mon->mx, y, c->mon->mx + c->mon->mw, y, BarrierPositiveY, 0, NULL);
-		barrierBottom = XFixesCreatePointerBarrier(dpy, root, c->mon->mx, (y + h), c->mon->mx + c->mon->mw, (y + h), BarrierNegativeY, 0, NULL);
+	if (c)
+		m = c->mon;
+	if (!c || (
+		c->isfullscreen
+		#if PATCH_FLAG_FAKEFULLSCREEN
+		&& c->fakefullscreen != 1
+		#endif // PATCH_FLAG_FAKEFULLSCREEN
+	)) {
+		x = m->mx;
+		y = m->my;
+		w = m->mw;
+		h = m->mh;
+	} else {
+		x = c->x + c->bw;
+		y = c->y + c->bw;
+		w = c->w;
+		h = c->h;
 	}
+	XWarpPointer(dpy, None, root, 0, 0, 0, 0, x + w/2, y + h/2);
+	barrierLeft = XFixesCreatePointerBarrier(dpy, root, x, m->my, x, m->my + m->mh, BarrierPositiveX, 0, NULL);
+	barrierRight = XFixesCreatePointerBarrier(dpy, root, (x + w), m->my, (x + w), m->my + m->mh, BarrierNegativeX, 0, NULL);
+	barrierTop = XFixesCreatePointerBarrier(dpy, root, m->mx, y, m->mx + m->mw, y, BarrierPositiveY, 0, NULL);
+	barrierBottom = XFixesCreatePointerBarrier(dpy, root, m->mx, (y + h), m->mx + m->mw, (y + h), BarrierNegativeY, 0, NULL);
+}
+#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
+
+#if PATCH_FLAG_GAME
+void
+createbarriergame(Client *c)
+{
+	if (!xfixes_support || c == constrained_game)
+		return;
+	destroybarriergame();
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
+	destroybarrierclient();
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
+	#if PATCH_CONSTRAIN_MOUSE
+	destroybarriermon();
+	#endif // PATCH_CONSTRAIN_MOUSE
+	createbarrier(c, c->mon);
+	constrained_game = c;
 }
 #endif // PATCH_FLAG_GAME
-#if PATCH_CONSTRAIN_MOUSE
+#if PATCH_FLAG_CONSTRAIN_MOUSE
 void
 createbarrierclient(Client *c)
 {
-	if (!xfixes_support)
+	if (!xfixes_support || c == constrained_client)
 		return;
-	constrained = NULL;
+	destroybarrierclient();
+	#if PATCH_CONSTRAIN_MOUSE
+	destroybarriermon();
+	#endif // PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_GAME
+	destroybarriergame();
+	#endif // PATCH_FLAG_GAME
+	createbarrier(c, c->mon);
 	constrained_client = c;
-	createbarrier(c);
 }
+#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 
+#if PATCH_CONSTRAIN_MOUSE
 void
 createbarriermon(Monitor *m)
 {
-	if (constrained || constrained_client)
+	if (!xfixes_support || m == constrained)
 		return;
 	Monitor *mm = (m ? m : selmon);
-	if (!mm) return;
-	if (xfixes_support) {
-		destroybarrier();
-		constrained = mm;
-		XWarpPointer(dpy, None, root, 0, 0, 0, 0, mm->mx + mm->mw / 2, mm->my + mm->mh / 2);
-		barrierLeft = XFixesCreatePointerBarrier(dpy, root, mm->mx, mm->my, mm->mx, (mm->my + mm->mh), BarrierPositiveX, 0, NULL);
-		barrierRight = XFixesCreatePointerBarrier(dpy, root, (mm->mx + mm->mw), mm->my, (mm->mx + mm->mw), (mm->my + mm->mh), BarrierNegativeX, 0, NULL);
-		barrierTop = XFixesCreatePointerBarrier(dpy, root, mm->mx, mm->my, (mm->mx + mm->mw), mm->my, BarrierPositiveY, 0, NULL);
-		barrierBottom = XFixesCreatePointerBarrier(dpy, root, mm->mx, (mm->my + mm->mh), (mm->mx + mm->mw), (mm->my + mm->mh), BarrierNegativeY, 0, NULL);
-	}
+	if (!mm)
+		return;
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
+	destroybarrierclient();
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
+	destroybarriermon();
+	#if PATCH_FLAG_GAME
+	destroybarriergame();
+	#endif // PATCH_FLAG_GAME
+	createbarrier(NULL, mm);
+	constrained = mm;
 }
 #endif // PATCH_CONSTRAIN_MOUSE
 
@@ -5706,35 +5755,61 @@ desktopvalidex(Client *c, unsigned int tagset, int show_desktop)
 }
 #endif // PATCH_SHOW_DESKTOP
 
-#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
+#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
 void
 destroybarrier(void)
 {
-	#if PATCH_CONSTRAIN_MOUSE
-	if (constrained || constrained_client)
+	if (!xfixes_support)
 		return;
-	#endif // PATCH_CONSTRAIN_MOUSE
-	if (xfixes_support) {
-		if (barrierLeft) XFixesDestroyPointerBarrier(dpy, barrierLeft);
-		if (barrierRight) XFixesDestroyPointerBarrier(dpy, barrierRight);
-		if (barrierTop) XFixesDestroyPointerBarrier(dpy, barrierTop);
-		if (barrierBottom) XFixesDestroyPointerBarrier(dpy, barrierBottom);
+	if (barrierLeft) {
+		XFixesDestroyPointerBarrier(dpy, barrierLeft);
 		barrierLeft = 0;
+	}
+	if (barrierRight) {
+		XFixesDestroyPointerBarrier(dpy, barrierRight);
 		barrierRight = 0;
+	}
+	if (barrierTop) {
+		XFixesDestroyPointerBarrier(dpy, barrierTop);
 		barrierTop = 0;
+	}
+	if (barrierBottom) {
+		XFixesDestroyPointerBarrier(dpy, barrierBottom);
 		barrierBottom = 0;
 	}
 }
-#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE
+#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
+
+#if PATCH_FLAG_GAME
+void
+destroybarriergame(void)
+{
+	if (!xfixes_support || !constrained_game)
+		return;
+	destroybarrier();
+	constrained_game = NULL;
+}
+#endif // PATCH_FLAG_GAME
+
+#if PATCH_FLAG_CONSTRAIN_MOUSE
+void
+destroybarrierclient(void)
+{
+	if (!xfixes_support || !constrained_client)
+		return;
+	destroybarrier();
+	constrained_client = NULL;
+}
+#endif // PATCH_FLAG_CONSTRAIN_MOUSE
+
 #if PATCH_CONSTRAIN_MOUSE
 void
 destroybarriermon(void)
 {
-	if (!constrained && !constrained_client)
+	if (!xfixes_support || !constrained)
 		return;
-	constrained = NULL;
-	constrained_client = NULL;
 	destroybarrier();
+	constrained = NULL;
 }
 #endif // PATCH_CONSTRAIN_MOUSE
 
@@ -6717,7 +6792,7 @@ drawbar(Monitor *m, int skiptags)
 
 				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				if (m->showmaster) {
-					for (i = 0; i < LENGTH(tags); i++)
+					for (i = 0; i < LENGTH(tags); i++) {
 						if (!masterclientontag[i] && c->tags & (1<<i)
 							#if PATCH_SHOW_DESKTOP
 							&& !(c->isdesktop || c->ondesktop)
@@ -6727,7 +6802,11 @@ drawbar(Monitor *m, int skiptags)
 							#endif // PATCH_FLAG_HIDDEN
 							#if PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 							&& (
+								#if PATCH_PERTAG
+								m->pertag->ltidxs[i + 1][m->pertag->sellts[i + 1]]->arrange != monocle
+								#else // NO PATCH_PERTAG
 								m->lt[m->sellt]->arrange != monocle
+								#endif // PATCH_PERTAG
 								|| !m->focusontag[i]
 								|| !(m->focusontag[i]->tags & c->tags)
 								|| m->focusontag[i] == c
@@ -6753,6 +6832,7 @@ drawbar(Monitor *m, int skiptags)
 								mc[i] = c;
 							#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 						}
+					}
 				}
 				#if PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
 				else if (m->showiconsontags)
@@ -8273,12 +8353,12 @@ focus(Client *c, int force)
 				drawbar(c->mon, 0);
 			}
 			#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
-			#if PATCH_CONSTRAIN_MOUSE
-			if (constrained || constrained_client)
-				destroybarriermon();
+			#if PATCH_FLAG_CONSTRAIN_MOUSE
+			if (constrained_client)
+				destroybarrierclient();
 			if (c->constrainmouse)
 				createbarrierclient(c);
-			#endif // PATCH_CONSTRAIN_MOUSE
+			#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 		}
 		/* Avoid flickering when another client appears and the border
 		* is restored */
@@ -8399,12 +8479,16 @@ focusmonex(Monitor *m)
 	Monitor *s = selmon;
 	Client *c;
 
-	#if PATCH_CONSTRAIN_MOUSE && PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_CONSTRAIN_MOUSE
 	if (constrained)
 		return;
+	#endif // PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	if (constrained_client)
-		destroybarriermon();
-	#endif // PATCH_CONSTRAIN_MOUSE && PATCH_FOCUS_FOLLOWS_MOUSE
+		destroybarrierclient();
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 	#if PATCH_ALT_TAGS
 	if (s->alttags) {
@@ -10260,7 +10344,7 @@ highlight(Client *c)
 		) {
 			#if PATCH_FLAG_GAME
 			if (h->isgame && h->isfullscreen) {
-				destroybarrier();
+				destroybarriergame();
 				#if PATCH_FLAG_GAME_STRICT
 				//if (h->isgamestrict || !c || c->mon != h->mon)
 				if (h->isgamestrict || (h != game) || (c && c->mon == h->mon))
@@ -10333,11 +10417,11 @@ highlight(Client *c)
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 			resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
 		}
+		#if PATCH_FLAG_GAME
 		else {
-			#if PATCH_FLAG_GAME
-			destroybarrier();
-			#endif // PATCH_FLAG_GAME
+			destroybarriergame();
 		}
+		#endif // PATCH_FLAG_GAME
 
 		altTabMon->highlight = c;
 		drawbar(c->mon, 0);
@@ -13269,11 +13353,11 @@ movemouse(const Arg *arg)
 		XUnmapWindow(dpy, focuswin);
 	}
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	#if PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	int was_cc = 0;
 	if ((was_cc = constrained_client == c))
-		destroybarriermon();
-	#endif // PATCH_CONSTRAIN_MOUSE
+		destroybarrierclient();
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 	// prevent client moves via resize() triggering updates of
 	// the client's parent offset coordinates, sfxo & sfyo
 	nonstop = 1;
@@ -13391,10 +13475,10 @@ movemouse(const Arg *arg)
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
 
-	#if PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	if (was_cc && constrained_client != c)
 		createbarrierclient(c);
-	#endif // PATCH_CONSTRAIN_MOUSE
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 }
 
 void
@@ -15489,10 +15573,10 @@ placemouse(const Arg *arg)
 		XUnmapWindow(dpy, focuswin);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
-	#if PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	if (constrained_client == c)
-		destroybarriermon();
-	#endif // PATCH_CONSTRAIN_MOUSE
+		destroybarrierclient();
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 
 	do {
 		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
@@ -17031,12 +17115,7 @@ toggleconstrain(const Arg *arg)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	checkmouseovermonitor(selmon);
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
-	if (barrierLeft) {
-		if (constrained || constrained_client)
-			destroybarriermon();
-	}
-	else
-		createbarriermon(selmon);
+	createbarriermon(selmon);
 }
 #endif // PATCH_CONSTRAIN_MOUSE
 
@@ -17213,11 +17292,11 @@ resizemouse(const Arg *arg)
 	if (focuswin)
 		XUnmapWindow(dpy, focuswin);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	#if PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	int was_cc = 0;
 	if ((was_cc = constrained_client == c))
-		destroybarriermon();
-	#endif // PATCH_CONSTRAIN_MOUSE
+		destroybarrierclient();
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 	do {
 		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
 		switch(ev.type) {
@@ -17295,10 +17374,10 @@ resizemouse(const Arg *arg)
 	if (focuswin)
 		XMapWindow(dpy, focuswin);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	#if PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	if (was_cc && constrained_client != c)
 		createbarrierclient(c);
-	#endif // PATCH_CONSTRAIN_MOUSE
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 }
 
 #if PATCH_DRAG_FACTS
@@ -17698,6 +17777,7 @@ restack(Monitor *m)
 			raisewin(raised->mon, raised->win, False);
 		else
 		*/
+		if(0)
 		{
 			// keep floating children close to their parents;
 			if (raised->isfloating && (
@@ -18821,9 +18901,9 @@ setdefaultvalues(Client *c)
 	c->displayname = NULL;
 	#endif // PATCH_FLAG_TITLE
 	c->autofocus = 1;
-	#if PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	c->constrainmouse = 0;
-	#endif // PATCH_CONSTRAIN_MOUSE
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 	#if PATCH_MOUSE_POINTER_HIDING
 	c->cursorautohide = -1;
 	c->cursorhideonkeys = -1;
@@ -18981,9 +19061,9 @@ setfocus(Client *c)
 				unfocus(game, 0);
 			game = c;
 			#endif // PATCH_FLAG_GAME_STRICT
-			createbarrier(c);
+			createbarriergame(c);
 		}
-		else destroybarrier();
+		else destroybarriergame();
 		#endif // PATCH_FLAG_GAME
 		#if PATCH_FLAG_FAKEFULLSCREEN
 		if (c->fakefullscreen != 1)
@@ -18994,7 +19074,7 @@ setfocus(Client *c)
 		}
 	}
 	#if PATCH_FLAG_GAME
-	else destroybarrier();
+	else destroybarriergame();
 	#endif // PATCH_FLAG_GAME
 	if (!c->isfullscreen && c->isfloating
 		#if PATCH_SHOW_DESKTOP
@@ -19160,7 +19240,7 @@ setfullscreen(Client *c, int fullscreen)
 			c->fakefullscreen = 1;
 		#if PATCH_FLAG_GAME
 		if (c->isgame)
-			destroybarrier();
+			destroybarriergame();
 		#endif // PATCH_FLAG_GAME
 		/* The client may have been moved to another monitor whilst in fullscreen which if tiled
 		 * we address by doing a full arrange of tiled clients. If the client is floating then the
@@ -19268,7 +19348,7 @@ setfullscreen(Client *c, int fullscreen)
 
 		#if PATCH_FLAG_GAME
 		if (c->isgame)
-			destroybarrier();
+			destroybarriergame();
 		#endif // PATCH_FLAG_GAME
 		/* The client may have been moved to another monitor whilst in fullscreen which if tiled
 		 * we address by doing a full arrange of tiled clients. If the client is floating then the
@@ -19402,6 +19482,9 @@ setlayoutreplace(const Arg *arg)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	checkmouseovermonitor(selmon);
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+	#if PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
+	int ismonocle = selmon->lt[selmon->sellt]->arrange == monocle;
+	#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 	if (arg && arg->v)
 		#if PATCH_PERTAG
 		selmon->lt[selmon->sellt] = selmon->pertag->ltidxs[selmon->pertag->curtag][selmon->sellt] = (Layout *)arg->v;
@@ -19412,9 +19495,17 @@ setlayoutreplace(const Arg *arg)
 #pragma GCC diagnostic ignored "-Wstringop-truncation"
 	strncpy(selmon->ltsymbol, selmon->lt[selmon->sellt]->symbol, sizeof selmon->ltsymbol);
 #pragma GCC diagnostic pop
+	#if PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
+	if (!ismonocle && selmon->lt[selmon->sellt]->arrange == monocle)
+		ismonocle = 1;
+	#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 	if (selmon->sel)
 		arrange(selmon);
+	#if PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
+	if (!selmon->sel || ismonocle)
+	#else // NO PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 	else
+	#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 		drawbar(selmon, 0);
 }
 
@@ -19648,13 +19739,13 @@ setup(void)
 	#endif // PATCH_FONT_GROUPS
 	updategeom();
 
-	#if PATCH_FLAG_GAME
+	#if PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
 	int fixes_opcode, fixes_event_base, fixes_error_base;
 	if (XQueryExtension(dpy, "XFIXES", &fixes_opcode, &fixes_event_base, &fixes_error_base))
 		xfixes_support = 1;
 	else
 		fprintf(stderr, "No support for XFixes PointerBarrier.\n");
-	#endif // PATCH_FLAG_GAME
+	#endif // PATCH_FLAG_GAME || PATCH_CONSTRAIN_MOUSE || PATCH_FLAG_CONSTRAIN_MOUSE
 
 	/* init atoms */
 	utf8string = XInternAtom(dpy, "UTF8_STRING", False);
@@ -22995,7 +23086,7 @@ unfocus(Client *c, int setfocus)
 
 	#if PATCH_FLAG_GAME
 	if (c->isgame && c->isfullscreen && !MINIMIZED(c)) {
-		destroybarrier();
+		destroybarriergame();
 		#if PATCH_FLAG_GAME_STRICT
 		if (!c->isgamestrict && (setfocus & (1 << 1)))
 			setclientstate(c, IconicState);
@@ -23196,13 +23287,13 @@ unmanage(Client *c, int destroyed, int cleanup)
 		sethidden(c, False, False);
 	#endif // PATCH_FLAG_HIDDEN
 	#if PATCH_FLAG_GAME
-	if (c->isgame && c->isfullscreen
-		#if PATCH_CONSTRAIN_MOUSE
-		&& !constrained
-		#endif // PATCH_CONSTRAIN_MOUSE
-		)
-		destroybarrier();
+	if (c == constrained_game)
+		destroybarriergame();
 	#endif // PATCH_FLAG_GAME
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
+	if (constrained_client == c)
+		destroybarrierclient();
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 
 	#if PATCH_MOUSE_POINTER_WARPING
 	if (!c->isfloating && wasfocused)
@@ -23678,12 +23769,22 @@ updategeom(void)
 {
 	int dirty = 0;
 	Monitor *m;
+	#if PATCH_FLAG_CONSTRAIN_MOUSE || PATCH_FLAG_GAME
+	Client *cc;
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE || PATCH_FLAG_GAME
 
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
+	if ((cc = constrained_client))
+		destroybarrierclient();
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
 	#if PATCH_CONSTRAIN_MOUSE
-	Client *cc = constrained_client;
-	if (cc || constrained)
+	if (constrained)
 		destroybarriermon();
 	#endif // PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_GAME
+	if (constrained_game)
+		destroybarrier();
+	#endif // PATCH_FLAG_GAME
 #ifdef XINERAMA
 	if (XineramaIsActive(dpy)) {
 		int i, j, n, nn;
@@ -23825,10 +23926,16 @@ updategeom(void)
 		selmon = mons;
 		selmon = wintomon(root);
 	}
-	#if PATCH_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_CONSTRAIN_MOUSE
 	if (cc)
 		createbarrierclient(cc);
-	#endif // PATCH_CONSTRAIN_MOUSE
+	#endif // PATCH_FLAG_CONSTRAIN_MOUSE
+	#if PATCH_FLAG_GAME
+	if ((cc = constrained_game)) {
+		constrained_game = NULL;
+		createbarriergame(cc);
+	}
+	#endif // PATCH_FLAG_GAME
 	return dirty;
 }
 

@@ -120,6 +120,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_FLAG_ALWAYSONTOP` | Client will appear above clients of the same type;<br>Can be toggled; |
 | `PATCH_FLAG_CAN_LOSE_FOCUS` | Client can lose focus while active; |
 | `PATCH_FLAG_CENTRED` | Centre floating clients relative to the monitor or the parent client; |
+| `PATCH_FLAG_CONSTRAIN_MOUSE` | When focused, mouse pointer will be constrained to the bounds of the client; |
 | `PATCH_FLAG_FAKEFULLSCREEN` | Client will be made fullscreen within its tile;<br>Can be toggled; |
 | `PATCH_FLAG_FLOAT_ALIGNMENT` | Floating clients initial position and/or fixed alignment; |
 | `PATCH_FLAG_FOLLOW_PARENT` | Client will follow its parent (when its parent moves tags or to a different monitor) |

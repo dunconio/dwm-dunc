@@ -89,6 +89,7 @@
 #define PATCH_FLAG_ALWAYSONTOP				1
 #define PATCH_FLAG_CAN_LOSE_FOCUS			1	// Allow a matching client to lose focus when active;
 #define PATCH_FLAG_CENTRED					1
+#define PATCH_FLAG_CONSTRAIN_MOUSE			1	// Allow constraining the mouse pointer to the bounds of the client when focused;
 #define PATCH_FLAG_FAKEFULLSCREEN			1
 #define PATCH_FLAG_FLOAT_ALIGNMENT			1	// Useful with PATCH_FLAG_PANEL to nail external panels in position;
 #define PATCH_FLAG_FOLLOW_PARENT			1	// client will follow its parent;
