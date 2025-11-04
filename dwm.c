@@ -17607,12 +17607,14 @@ restack(Monitor *m)
 		// next layer up are floating alwaysontop;
 		for (c = m->stack; c; c = c->snext)
 			if (c->isfloating && ISVISIBLE(c)
+				/*
 				&& ((
 					m->lt[m->sellt]->arrange != monocle
 					#if PATCH_LAYOUT_DECK
 					&& m->lt[m->sellt]->arrange != deck
 					#endif // PATCH_LAYOUT_DECK
 				) || !c->parent || m->sel == c->parent)
+				*/
 				&& c->alwaysontop
 				&& (!c->isfullscreen
 					#if PATCH_FLAG_FAKEFULLSCREEN
@@ -17660,12 +17662,14 @@ restack(Monitor *m)
 		// next layer up are floating not alwaysontop;
 		for (c = m->stack; c; c = c->snext)
 			if (c->isfloating && ISVISIBLE(c)
+				/*
 				&& ((
 					m->lt[m->sellt]->arrange != monocle
 					#if PATCH_LAYOUT_DECK
 					&& m->lt[m->sellt]->arrange != deck
 					#endif // PATCH_LAYOUT_DECK
 				) || !c->parent || m->sel == c->parent)
+				*/
 				&& (!c->isfullscreen
 					#if PATCH_FLAG_FAKEFULLSCREEN
 					|| c->fakefullscreen == 1
@@ -17785,7 +17789,7 @@ restack(Monitor *m)
 			raisewin(raised->mon, raised->win, False);
 		else
 		*/
-		if(0)
+		/*
 		{
 			// keep floating children close to their parents;
 			if (raised->isfloating && (
@@ -17806,6 +17810,7 @@ restack(Monitor *m)
 				}
 			}
 		}
+		*/
 		#if PATCH_SCAN_OVERRIDE_REDIRECTS
 		wc.sibling = raised->win;
 		#endif // PATCH_SCAN_OVERRIDE_REDIRECTS
