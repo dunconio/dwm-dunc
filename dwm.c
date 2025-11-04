@@ -11012,6 +11012,9 @@ killwin(Window w)
 void
 lastcoordsrecall(Client *c, int reset, int relative, int *px, int *py)
 {
+	if (!c)
+		return;
+
 	int x = c->w/2;
 	int y = c->h/2;
 
@@ -11053,6 +11056,9 @@ lastcoordsrecall(Client *c, int reset, int relative, int *px, int *py)
 void
 lastcoordsstore(Client *c)
 {
+	if (!c)
+		return;
+
 	int px, py;
 	if (!getrelativeptrex(c, &px, &py))
 		return;
@@ -19559,7 +19565,38 @@ setcfact(const Arg *arg) {
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
+	#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
+	#if PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	lastcoordsstore(c);
+	#else // NO PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	int px, py, ok = 0;
+	unsigned int cw, ch;
+	float sfw, sfh;
+	if (c) {
+		ok = getrelativeptr(c, &px, &py);
+		if (ok) {
+			cw = c->w;
+			ch = c->h;
+		}
+	}
+	#endif // PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
 	arrange(selmon);
+	#if PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	warptoclient(c, 0, 1);
+	#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	warptoclient(c, 1);
+	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	#else // NO PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	if (ok) {
+		sfw = ((float) c->w / cw);
+		sfh = ((float) c->h / ch);
+		XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, (int)(px*sfw), (int)(py*sfh));
+	}
+	#endif // PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	#else // NO PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
+	arrange(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	if (focuswin)
 		focus(NULL, 0);
@@ -19611,7 +19648,39 @@ setmfact(const Arg *arg)
 	#else // NO PATCH_PERTAG
 	selmon->mfact = f;
 	#endif // PATCH_PERTAG
+	#if PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
+	Client *c = selmon->sel;
+	#if PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	lastcoordsstore(c);
+	#else // NO PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	int px, py, ok = 0;
+	unsigned int cw, ch;
+	float sfw, sfh;
+	if (c) {
+		ok = getrelativeptr(c, &px, &py);
+		if (ok) {
+			cw = c->w;
+			ch = c->h;
+		}
+	}
+	#endif // PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
 	arrange(selmon);
+	#if PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	warptoclient(c, 0, 1);
+	#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	warptoclient(c, 1);
+	#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+	#else // NO PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	if (ok) {
+		sfw = ((float) c->w / cw);
+		sfh = ((float) c->h / ch);
+		XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, (int)(px*sfw), (int)(py*sfh));
+	}
+	#endif // PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
+	#else // NO PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
+	arrange(selmon);
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE || PATCH_MOUSE_POINTER_WARPING
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 	if (focuswin)
 		focus(NULL, 0);
