@@ -6868,7 +6868,38 @@ drawbar(Monitor *m, int skiptags)
 							#if PATCH_SHOW_DESKTOP
 							&& !(c->isdesktop || c->ondesktop)
 							#endif // PATCH_SHOW_DESKTOP
-							)
+							#if PATCH_FLAG_HIDDEN
+							&& !c->ishidden
+							#endif // PATCH_FLAG_HIDDEN
+							&& (
+								!m->focusontag[i] ||
+								(
+									m->focusontag[i]->isfullscreen
+									#if PATCH_FLAG_FAKEFULLSCREEN
+									&& m->focusontag[i]->fakefullscreen != 1
+									#endif // PATCH_FLAG_FAKEFULLSCREEN
+									&& m->focusontag[i] == c
+								)
+								#if PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
+								||
+								(
+									!(
+										m->focusontag[i]->isfullscreen
+										#if PATCH_FLAG_FAKEFULLSCREEN
+										&& m->focusontag[i]->fakefullscreen != 1
+										#endif // PATCH_FLAG_FAKEFULLSCREEN
+									) && (
+										#if PATCH_PERTAG
+										m->pertag->ltidxs[i + 1][m->pertag->sellts[i + 1]]->arrange != monocle
+										#else // NO PATCH_PERTAG
+										m->lt[m->sellt]->arrange != monocle
+										#endif // PATCH_PERTAG
+										/*|| !(m->focusontag[i]->tags & c->tags)*/
+										|| m->focusontag[i] == c
+									)
+								)
+								#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
+							))
 							mc[i] = c;
 				}
 				#endif // PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS
