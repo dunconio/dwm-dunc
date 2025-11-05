@@ -21104,12 +21104,18 @@ setclienttagpropex(Client *c, int index)
 		? c->oldbw : c->bw
 	);
 
-	int x, y;
-	if (c->isfloating) {
+	int x, y, floating = c->isfloating;
+	if (floating
+		&& c->isfullscreen
+		#if PATCH_FLAG_FAKEFULLSCREEN
+		&& c->fakefullscreen != 1
+		#endif // PATCH_FLAG_FAKEFULLSCREEN
+		)
+		floating = c->oldstate & (1 << 1);
+	if (floating) {
 		x = c->x;
 		y = c->y;
-	}
-	else {
+	} else {
 		x = c->sfx;
 		y = c->sfy;
 	}
@@ -21119,11 +21125,11 @@ setclienttagpropex(Client *c, int index)
 		(long) index,	// placeholder for index within Window array;
 		(long) c->tags,
 		(long) (c->monindex == -1 ? c->mon->num : c->monindex),
-		(long) (c->isfloating & ~(1 << 1)),
+		(long) (floating),
 		(long) (x),
 		(long) (y),
-		(long) (c->isfloating ? c->w : c->sfw),
-		(long) (c->isfloating ? c->h : c->sfh),
+		(long) (floating ? c->w : c->sfw),
+		(long) (floating ? c->h : c->sfh),
 		(long) (c->sfxo * 1000),
 		(long) (c->sfyo * 1000),
 		(long) (bw == borderpx ? 0 : bw + 1)
