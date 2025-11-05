@@ -6806,18 +6806,35 @@ drawbar(Monitor *m, int skiptags)
 							#if PATCH_FLAG_HIDDEN
 							&& !c->ishidden
 							#endif // PATCH_FLAG_HIDDEN
-							#if PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 							&& (
-								#if PATCH_PERTAG
-								m->pertag->ltidxs[i + 1][m->pertag->sellts[i + 1]]->arrange != monocle
-								#else // NO PATCH_PERTAG
-								m->lt[m->sellt]->arrange != monocle
-								#endif // PATCH_PERTAG
-								|| !m->focusontag[i]
-								|| !(m->focusontag[i]->tags & c->tags)
-								|| m->focusontag[i] == c
+								!m->focusontag[i] ||
+								(
+									m->focusontag[i]->isfullscreen
+									#if PATCH_FLAG_FAKEFULLSCREEN
+									&& m->focusontag[i]->fakefullscreen != 1
+									#endif // PATCH_FLAG_FAKEFULLSCREEN
+									&& m->focusontag[i] == c
+								)
+								#if PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
+								||
+								(
+									!(
+										m->focusontag[i]->isfullscreen
+										#if PATCH_FLAG_FAKEFULLSCREEN
+										&& m->focusontag[i]->fakefullscreen != 1
+										#endif // PATCH_FLAG_FAKEFULLSCREEN
+									) && (
+										#if PATCH_PERTAG
+										m->pertag->ltidxs[i + 1][m->pertag->sellts[i + 1]]->arrange != monocle
+										#else // NO PATCH_PERTAG
+										m->lt[m->sellt]->arrange != monocle
+										#endif // PATCH_PERTAG
+										/*|| !(m->focusontag[i]->tags & c->tags)*/
+										|| m->focusontag[i] == c
+									)
+								)
+								#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 							)
-							#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 						) {
 							if (c->dispclass)
 								masterclientontag[i] = c->dispclass;
@@ -8264,7 +8281,7 @@ focus(Client *c, int force)
 		#endif // PATCH_ALTTAB
 	) {
 		for (Client *s = c->mon->stack; s; s = s->snext)
-//			if (s->ultparent == c->ultparent && s->ismodal && s->index > c->index) {
+			//if (s->ultparent == c->ultparent && s->ismodal && s->index > c->index) {
 			if (s->ismodal &&
 				((s->ultparent == c->ultparent && s->index > c->index)
 				|| (s->ultparent == s && s->parent == c))
@@ -8299,6 +8316,11 @@ focus(Client *c, int force)
 		#else
 		unfocus(sel, 0);
 		#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
+
+		for (int i = 0; i < LENGTH(tags); i++)
+			if (sel->tags & (1 << i))
+				sel->mon->focusontag[i] = sel;
+
 		if (c && selmon != c->mon)
 			drawbar(selmon, 0);
 	}
@@ -8332,6 +8354,13 @@ focus(Client *c, int force)
 			#endif // PATCH_ALTTAB
 			)
 			seturgent(c, 0);
+
+		#if PATCH_ALTTAB
+		if (!altTabMon)
+		#endif // PATCH_ALTTAB
+		for (int i = 0; i < LENGTH(tags); i++)
+			if (c->tags & (1 << i))
+				c->mon->focusontag[i] = c;
 
 		#if PATCH_SHOW_DESKTOP
 		if (showdesktop && c->mon->showdesktop != (c->isdesktop || c->ondesktop)
