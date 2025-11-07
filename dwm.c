@@ -5029,23 +5029,25 @@ clientmessage(XEvent *e)
 
 		if (c != selmon->sel) {
 			#if PATCH_EXTERNAL_WINDOW_ACTIVATION || PATCH_FLAG_GAME || PATCH_SHOW_DESKTOP
-			if (
-				#if PATCH_HANDLE_SIGNALS
-				closing == 1 ||
-				#endif // PATCH_HANDLE_SIGNALS
-				#if PATCH_EXTERNAL_WINDOW_ACTIVATION
-				enable_switching ||
-				#endif // PATCH_EXTERNAL_WINDOW_ACTIVATION
-				#if PATCH_FLAG_GAME
-				(c->isgame && selmon->sel && selmon->sel->isgame) ||
-				#endif // PATCH_FLAG_GAME
-				#if PATCH_SHOW_DESKTOP
-				(showdesktop && c->mon->showdesktop) ||
-				#endif // PATCH_SHOW_DESKTOP
-				#if PATCH_FLAG_CAN_LOSE_FOCUS
-				(selmon->sel && selmon->sel->canlosefocus) ||
-				#endif // PATCH_FLAG_CAN_LOSE_FOCUS
-				0
+			if ((c->autofocus || !c->isfloating) &&
+				(
+					#if PATCH_HANDLE_SIGNALS
+					closing == 1 ||
+					#endif // PATCH_HANDLE_SIGNALS
+					#if PATCH_EXTERNAL_WINDOW_ACTIVATION
+					enable_switching ||
+					#endif // PATCH_EXTERNAL_WINDOW_ACTIVATION
+					#if PATCH_FLAG_GAME
+					(c->isgame && selmon->sel && selmon->sel->isgame) ||
+					#endif // PATCH_FLAG_GAME
+					#if PATCH_SHOW_DESKTOP
+					(showdesktop && c->mon->showdesktop) ||
+					#endif // PATCH_SHOW_DESKTOP
+					#if PATCH_FLAG_CAN_LOSE_FOCUS
+					(selmon->sel && selmon->sel->canlosefocus) ||
+					#endif // PATCH_FLAG_CAN_LOSE_FOCUS
+					0
+				)
 			) {
 				if (!ISVISIBLE(c))
 					viewmontag(c->mon, c->tags, 1);
