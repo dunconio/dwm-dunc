@@ -1106,7 +1106,6 @@ struct Client {
 	#if PATCH_CLASS_STACKING
 	char *stackclass;
 	#endif // PATCH_CLASS_STACKING
-
 	#if PATCH_MOUSE_POINTER_HIDING
 	int cursorautohide;
 	int cursorhideonkeys;
@@ -1278,6 +1277,10 @@ struct Client {
 	Client *swallowing;
 	#endif // PATCH_TERMINAL_SWALLOWING
 	Monitor *mon;
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	int prevmonindex;
+	unsigned int prevtags;
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
 	int monindex;	// keep the monitor number;
 	Window win;
 	#if PATCH_CROP_WINDOWS
@@ -1874,7 +1877,7 @@ static void scan(void);
 static int send_message(IPCMessageType msg_type, uint32_t msg_size, uint8_t *msg);
 #endif // PATCH_IPC
 static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
-static void sendmon(Client *c, Monitor *m, Client *leader, int force);
+static void sendmon(Client *c, Monitor *m, Client *leader, int force, unsigned int newtags);
 #if PATCH_MOUSE_POINTER_HIDING
 static int set_idle_alarm(void);
 #endif // PATCH_MOUSE_POINTER_HIDING
@@ -1969,6 +1972,9 @@ static Monitor *systraytomon(Monitor *m);
 #endif // PATCH_SYSTRAY
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
+#if PATCH_RESTORE_MONITOR_AND_TAG
+static void tagmonrestore(const Arg *arg);
+#endif // PATCH_RESTORE_MONITOR_AND_TAG
 #if PATCH_FLAG_FOLLOW_PARENT
 static int tagsatellites(Client *p);
 #endif // PATCH_FLAG_FOLLOW_PARENT
@@ -11475,6 +11481,18 @@ logdiagnostics_client(Client *c, const char *indent)
 	if (c->monindex != -1 && c->mon->num != c->monindex)
 		fprintf(stderr, " wants-monitor:%i", c->monindex);
 
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	if (c->prevtags)
+		fprintf(stderr, " prevtags:0x%x", c->prevtags);
+	else
+		fputs(" prevtags:none", stderr);
+
+	if (c->prevmonindex != -1)
+		fprintf(stderr, " prevmon:%i", c->prevmonindex);
+	else
+		fputs(" prevmon:none", stderr);
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
+
 	fputs("\n", stderr);
 
 	if (ch.res_class)
@@ -13157,12 +13175,14 @@ monsatellites(Client *pp, Monitor *mon) {
 				|| c->ismodal
 				#endif // PATCH_MODAL_SUPPORT
 			)) {
+				int sametags = c->tags == pp->tags;
 				if (c->mon != mon) {
 					detach(c);
 					detachstack(c);
 					c->mon = mon;
 					c->monindex = pp->monindex;
-					c->tags = c->mon->tagset[c->mon->seltags]; 	// assign tags of target monitor
+					//c->tags = c->mon->tagset[c->mon->seltags]; 	// assign tags of target monitor
+					c->tags = pp->tags;
 					#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 					attachBelow(c);
 					attachstackBelow(c);
@@ -13170,11 +13190,14 @@ monsatellites(Client *pp, Monitor *mon) {
 					attach(c);
 					attachstack(c);
 					#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+				}
+				if (!sametags) {
+					c->tags = pp->tags;
 					#if PATCH_PERSISTENT_METADATA
 					setclienttagprop(c);
 					#endif // PATCH_PERSISTENT_METADATA
 				}
-				monsatellites(c, c->mon);
+				monsatellites(c, mon);
 			}
 		}
 	}
@@ -13517,7 +13540,7 @@ movemouse(const Arg *arg)
 		}
 
 		selmon = m;
-		sendmon(c, m, c, 1);
+		sendmon(c, m, c, 1, 0);
 		raisewin(c->mon, c->win, True);
 		c->monindex = c->mon->num;
 		arrange(NULL);
@@ -15745,7 +15768,7 @@ placemouse(const Arg *arg)
 	XUngrabPointer(dpy, CurrentTime);
 
 	if ((m = recttomon(ev.xmotion.x, ev.xmotion.y, 1, 1)) && m != c->mon) {
-		sendmon(c, m, c, 0);
+		sendmon(c, m, c, 0, 0);
 		c->monindex = c->mon->num;
 		selmon = c->mon;
 		if (m != c->mon)
@@ -17418,7 +17441,7 @@ resizemouse(const Arg *arg)
 	XUngrabPointer(dpy, CurrentTime);
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 	if ((m = recttomon(c->x, c->y, c->w, c->h)) != selmon) {
-		sendmon(c, m, c, 0);
+		sendmon(c, m, c, 0, 0);
 		c->monindex = c->mon->num;
 		selmon = c->mon;
 		focus(NULL, 0);
@@ -18634,9 +18657,10 @@ sendevent(Window w, Atom proto, int mask, long d0, long d1, long d2, long d3, lo
 }
 
 void
-sendmon(Client *c, Monitor *m, Client *leader, int force)
+sendmon(Client *c, Monitor *m, Client *leader, int force, unsigned int newtags)
 {
-	if (c->mon == m)
+	int samemon = c->mon == m;
+	if (samemon && !newtags)
 		return;
 	#if PATCH_SHOW_DESKTOP
 	if (c->ondesktop || c->isdesktop)
@@ -18675,6 +18699,14 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		lastcoordsstore(leader);
 	#endif // PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
 
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	c->prevtags = c->tags;
+	c->prevmonindex = c->mon->num;
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
+
+	if (!newtags)
+		newtags = m->tagset[m->seltags];
+
 	#if PATCH_MODAL_SUPPORT
 	if (c->ismodal) {
 		Client *cc, *p, *child = c;
@@ -18685,6 +18717,14 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		for (; cc; cc = p) {
 			p = cc->sprev;
 			if (cc->ultparent == c->ultparent && ISVISIBLE(cc)) {
+				if (samemon) {
+					cc->tags = newtags; 	// assign tags of target monitor;
+					#if PATCH_PERSISTENT_METADATA
+					setclienttagprop(cc);
+					#endif // PATCH_PERSISTENT_METADATA
+					child = cc;
+					continue;
+				}
 				if (cc->isfloating && (cc == c || !child || child->parent != cc)) {
 					mfwo = (float) (cc->x - cc->mon->mx + cc->w / 2) / (cc->mon->mw / 2);
 					mfho = (float) (cc->y - cc->mon->my + cc->h / 2) / (cc->mon->mh / 2);
@@ -18693,7 +18733,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 				detachstack(cc);
 				cc->mon = m;
 				cc->monindex = m->num;
-				cc->tags = m->tagset[m->seltags]; 	// assign tags of target monitor
+				cc->tags = newtags; 	// assign tags of target monitor;
 				#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 				attachBelow(cc);
 				attachstackBelow(cc);
@@ -18722,73 +18762,79 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 		}
 		// normal coord tracking behaviour continues;
 		nonstop = 0;
-		snapchildclients(c->ultparent, 1);
+		if (!samemon)
+			snapchildclients(c->ultparent, 1);
 	}
 	else
 	#endif // PATCH_MODAL_SUPPORT
 	{
-		#if PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
-		monsatellites(c, m);
-		#endif // PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
+		if (samemon)
+			c->tags = newtags; // assign tags of target monitor;
+		else {
+			#if PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
+			monsatellites(c, m);
+			#endif // PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
 
-		//unfocus(c, 1);
-		detach(c);
-		detachstack(c);
-		c->mon = m;
-		c->monindex = m->num;
-		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
-		#if PATCH_CLASS_STACKING
-		if(!attach_stackhead(c))
-		#endif // PATCH_CLASS_STACKING
-		{
-			#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-			if (m->lt[m->sellt]->arrange != &monocle &&
-				(!c->isfullscreen
-				#if PATCH_FLAG_FAKEFULLSCREEN
-				|| c->fakefullscreen == 1
-				#endif // PATCH_FLAG_FAKEFULLSCREEN
-			)) {
-				attachBelow(c);
-				attachstackBelow(c);
-			}
-			else
-			#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+			//unfocus(c, 1);
+			detach(c);
+			detachstack(c);
+			c->mon = m;
+			c->monindex = m->num;
+			c->tags = newtags; // assign tags of target monitor;
+			#if PATCH_CLASS_STACKING
+			if(!attach_stackhead(c))
+			#endif // PATCH_CLASS_STACKING
 			{
-				attach(c);
-				attachstackex(c);
-				m->sel = c;
+				#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+				if (m->lt[m->sellt]->arrange != &monocle &&
+					(!c->isfullscreen
+					#if PATCH_FLAG_FAKEFULLSCREEN
+					|| c->fakefullscreen == 1
+					#endif // PATCH_FLAG_FAKEFULLSCREEN
+				)) {
+					attachBelow(c);
+					attachstackBelow(c);
+				}
+				else
+				#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+				{
+					attach(c);
+					attachstackex(c);
+					m->sel = c;
+				}
 			}
-		}
-		// move the client if it is floating;
-		if (c->isfloating) {
-			if (!c->parent || c->parent->mon != c->mon) {
-				if (!force) {
-					c->x = ((mfwo * m->mw / 2) + m->mx - c->w / 2);
-					c->y = ((mfho * m->mh / 2) + m->my - c->h / 2);
+			// move the client if it is floating;
+			if (c->isfloating) {
+				if (!c->parent || c->parent->mon != c->mon) {
+					if (!force) {
+						c->x = ((mfwo * m->mw / 2) + m->mx - c->w / 2);
+						c->y = ((mfho * m->mh / 2) + m->my - c->h / 2);
+					}
+					if (c->w + c->bw*2 < m->mw) {
+						if (c->x + c->w + c->bw*2 > m->mx + m->mw)
+							c->x = m->mx + m->mw - c->w - c->bw*2;
+						else if (c->x < m->mx)
+							c->x = m->mx;
+					}
+					if (c->h + c->bw*2 < m->mh) {
+						if (c->y + c->h + c->bw*2 > m->my + m->mh)
+							c->y = m->my + m->mh - c->h - c->bw*2;
+						else if (c->y < m->my)
+							c->y = m->my;
+					}
+					resizeclient(c, c->x, c->y, c->w, c->h, 0);
 				}
-				if (c->w + c->bw*2 < m->mw) {
-					if (c->x + c->w + c->bw*2 > m->mx + m->mw)
-						c->x = m->mx + m->mw - c->w - c->bw*2;
-					else if (c->x < m->mx)
-						c->x = m->mx;
-				}
-				if (c->h + c->bw*2 < m->mh) {
-					if (c->y + c->h + c->bw*2 > m->my + m->mh)
-						c->y = m->my + m->mh - c->h - c->bw*2;
-					else if (c->y < m->my)
-						c->y = m->my;
-				}
-				resizeclient(c, c->x, c->y, c->w, c->h, 0);
+				else if (c->parent)
+					snapchildclients(c->parent, 0);
 			}
-			else if (c->parent)
-				snapchildclients(c->parent, 0);
 		}
 		#if PATCH_PERSISTENT_METADATA
 		setclienttagprop(c);
 		#endif // PATCH_PERSISTENT_METADATA
 
 		#if PATCH_FLAG_FOLLOW_PARENT
-		snapchildclients(c, 1);
+		if (!samemon)
+			snapchildclients(c, 1);
 		#endif // PATCH_FLAG_FOLLOW_PARENT
 	}
 
@@ -18833,10 +18879,10 @@ sendmon(Client *c, Monitor *m, Client *leader, int force)
 	} else {
 		if (sel) {
 			m->sel = leader;
-			selmon = m;
-
 			arrange(NULL);
-			focus(sel ? leader : NULL, 1);
+			viewmontag(m, m->sel->tags, 1);
+
+			focus(sel && ISVISIBLE(leader) ? leader : NULL, 1);
 
 			#if PATCH_FOCUS_FOLLOWS_MOUSE
 			if (cw != 0 && ch != 0) {
@@ -19094,6 +19140,10 @@ setdefaultvalues(Client *c)
 	c->pauseinvisible = 0;
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
 	c->prevsel = NULL;
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	c->prevmonindex = -1;
+	c->prevtags = 0;
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
 }
 
 #if PATCH_EWMH_TAGS
@@ -22513,6 +22563,11 @@ tag(const Arg *arg)
 		return;
 	#endif // PATCH_FLAG_FOLLOW_PARENT
 
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	c->prevtags = c->tags;
+	c->prevmonindex = c->mon->num;
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
+
 	c->tags = arg->ui & TAGMASK;
 	if (c->isfullscreen
 		#if PATCH_FLAG_FAKEFULLSCREEN
@@ -22642,8 +22697,86 @@ tagmon(const Arg *arg)
 			);
 	}
 
-	sendmon(c, m, sel, 1);
+	sendmon(c, m, sel, 1, 0);
 }
+
+#if PATCH_RESTORE_MONITOR_AND_TAG
+void
+tagmonrestore(const Arg *arg)
+{
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	checkmouseoverclient();
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+	Client *c = selmon->sel;
+	if (!c || !c->prevtags)
+		return;
+/*
+	#if PATCH_FLAG_FOLLOW_PARENT
+	if (c->followparent && c->parent && !c->toplevel && !c->fosterparent)
+		return;
+	#endif // PATCH_FLAG_FOLLOW_PARENT
+*/
+	Client *sel = c;
+	Monitor *m = c->mon;
+	if (c->prevmonindex != -1)
+		for (m = mons; m && m->num != c->prevmonindex; m = m->next);
+	if (!m)
+		m = selmon;
+
+	#if PATCH_MODAL_SUPPORT
+	if (c->ismodal) {
+		for (
+			c = c->parent;
+			c && c->ismodal && c->parent && c->mon == c->parent->mon;
+			c = c->parent
+		);
+		if (!c)
+			return;
+	}
+	#if PATCH_FLAG_FOLLOW_PARENT
+	else
+	#endif // PATCH_FLAG_FOLLOW_PARENT
+	#endif // PATCH_MODAL_SUPPORT
+	#if PATCH_FLAG_FOLLOW_PARENT
+	if (c->followparent && !c->toplevel && !c->fosterparent) {
+		for (
+			c = c->parent;
+			c && c->followparent && c->parent && c->mon == c->parent->mon;
+			c = c->parent
+		);
+		if (!c)
+			return;
+	}
+	#endif // PATCH_FLAG_FOLLOW_PARENT
+
+	if (m != c->mon) {
+		if (c->isfloating && !c->parent && (
+			!c->isfullscreen
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			|| c->fakefullscreen == 1
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+		)) {
+			float sfx = (float) (c->x - c->mon->wx + c->bw + c->w/2) / (c->mon->ww/2);
+			float sfy = (float) (c->y - c->mon->wy + c->bw + c->h/2) / (c->mon->wh/2);
+			c->x = MAX(
+					MIN(
+						((sfx * m->ww/2) + m->wx - c->w / 2),
+						(m->wx + m->ww - c->w)
+					),
+					m->wx
+				);
+			c->y = MAX(
+					MIN(
+						((sfy * m->wh/2) + m->wy - c->h / 2),
+						(m->wy + m->wh - c->h)
+					),
+					m->wy
+				);
+		}
+	}
+	sendmon(c, m, sel, 1, sel->prevtags & TAGMASK);
+}
+#endif // PATCH_RESTORE_MONITOR_AND_TAG
 
 void
 togglebar(const Arg *arg)

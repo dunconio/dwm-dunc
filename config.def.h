@@ -467,15 +467,26 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Left, viewkeypressmonview, {0}, DESCRIPTION_TAGMON_BACKWARD_VIEW },
 	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, XK_Right, tagmon,   {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
 	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Right, viewkeypressmonview, {0}, DESCRIPTION_TAGMON_FORWARD_VIEW },
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	{ MODKEY|ShiftMask|ControlMask|ModKeyNoRepeatMask, XK_KP_Enter, tagmonrestore, {0}, DESCRIPTION_TAGMON_RETURN },
+	{ MODKEY|ShiftMask|ControlMask|ModKeyHoldMask, XK_KP_Enter, viewkeypressmonview, {0}, DESCRIPTION_TAGMON_RETURN_VIEW },
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
 #else // NO PATCH_KEY_HOLD_TO_REVERT_VIEW
 	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, XK_Left, tagmon,    {.i = -1 }, DESCRIPTION_TAGMON_BACKWARD },
 	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Left, viewkeyholdclient, {0}, DESCRIPTION_TAGMON_BACKWARD_VIEW },
 	{ MODKEY|ShiftMask|ModKeyNoRepeatMask, XK_Right, tagmon,   {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
 	{ MODKEY|ShiftMask|ModKeyHoldMask, XK_Right, viewkeyholdclient, {0}, DESCRIPTION_TAGMON_FORWARD_VIEW },
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	{ MODKEY|ShiftMask|ControlMask|ModKeyNoRepeatMask, XK_KP_Enter, tagmonrestore, {0}, DESCRIPTION_TAGMON_RETURN },
+	{ MODKEY|ShiftMask|ControlMask|ModKeyHoldMask, XK_KP_Enter, viewkeyholdclient, {0}, DESCRIPTION_TAGMON_RETURN_VIEW },
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
 #endif // PATCH_KEY_HOLD_TO_REVERT_VIEW
 #else // NO PATCH_KEY_HOLD
 	{ MODKEY|ShiftMask,             XK_Left,   tagmon,         {.i = -1 }, DESCRIPTION_TAGMON_BACKWARD },
 	{ MODKEY|ShiftMask,             XK_Right,  tagmon,         {.i = +1 }, DESCRIPTION_TAGMON_FORWARD },
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	{ MODKEY|ShiftMask|ControlMask, XK_KP_Enter, tagmonrestore, {0}, DESCRIPTION_TAGMON_RETURN },
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
 #endif // PATCH_KEY_HOLD
 /* extra functionality from patches */
 

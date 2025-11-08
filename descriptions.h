@@ -141,11 +141,26 @@
 #define DESCRIPTION_SWAP_VIEW_1						"Switch to the alternate tag on monitor 1"
 #define DESCRIPTION_SWAP_VIEW						"Switch to the alternate tag"
 
+#if PATCH_KEY_HOLD
+#if PATCH_KEY_HOLD_TO_REVERT_VIEW
+#define DESCRIPTION_TAGMON_BACKWARD					"Move the client to the previous monitor and focus it"
+#define DESCRIPTION_TAGMON_FORWARD					"Move the client to the next monitor and focus it"
+#define DESCRIPTION_TAGMON_RETURN					"Move the client back to its previous monitor and focus it"
+#define DESCRIPTION_TAGMON_BACKWARD_VIEW			"View the moved client's previous monitor/tag"
+#define DESCRIPTION_TAGMON_FORWARD_VIEW				"View the moved client's previous monitor/tag"
+#define DESCRIPTION_TAGMON_RETURN_VIEW				"View the moved client's previous monitor/tag"
+#else // NO PATCH_KEY_HOLD_TO_REVERT_VIEW
 #define DESCRIPTION_TAGMON_BACKWARD					"Move the client to the previous monitor"
 #define DESCRIPTION_TAGMON_FORWARD					"Move the client to the next monitor"
-#if PATCH_KEY_HOLD
+#define DESCRIPTION_TAGMON_RETURN					"Move the client back to its previous monitor"
 #define DESCRIPTION_TAGMON_BACKWARD_VIEW			"View the client that was moved to previous monitor"
 #define DESCRIPTION_TAGMON_FORWARD_VIEW				"View the client that was moved to next monitor"
+#define DESCRIPTION_TAGMON_RETURN_VIEW				"View the client that was moved to its previous monitor"
+#endif // PATCH_KEY_HOLD_TO_REVERT_VIEW
+#else // PATCH_KEY_HOLD
+#define DESCRIPTION_TAGMON_BACKWARD					"Move the client to the previous monitor"
+#define DESCRIPTION_TAGMON_FORWARD					"Move the client to the next monitor"
+#define DESCRIPTION_TAGMON_RETURN					"Move the client back to its previous monitor"
 #endif // PATCH_KEY_HOLD
 
 #define DESCRIPTION_TOGGLE_30S_TONE					"Toggle 30s tone script"

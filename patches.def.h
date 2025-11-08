@@ -41,6 +41,7 @@
 #define PATCH_PERSISTENT_METADATA			1	// Store client metadata, restore metadata after a restart;
 #define PATCH_PERTAG						1
 #define PATCH_RAINBOW_TAGS					0
+#define PATCH_RESTORE_MONITOR_AND_TAG		1	// Enable restoring client to its previous tags/monitor (on keypress / trigger);
 #define PATCH_SCAN_OVERRIDE_REDIRECTS		0	// Not usually necessary - only picks up windows during scan();
 #define PATCH_SHOW_DESKTOP					1
 #define PATCH_SHOW_DESKTOP_BUTTON			1

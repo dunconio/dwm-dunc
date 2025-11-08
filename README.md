@@ -83,6 +83,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_PERSISTENT_METADATA` | Store client metadata, restore metadata after a restart; |
 | `PATCH_PERTAG` | Per-tag monitor settings; |
 | `PATCH_RAINBOW_TAGS` | Separate colour definition for each tag; |
+| `PATCH_RESTORE_MONITOR_AND_TAG` | Enable restoring client to its previous tags/monitor (on keypress / trigger); |
 | `PATCH_SCAN_OVERRIDE_REDIRECTS` | Picks up `override_redirect` windows during `scan()` for diagnostic use; |
 | `PATCH_SHOW_DESKTOP` | Add support for showing the desktop; |
 | <ul>`PATCH_SHOW_DESKTOP_BUTTON`</ul> | Add a bar element to act as a 'show desktop' button; |
