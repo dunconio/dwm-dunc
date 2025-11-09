@@ -1501,6 +1501,8 @@ struct Systray {
 /* function declarations */
 static void activate(const Arg *arg);
 static void activateclient(Client *c, int setfocus);
+static void addfocusontag(Client *c);
+//static void addfocusontagex(Client *c, Monitor *m);
 static void adjustfloatposition(Client *c);
 #if PATCH_FLAG_FLOAT_ALIGNMENT
 static int alignfloat(Client *c, float relX, float relY);
@@ -1849,6 +1851,8 @@ static void refocuspointer(const Arg *arg);
 static void reload(const Arg *arg);
 static int reload_rules(void);
 static void reloadrules(const Arg *arg);
+static void removefocusontag(Client *c);
+//static void removefocusontagex(Client *c, Monitor *m);
 static void removelinks(Client *c);
 #if PATCH_SYSTRAY
 static void removesystrayicon(Client *i);
@@ -2093,8 +2097,11 @@ static pid_t validate_pid(Client *c);
 static int validclient(Client *c);
 static void view(const Arg *arg);
 #if PATCH_KEY_HOLD
+#if PATCH_KEY_HOLD_TO_REVERT_VIEW
 static void viewkeypressmonview(const Arg *arg);
+#else // NO PATCH_KEY_HOLD_TO_REVERT_VIEW
 static void viewkeyholdclient(const Arg *arg);
+#endif // PATCH_KEY_HOLD_TO_REVERT_VIEW
 #endif // PATCH_KEY_HOLD
 static void viewactive(const Arg *arg);	// argument is direction (on selected monitor);
 static void viewactivenext(const Arg *arg);	// argument is monitor index;
@@ -2189,8 +2196,12 @@ static Client *dummyc = NULL;
 KeySym keyholdsym = 0;
 unsigned int keyholdstate = 0;
 
-int keypress_tagstate = -1;
+unsigned int keypress_tagstate = 0;
 Monitor *keypress_m = NULL;
+#if PATCH_RESTORE_MONITOR_AND_TAG
+unsigned int keypress_target_tagstate = 0;
+Monitor *keypress_target_m = NULL;
+#endif // PATCH_RESTORE_MONITOR_AND_TAG
 Client *keypress_client = NULL;
 #endif // PATCH_KEY_HOLD
 
@@ -2401,6 +2412,31 @@ activateclient(Client *c, int setfocus)
 	#endif // PATCH_MOUSE_POINTER_WARPING
 }
 
+void
+addfocusontag(Client *c)
+{
+	if (!c)
+		return;
+
+	for (int i = 0; i < LENGTH(tags); i++)
+		if (c->tags & (1 << i))
+			c->mon->focusontag[i] = c;
+}
+/*
+void
+addfocusontagex(Client *c, Monitor *m)
+{
+	if (!c)
+		return;
+
+	if (!m)
+		m = c->mon;
+
+	for (int i = 0; i < LENGTH(tags); i++)
+		if (c->tags & (1 << i))
+			m->focusontag[i] = c;
+}
+*/
 void
 adjustfloatposition(Client *c)
 {
@@ -5905,9 +5941,7 @@ detachstack(Client *c)
 {
 	detachstackex(c);
 
-	for (int i = 0; i < LENGTH(tags); i++)
-		if (c->mon->focusontag[i] == c)
-			c->mon->focusontag[i] = NULL;
+	removefocusontag(c);
 
 	Client *t;
 	if (c == c->mon->sel) {
@@ -8356,9 +8390,7 @@ focus(Client *c, int force)
 		unfocus(sel, 0);
 		#endif // PATCH_FLAG_GAME && PATCH_FLAG_GAME_STRICT
 
-		for (int i = 0; i < LENGTH(tags); i++)
-			if (sel->tags & (1 << i))
-				sel->mon->focusontag[i] = sel;
+		addfocusontag(sel);
 
 		if (c && selmon != c->mon)
 			drawbar(selmon, 0);
@@ -8397,9 +8429,7 @@ focus(Client *c, int force)
 		#if PATCH_ALTTAB
 		if (!altTabMon)
 		#endif // PATCH_ALTTAB
-		for (int i = 0; i < LENGTH(tags); i++)
-			if (c->tags & (1 << i))
-				c->mon->focusontag[i] = c;
+		addfocusontag(c);
 
 		#if PATCH_SHOW_DESKTOP
 		if (showdesktop && c->mon->showdesktop != (c->isdesktop || c->ondesktop)
@@ -8421,9 +8451,7 @@ focus(Client *c, int force)
 			grabbuttons(c, 1);
 			#if PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 			if (c->mon->lt[c->mon->sellt]->arrange == monocle) {
-				for (int i = 0; i < LENGTH(tags); i++)
-					if (c->tags & (1 << i))
-						c->mon->focusontag[i] = c;
+				addfocusontag(c);
 				drawbar(c->mon, 0);
 			}
 			#endif // PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
@@ -10677,6 +10705,10 @@ keypress(XEvent *e)
 				keypress_client = selmon->sel;
 				keypress_m = selmon;
 				keypress_tagstate = selmon->tagset[selmon->seltags];
+				#if PATCH_RESTORE_MONITOR_AND_TAG
+				keypress_target_m = NULL;
+				keypress_target_tagstate = 0;
+				#endif // PATCH_RESTORE_MONITOR_AND_TAG
 			}
 		}
 	#endif // PATCH_KEY_HOLD
@@ -10745,7 +10777,7 @@ keyrelease(XEvent *e)
 			keyholdstate = 0;
 			if ((keypress_m || keypress_client) && keys[i].func)
 				keys[i].func(&(keys[i].arg));
-			keypress_tagstate = -1;
+			keypress_tagstate = 0;
 			keypress_m = NULL;
 			keypress_client = NULL;
 		}
@@ -10753,7 +10785,7 @@ keyrelease(XEvent *e)
 	}
 	#if PATCH_KEY_HOLD
 	if (!skipevent) {
-		keypress_tagstate = -1;
+		keypress_tagstate = 0;
 		keypress_m = NULL;
 		keypress_client = NULL;
 	}
@@ -13034,9 +13066,7 @@ minimize(Client *c)
 	if (!c || MINIMIZED(c))
 		return;
 
-	for (int i = 0; i < LENGTH(tags); i++)
-		if (c->mon->focusontag[i] == c)
-			c->mon->focusontag[i] = NULL;
+	removefocusontag(c);
 
 	Window w = c->win;
 	static XWindowAttributes ra, ca;
@@ -16596,6 +16626,31 @@ reloadrules(const Arg *arg)
 }
 
 void
+removefocusontag(Client *c)
+{
+	if (!c)
+		return;
+
+	for (int i = 0; i < LENGTH(tags); i++)
+		if (c->mon->focusontag[i] == c)
+			c->mon->focusontag[i] = NULL;
+}
+/*
+void
+removefocusontagex(Client *c, Monitor *m)
+{
+	if (!c)
+		return;
+
+	if (!m)
+		m = c->mon;
+
+	for (int i = 0; i < LENGTH(tags); i++)
+		if (m->focusontag[i] == c)
+			m->focusontag[i] = NULL;
+}
+*/
+void
 removelinks(Client *c)
 {
 	long index = INT_MAX;
@@ -18699,13 +18754,19 @@ sendmon(Client *c, Monitor *m, Client *leader, int force, unsigned int newtags)
 		lastcoordsstore(leader);
 	#endif // PATCH_MOUSE_POINTER_WARPING && PATCH_MOUSE_POINTER_WARPING_RECALL
 
-	#if PATCH_RESTORE_MONITOR_AND_TAG
-	c->prevtags = c->tags;
-	c->prevmonindex = c->mon->num;
-	#endif // PATCH_RESTORE_MONITOR_AND_TAG
-
 	if (!newtags)
 		newtags = m->tagset[m->seltags];
+
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	c->prevmonindex = c->mon->num;
+	c->prevtags = c->tags;
+	#if PATCH_KEY_HOLD
+	#if PATCH_KEY_HOLD_TO_REVERT_VIEW
+	keypress_target_m = m;
+	keypress_target_tagstate = m->tagset[m->seltags];
+	#endif // PATCH_KEY_HOLD_TO_REVERT_VIEW
+	#endif // PATCH_KEY_HOLD
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
 
 	#if PATCH_MODAL_SUPPORT
 	if (c->ismodal) {
@@ -18718,6 +18779,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force, unsigned int newtags)
 			p = cc->sprev;
 			if (cc->ultparent == c->ultparent && ISVISIBLE(cc)) {
 				if (samemon) {
+					removefocusontag(cc);
 					cc->tags = newtags; 	// assign tags of target monitor;
 					#if PATCH_PERSISTENT_METADATA
 					setclienttagprop(cc);
@@ -18768,8 +18830,11 @@ sendmon(Client *c, Monitor *m, Client *leader, int force, unsigned int newtags)
 	else
 	#endif // PATCH_MODAL_SUPPORT
 	{
-		if (samemon)
+		if (samemon) {
+			//if (newtags & m->tagset[m->seltags])
+			removefocusontag(c);
 			c->tags = newtags; // assign tags of target monitor;
+		}
 		else {
 			#if PATCH_FLAG_FOLLOW_PARENT || PATCH_MODAL_SUPPORT
 			monsatellites(c, m);
@@ -18855,14 +18920,16 @@ sendmon(Client *c, Monitor *m, Client *leader, int force, unsigned int newtags)
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	if (showdesktop && showdesktop_when_active && getdesktopclient(mon, &nc) && !nc && !mon->showdesktop) {
 		mon->showdesktop = 1;
+		/*
 		if (!sel)
 			arrange(mon);
+		*/
 	}
 	#endif // PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	#endif // PATCH_SHOW_DESKTOP
 
+	arrange(NULL);
 	if (!viewontag) {
-		arrange(NULL);
 		if (sel) {
 			focus(NULL, 0);
 			if (!c->isfullscreen
@@ -18870,30 +18937,25 @@ sendmon(Client *c, Monitor *m, Client *leader, int force, unsigned int newtags)
 				|| c->fakefullscreen == 1
 				#endif // PATCH_FLAG_FAKEFULLSCREEN
 			) {
-				for (int i = 0; i < LENGTH(tags); i++)
-					if (c->tags & (1 << i))
-						c->mon->focusontag[i] = c;
+				addfocusontag(c);
 				drawbar(c->mon, 0);
 			}
 		}
-	} else {
-		if (sel) {
-			m->sel = leader;
-			arrange(NULL);
-			viewmontag(m, m->sel->tags, 1);
+	} else if (sel) {
+		m->sel = leader;
+		viewmontag(m, m->sel->tags, 1);
 
-			focus(sel && ISVISIBLE(leader) ? leader : NULL, 1);
+		focus(sel && ISVISIBLE(leader) ? leader : NULL, 1);
 
-			#if PATCH_FOCUS_FOLLOWS_MOUSE
-			if (cw != 0 && ch != 0) {
-				sfw = ((float) leader->w / cw);
-				sfh = ((float) leader->h / ch);
-				XWarpPointer(dpy, None, leader->win, 0, 0, 0, 0, px*sfw, py*sfh);
-			}
-			else
-				XWarpPointer(dpy, None, leader->win, 0, 0, 0, 0, leader->w / 2, leader->h / 2);
-			#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+		#if PATCH_FOCUS_FOLLOWS_MOUSE
+		if (cw != 0 && ch != 0) {
+			sfw = ((float) leader->w / cw);
+			sfh = ((float) leader->h / ch);
+			XWarpPointer(dpy, None, leader->win, 0, 0, 0, 0, px*sfw, py*sfh);
 		}
+		else
+			XWarpPointer(dpy, None, leader->win, 0, 0, 0, 0, leader->w / 2, leader->h / 2);
+		#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 	}
 
 	if (c->isfullscreen
@@ -18904,9 +18966,7 @@ sendmon(Client *c, Monitor *m, Client *leader, int force, unsigned int newtags)
 		resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh, 0);
 		raiseclient(c);
 		c->mon->sel = c;
-		for (int i = 0; i < LENGTH(tags); i++)
-			if (c->tags & (1 << i))
-				c->mon->focusontag[i] = c;
+		addfocusontag(c);
 		drawbar(c->mon,
 			#if PATCH_SHOW_MONOCLE_ACTIVE_CLIENT
 			0
@@ -22573,11 +22633,9 @@ tag(const Arg *arg)
 		#if PATCH_FLAG_FAKEFULLSCREEN
 		&& c->fakefullscreen != 1
 		#endif // PATCH_FLAG_FAKEFULLSCREEN
-	) {
-		for (int i = 0; i < LENGTH(tags); i++)
-			if (c->tags & (1 << i))
-				selmon->focusontag[i] = c;
-	}
+		)
+		addfocusontag(c);
+
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
@@ -22722,6 +22780,9 @@ tagmonrestore(const Arg *arg)
 		for (m = mons; m && m->num != c->prevmonindex; m = m->next);
 	if (!m)
 		m = selmon;
+
+	#if PATCH_KEY_HOLD_TO_REVERT_VIEW
+	#endif // PATCH_KEY_HOLD_TO_REVERT_VIEW
 
 	#if PATCH_MODAL_SUPPORT
 	if (c->ismodal) {
@@ -24995,8 +25056,11 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 		#endif // PATCH_SHOW_DESKTOP
 		{
 			int i = tagtoindex(m->tagset[m->seltags]);
-			if (i)
+			if (i) {
 				m->focusontag[i - 1] = m->sel;
+if (m->sel)
+DEBUGFORCE("setting m[%i] to \"%s\"\n", i - 1, m->sel->name);
+			}
 		}
 		m->seltags ^= 1; /* toggle sel tagset */
 	}
@@ -25166,19 +25230,30 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 }
 
 #if PATCH_KEY_HOLD
+#if PATCH_KEY_HOLD_TO_REVERT_VIEW
 void
 viewkeypressmonview(const Arg *arg)
 {
 	Monitor *m = keypress_m;
-	int tagstate = keypress_tagstate;
-	keypress_tagstate = -1;
+	unsigned int tagstate = keypress_tagstate;
+	keypress_tagstate = 0;
 	keypress_m = NULL;
 	keypress_client = NULL;
+	#if PATCH_KEY_HOLD_TO_REVERT_VIEW
+	#if PATCH_RESTORE_MONITOR_AND_TAG
+	Monitor *tm = keypress_target_m;
+	unsigned int t_tagstate = keypress_target_tagstate;
+	keypress_target_tagstate = 0;
+	keypress_target_m = NULL;
+	if (tm && t_tagstate && t_tagstate != tm->tagset[tm->seltags])
+		viewmontag(tm, t_tagstate, 0);
+	#endif // PATCH_RESTORE_MONITOR_AND_TAG
+	#endif // PATCH_KEY_HOLD_TO_REVERT_VIEW
 
 	if (!m)
 		return;
 
-	if (tagstate == -1)
+	if (!tagstate)
 		tagstate = m->tagset[m->seltags];
 
 	viewmontag(m, tagstate, 0);
@@ -25201,12 +25276,12 @@ viewkeypressmonview(const Arg *arg)
 		#endif // PATCH_MOUSE_POINTER_WARPING
 	}
 }
-
+#else // NO PATCH_KEY_HOLD_TO_REVERT_VIEW
 void
 viewkeyholdclient(const Arg *arg)
 {
 	Client *c = keypress_client;
-	keypress_tagstate = -1;
+	keypress_tagstate = 0;
 	keypress_m = NULL;
 	keypress_client = NULL;
 	if (!c)
@@ -25243,6 +25318,7 @@ viewkeyholdclient(const Arg *arg)
 	#endif // PATCH_MOUSE_POINTER_WARPING
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 }
+#endif // PATCH_KEY_HOLD_TO_REVERT_VIEW
 #endif // PATCH_KEY_HOLD
 
 void
