@@ -315,7 +315,7 @@ static cJSON_bool parse_number(cJSON * const item, parse_buffer * const input_bu
     size_t i = 0;
     size_t number_string_length = 0;
     cJSON_bool has_decimal_point = false;
-	cJSON_bool decimal = false;
+    cJSON_bool decimal = false;
 
     if ((input_buffer == NULL) || (input_buffer->content == NULL))
     {
@@ -1458,7 +1458,7 @@ static cJSON_bool print_value(const cJSON * const item, printbuffer * const outp
             strcpy((char*)output, "true");
             return true;
 
-		case cJSON_Integer:
+        case cJSON_Integer:
         case cJSON_Number:
             return print_number(item, output_buffer);
 
@@ -2511,7 +2511,7 @@ CJSON_PUBLIC(cJSON *) cJSON_CreateInteger(int num)
     if(item)
     {
         item->type = cJSON_Integer;
-		item->valueint = num;
+        item->valueint = num;
         item->valuedouble = (double)num;
     }
 
@@ -3118,7 +3118,7 @@ CJSON_PUBLIC(cJSON_bool) cJSON_Compare(const cJSON * const a, const cJSON * cons
         case cJSON_False:
         case cJSON_True:
         case cJSON_NULL:
-		case cJSON_Integer:
+        case cJSON_Integer:
         case cJSON_Number:
         case cJSON_String:
         case cJSON_Raw:
@@ -3144,7 +3144,7 @@ CJSON_PUBLIC(cJSON_bool) cJSON_Compare(const cJSON * const a, const cJSON * cons
         case cJSON_NULL:
             return true;
 
-		case cJSON_Integer:
+        case cJSON_Integer:
         case cJSON_Number:
             if (compare_double(a->valuedouble, b->valuedouble))
             {

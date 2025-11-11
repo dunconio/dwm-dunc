@@ -267,7 +267,7 @@ static const supported_json supported_layout_global[] = {
 	#endif // PATCH_SHOW_DESKTOP_BUTTON
 	{ "show-desktop-layout-symbol",	"symbol to show in place of layout when the desktop is visible" },
 	#if PATCH_SHOW_DESKTOP_UNMANAGED
-	{ "show-desktop-unmanaged",		"true to ignore NetWMWindowTypeDesktop windows (if the desktop manager expects to span all monitors)" },
+	{ "show-desktop-unmanaged",		"true to ignore _NET_WM_WINDOW_TYPE_DESKTOP windows (if the desktop manager expects to span all monitors)" },
 	#endif // PATCH_SHOW_DESKTOP_UNMANAGED
 	#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
 	{ "show-desktop-when-active",	"true to only allow switching to the desktop, when a desktop client exists" },
@@ -972,6 +972,9 @@ enum {	SchemeNorm, SchemeSel
 		#endif // PATCH_STATUSCMD
 }; // colour schemes;
 enum {	NetSupported, NetWMName,
+		#if PATCH_HANDLE_MIN_MAX_STATE
+		NetWMChangeState,
+		#endif // PATCH_HANDLE_MIN_MAX_STATE
 		#if PATCH_WINDOW_ICONS
 		NetWMIcon,
 		#endif // PATCH_WINDOW_ICONS
@@ -988,17 +991,41 @@ enum {	NetSupported, NetWMName,
 		#if PATCH_FLAG_STICKY
 		NetWMSticky,
 		#endif // PATCH_FLAG_STICKY
-		#if PATCH_LOG_DIAGNOSTICS
-		NetWMAbove,
-		NetWMBelow,
+		#if PATCH_HANDLE_MIN_MAX_STATE
 		NetWMMaximizedH,
 		NetWMMaximizedV,
+		#endif // !PATCH_HANDLE_MIN_MAX_STATE
+		#if PATCH_LOG_DIAGNOSTICS
+		#if !PATCH_FLAG_HIDDEN
+		NetWMHidden,
+		#endif // !PATCH_FLAG_HIDDEN
+		NetWMAbove,
+		NetWMBelow,
+		#if !PATCH_HANDLE_MIN_MAX_STATE
+		NetWMMaximizedH,
+		NetWMMaximizedV,
+		#endif // !PATCH_HANDLE_MIN_MAX_STATE
 		NetWMShaded,
 		NetWMSkipPager,
 		NetWMSkipTaskbar,
 		#endif // PATCH_LOG_DIAGNOSTICS
 		// add _NET_WM_STATE flags here;
 		NetWMFullscreen,
+		NetWMAllowedActions,
+		NetWMActionMove,
+		NetWMActionResize,
+		#if PATCH_FLAG_STICKY
+		NetWMActionStick,
+		#endif // PATCH_FLAG_STICKY
+		#if PATCH_HANDLE_MIN_MAX_STATE
+		#if PATCH_FLAG_HIDDEN
+		NetWMActionMinimize,
+		#endif // PATCH_FLAG_HIDDEN
+		NetWMActionMaximizeH,
+		NetWMActionMaximizeV,
+		#endif // PATCH_HANDLE_MIN_MAX_STATE
+		NetWMActionFullscreen,
+		NetWMActionClose,
 		NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz, NetSystemTrayVisual,
 		NetActiveWindow, NetWMWindowType,
 		#if PATCH_SHOW_DESKTOP
@@ -1725,6 +1752,7 @@ static void hidecursor(void);
 #endif // PATCH_MOUSE_POINTER_HIDING
 #if PATCH_FLAG_HIDDEN
 static void hidewin(const Arg *arg);
+static void hidewinex(Client *c);
 #endif // PATCH_FLAG_HIDDEN
 #if PATCH_ALTTAB
 static void highlight(Client *c);
@@ -1830,6 +1858,7 @@ static void print_supported_rules_json(FILE *f, const supported_rules_json array
 static void print_wrap(FILE *f, size_t line_length, const char *indent, size_t col1_size,
 	const char *col1_text, const char *line1_gap, const char *normal_gap, const char *col2_text);
 static void propertynotify(XEvent *e);
+static void publishwindowactions(Client *c);
 static void publishwindowstate(Client *c);
 #if PATCH_ALTTAB
 static void quietunmap(Window w);
@@ -2017,7 +2046,7 @@ static void toggledesktop(const Arg *arg);
 static void togglefakefullscreen(const Arg *arg);
 #endif // PATCH_FLAG_FAKEFULLSCREEN
 static void togglefloating(const Arg *arg);
-static void togglefloatingex(Client *c);
+static void togglefloatingex(Client *c, int update);
 static void togglefullscreen(const Arg *arg);
 #if PATCH_FLAG_GAME
 static void toggleisgame(const Arg *arg);
@@ -2056,6 +2085,9 @@ static void freeicon(Client *c);
 static void unfocus(Client *c, int setfocus);
 #if PATCH_FLAG_HIDDEN
 static void unhidewin(const Arg *arg);
+#if PATCH_HANDLE_MIN_MAX_STATE
+static void unhidewinex(Client *c);
+#endif // PATCH_HANDLE_MIN_MAX_STATE
 #endif // PATCH_FLAG_HIDDEN
 static void unmanage(Client *c, int destroyed, int cleanup);
 static void unmapnotify(XEvent *e);
@@ -2661,32 +2693,46 @@ applyrulesdeferred(Client *c, char *oldtitle)
 	Monitor *m = c->mon;
 	int sel = (m->sel == c);
 	unsigned int tags = c->tags;
-	unsigned int floating = c->isfloating_override;
+	int floating = c->isfloating_override;
 	if (applyrules(c, 1, oldtitle)) {
 		if (!c->tags && tags)
 			c->tags = tags;
 		Monitor *mm = c->mon;
 		c->mon = m;
-		if (floating != c->isfloating_override && c->isfloating) {
+		if (floating != c->isfloating_override || c->isfloating) {
 			if (c->isfloating) {
 				// move client into appropriate position;
+				adjustfloatposition(c);
+				showhide(c, 1);
 				if (selmon->sel == c) {
-					adjustfloatposition(c);
 					focus(c, 1);
 					#if PATCH_MOUSE_POINTER_WARPING
+					warptoclient_stop_flag = 1;
+					#if !PATCH_MOUSE_POINTER_WARPING_RECALL
 					#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
 					warptoclient(c, !c->isurgent, 1);
 					#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
 					warptoclient(c, 1);
 					#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+					#else // PATCH_MOUSE_POINTER_WARPING_RECALL
+					XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w/2, c->h/2);
+					#endif // !PATCH_MOUSE_POINTER_WARPING_RECALL
 					#else // NO PATCH_MOUSE_POINTER_WARPING
 					#if PATCH_FOCUS_FOLLOWS_MOUSE
 					XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w/2, c->h/2);
 					#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 					#endif // PATCH_MOUSE_POINTER_WARPING
 				}
-				else
-					adjustfloatposition(c);
+				#if PATCH_FOCUS_FOLLOWS_MOUSE
+				else {
+					int x, y;
+					if (getrootptr(&x, &y)) {
+						Client *cc = recttoclient(x, y, 1, 1, True);
+						if (cc != selmon->sel)
+							focus(cc, 0);
+					}
+				}
+				#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 			}
 			arrange(c->mon);
 			if (selmon->sel != c && c->isurgent)
@@ -2738,6 +2784,8 @@ applyrulesdeferred(Client *c, char *oldtitle)
 			if (sel)
 				focus(NULL, 0);
 		}
+		publishwindowstate(c);
+		publishwindowactions(c);
 		#if PATCH_PERSISTENT_METADATA
 		setclienttagprop(c);
 		#endif // PATCH_PERSISTENT_METADATA
@@ -2753,6 +2801,9 @@ applyrules_stringtest(cJSON *rule_node, const char *string, int string_len, int 
 	const char *empty_string = "";
 	const char *test_string;
 	cJSON *r_arrayitem;
+
+	if (!rule_node)
+		return 0;
 
 	if(string == NULL)
 	{
@@ -2816,13 +2867,19 @@ applyrules_stringtest(cJSON *rule_node, const char *string, int string_len, int 
 int
 napplyrules_stringtest(cJSON *rule_node, const char *string, int string_len, int match_type)
 {
+	return !applyrules_stringtest(rule_node, string, string_len, match_type);
+	/*
 	int res = !applyrules_stringtest(rule_node, string, string_len, match_type);
 	if(!res)
 	{
+		char *rule = cJSON_Print(rule_node);
 		logdatetime(stderr);
-		fprintf(stderr,"applyrules_stringtest(%s, %u): %i\n", string, match_type, res);
+		fprintf(stderr,"napplyrules_stringtest(%s, %u): %i rule_node:%s %s\n", string, match_type, res, rule_node->string, rule);
+		if (rule)
+			free(rule);
 	}
 	return res;
+	*/
 }
 
 int
@@ -3136,6 +3193,17 @@ applyrules(Client *c, int deferred, char *oldtitle)
 			if (defer) {
 				if (!match && !deferred)
 					c->ruledefer = 1;
+				else if (deferred && match) {
+					if (cJSON_HasObjectItem(r_json, "if-title-was"))
+						match = (oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
+					if (cJSON_HasObjectItem(r_json, "if-not-title-was"))
+						match = (oldtitle && !applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-not-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
+				}
+				else if (match && !deferred) {
+					if (!cJSON_HasObjectItem(r_json, "if-title-was") && !cJSON_HasObjectItem(r_json, "if-not-title-was"))
+						c->ruledefer = -1;
+				}
+				/*
 				else if (!match && deferred) {
 					if (cJSON_HasObjectItem(r_json, "if-title-was")) {
 						if (oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT))
@@ -3146,14 +3214,7 @@ applyrules(Client *c, int deferred, char *oldtitle)
 							c->ruledefer = -1;
 					}
 				}
-				else if (deferred && match) {
-					if (cJSON_HasObjectItem(r_json, "if-title-was")) {
-						match = (oldtitle && applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
-					}
-					if (cJSON_HasObjectItem(r_json, "if-not-title-was")) {
-						match = (oldtitle && !applyrules_stringtest(cJSON_GetObjectItemCaseSensitive(r_json, "if-not-title-was"), oldtitle, strlen(oldtitle), APPLYRULES_STRING_EXACT));
-					}
-				}
+				*/
 			}
 			if (!match)
 				continue;
@@ -3329,7 +3390,7 @@ applyrules(Client *c, int deferred, char *oldtitle)
 				}
 				*/
 			}
-	skip_parenting:
+		skip_parenting:
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-parent-guess")) && json_isboolean(r_node) && r_node->valueint) {
 				if (!(m = selmon))
 					for (m = mons; m && !m->stack; m = m->next);
@@ -3480,15 +3541,6 @@ applyrules(Client *c, int deferred, char *oldtitle)
 			#if PATCH_FLAG_PANEL
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-panel")) && json_isboolean(r_node)) c->ispanel = r_node->valueint;
 			#endif // PATCH_FLAG_PANEL
-			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-floating")) && json_isboolean(r_node)) {
-				c->isfloating_override = r_node->valueint;
-				if (deferred) {
-					if (c->isfloating != c->isfloating_override)
-						togglefloatingex(c);
-				}
-				else
-					c->isfloating = c->isfloating_override;
-			}
 			#if PATCH_FLAG_GAME
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-game")) && json_isboolean(r_node)) c->isgame = r_node->valueint;
 			#if PATCH_FLAG_GAME_STRICT
@@ -3588,6 +3640,16 @@ applyrules(Client *c, int deferred, char *oldtitle)
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-floating-x")) && cJSON_IsNumeric(r_node)) c->floatingx = r_node->valuedouble;
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-floating-y")) && cJSON_IsNumeric(r_node)) c->floatingy = r_node->valuedouble;
 			#endif // PATCH_FLAG_FLOAT_ALIGNMENT
+
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-floating")) && json_isboolean(r_node)) {
+				c->isfloating_override = r_node->valueint;
+				if (deferred) {
+					if (c->isfloating != c->isfloating_override)
+						togglefloatingex(c, 0);
+				}
+				else
+					c->isfloating = c->isfloating_override;
+			}
 
 			matched = 1;
 
@@ -3855,22 +3917,6 @@ arrangemon(Monitor *m)
 	}
 
 	#if PATCH_CLASS_STACKING
-	if (m == selmon && !m->class_stacking && m->sel && (m->sel->isstackhead || m->sel->stackhead) && ISVISIBLE(m->sel)
-		#if PATCH_FLAG_HIDDEN
-		&& !m->sel->ishidden
-		#endif // PATCH_FLAG_HIDDEN
-		#if PATCH_FLAG_IGNORED
-		&& !m->sel->isignored
-		#endif // PATCH_FLAG_IGNORED
-		#if PATCH_FLAG_PANEL
-		&& !m->sel->ispanel
-		#endif // PATCH_FLAG_PANEL
-		#if PATCH_SHOW_DESKTOP
-		&& !m->sel->isdesktop && !m->sel->ondesktop
-		#endif // PATCH_SHOW_DESKTOP
-		)
-		XSetWindowBorder(dpy, m->sel->win, scheme[SchemeSel][ColBorder].pixel);
-
 	for (c = m->clients; c; c = c->next) {
 		c->stackhead = NULL;
 		c->isstackhead = 0;
@@ -3902,23 +3948,14 @@ arrangemon(Monitor *m)
 			// force class-stacked clients to match the position/dimensions of the stack head client;
 			if (c->stackhead)
 				resizeclient(c, c->stackhead->x, c->stackhead->y, c->stackhead->w, c->stackhead->h, 0);
-			else if (c->isstackhead && m->sel == c)
-				XSetWindowBorder(dpy, c->win, scheme[SchemeUrg][ColBorder].pixel);
+			else if (c->isstackhead)
+				XSetWindowBorder(dpy, c->win, scheme[m == selmon && m->sel == c ? SchemeUrg : SchemeNorm][ColBorder].pixel);
 		}
 	}
 	else
 	#endif // PATCH_CLASS_STACKING
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	/*
-	// compensate for possible earlier exclusion of window border;
-	if (m == selmon && m->sel && !solitary(m->sel)
-		#if PATCH_ALTTAB
-		&& !altTabMon
-		#endif // PATCH_ALTTAB
-		)
-		XSetWindowBorder(dpy, m->sel->win, scheme[SchemeSel][ColBorder].pixel);
-	*/
 }
 
 #if PATCH_CLASS_STACKING
@@ -4946,7 +4983,33 @@ clientmessage(XEvent *e)
 		#endif // PATCH_CROP_WINDOWS
 		)
 		return;
+	#if PATCH_HANDLE_MIN_MAX_STATE
+	//WM_CHANGE_STATE
+	if (cme->message_type == netatom[NetWMChangeState]) {
+		#if PATCH_FLAG_IGNORED
+		if (c->isignored)
+			return;
+		#endif // PATCH_FLAG_IGNORED
+		if (cme->data.l[0] == IconicState) {
+			DEBUG("clientmessage(NetWMChangeState) IconicState client:\"%s\"\n", c->name);
+			#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN
+			hidewinex(c);
+			#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN
+		}
+		else if (cme->data.l[0] == NormalState) {
+			DEBUG("clientmessage(NetWMChangeState) NormalState client:\"%s\"\n", c->name);
+			#if PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN
+			unhidewinex(c);
+			#endif // PATCH_FLAG_GAME || PATCH_FLAG_HIDDEN
+		}
+	}
+	else
+	#endif // PATCH_HANDLE_MIN_MAX_STATE
 	if (cme->message_type == netatom[NetWMState]) {
+		#if PATCH_FLAG_IGNORED
+		if (c->isignored)
+			return;
+		#endif // PATCH_FLAG_IGNORED
 		if (cme->data.l[1] == netatom[NetWMAttention]
 		|| cme->data.l[2] == netatom[NetWMAttention]) {
 			if (!c->isurgent && urgency) {
@@ -4994,14 +5057,56 @@ clientmessage(XEvent *e)
 		#if PATCH_FLAG_HIDDEN
 		else if (cme->data.l[1] == netatom[NetWMHidden] ||
 				cme->data.l[2] == netatom[NetWMHidden]) {
-			DEBUG("clientmessage(NetWMHidden) %s client:\"%s\"\n",
+			DEBUGFORCE("clientmessage(NetWMHidden) %s client:\"%s\"\n",
 				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
 			);
 			sethidden(c, (cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !c->ishidden)), True);
 			return;
 		}
 		#endif // PATCH_FLAG_HIDDEN
+		#if PATCH_HANDLE_MIN_MAX_STATE
+		else if (
+			cme->data.l[1] == netatom[NetWMMaximizedH] ||
+			cme->data.l[2] == netatom[NetWMMaximizedH]
+		) {
+			if (c->isfullscreen || c->isfixed || (!c->isfloating && solitary(c))
+				#if PATCH_MODAL_SUPPORT
+				|| c->ismodal
+				#endif // PATCH_MODAL_SUPPORT
+				) return;
+			DEBUG("clientmessage(NetWMMaximizedH) %s client:\"%s\"\n",
+				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
+			);
+			DEBUGFORCE("MaximizeH %s client:\"%s\"\n",
+				(cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !0)) ? "APPLY" : "REMOVE", c->name
+			);
+		}
+		else if (
+			cme->data.l[1] == netatom[NetWMMaximizedV] ||
+			cme->data.l[2] == netatom[NetWMMaximizedV]
+		) {
+			if (c->isfullscreen || c->isfixed || (!c->isfloating && solitary(c))
+				#if PATCH_MODAL_SUPPORT
+				|| c->ismodal
+				#endif // PATCH_MODAL_SUPPORT
+				) return;
+			DEBUG("clientmessage(NetWMMaximizedV) %s client:\"%s\"\n",
+				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
+			);
+			DEBUGFORCE("MaximizeV %s client:\"%s\"\n",
+				(cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !0)) ? "APPLY" : "REMOVE", c->name
+			);
+		}
+		#endif // PATCH_HANDLE_MIN_MAX_STATE
 		#if PATCH_LOG_DIAGNOSTICS
+		#if !PATCH_FLAG_HIDDEN
+		else if (cme->data.l[1] == netatom[NetWMHidden] ||
+				cme->data.l[2] == netatom[NetWMHidden]) {
+			DEBUG("clientmessage(NetWMHidden) %s client:\"%s\"\n",
+				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
+			);
+		}
+		#endif // !PATCH_FLAG_HIDDEN
 		else if (
 			cme->data.l[1] == netatom[NetWMAbove] ||
 			cme->data.l[2] == netatom[NetWMAbove]
@@ -5018,6 +5123,7 @@ clientmessage(XEvent *e)
 				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
 			);
 		}
+		#if !PATCH_HANDLE_MIN_MAX_STATE
 		else if (
 			cme->data.l[1] == netatom[NetWMMaximizedH] ||
 			cme->data.l[2] == netatom[NetWMMaximizedH]
@@ -5034,6 +5140,7 @@ clientmessage(XEvent *e)
 				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
 			);
 		}
+		#endif // !PATCH_HANDLE_MIN_MAX_STATE
 		else if (
 			cme->data.l[1] == netatom[NetWMShaded] ||
 			cme->data.l[2] == netatom[NetWMShaded]
@@ -5657,7 +5764,7 @@ cropwindow(Client *c)
 		//c->maxa = c->maxw = c->maxh = c->incw = c->inch = 0;
 		c->minw = c->minh = 1;
 		if (!c->isfloating)
-			togglefloatingex(c);
+			togglefloatingex(c, 1);
 		c->win = XCreateWindow(dpy, root,
 			c->x, c->y, c->w, c->h, c->bw, 0, 0, 0, CWEventMask, &wa
 		);
@@ -10341,7 +10448,8 @@ hidecursor(void)
 
 #if PATCH_FLAG_HIDDEN
 void
-hidewin(const Arg *arg) {
+hidewin(const Arg *arg)
+{
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
@@ -10368,42 +10476,51 @@ hidewin(const Arg *arg) {
 		c->stackhead = NULL;
 		#endif // PATCH_CLASS_STACKING
 		focus(NULL, 0);
-		h = NULL;
-	} else {
-		// hide just the active window
-		if (!c)
-			return;
-		if (c->ishidden
-			#if PATCH_FLAG_GAME
-			|| (c->isgame && c->isfullscreen)
-			#endif // PATCH_FLAG_GAME
-			#if PATCH_SHOW_DESKTOP
-			|| (c->isdesktop || c->ondesktop)
-			#endif // PATCH_SHOW_DESKTOP
-			) return;
-		sethidden(c, True, False);
-		#if PATCH_PERSISTENT_METADATA
-		setclienttagprop(c);
-		#endif // PATCH_PERSISTENT_METADATA
-		if (!c->isfloating) {
-			#if PATCH_CLASS_STACKING
-			arrangemon(c->mon);
-			#endif // PATCH_CLASS_STACKING
-			if (!(h = nexttiled(c)))
-				h = prevtiled(c);
-		}
-		focus(h, 0);
-		h = selmon->sel;
+		arrange(selmon);
+		drawbar(selmon, 0);
 	}
-	arrange(selmon);
-	drawbar(selmon, 0);
+	else
+		hidewinex(c);
+}
+
+void
+hidewinex(Client *c)
+{
+	// hide just the active window
+	if (!c || MINIMIZED(c) || c->ishidden
+		#if PATCH_FLAG_GAME
+		|| (c->isgame && c->isfullscreen)
+		#endif // PATCH_FLAG_GAME
+		#if PATCH_SHOW_DESKTOP
+		|| (c->isdesktop || c->ondesktop)
+		#endif // PATCH_SHOW_DESKTOP
+		) return;
+	int sel = c == selmon->sel;
+	sethidden(c, True, False);
+	#if PATCH_PERSISTENT_METADATA
+	setclienttagprop(c);
+	#endif // PATCH_PERSISTENT_METADATA
+	Client *h = NULL;
+	if (!c->isfloating) {
+		#if PATCH_CLASS_STACKING
+		arrangemon(c->mon);
+		#endif // PATCH_CLASS_STACKING
+		if (!sel)
+			return;
+		if (!(h = nexttiled(c)))
+			h = prevtiled(c);
+	}
+	if (sel)
+		focus(h, 0);
+
+	drawbar(c->mon, 0);
 
 	#if PATCH_MOUSE_POINTER_WARPING
-	if (h)
+	if (sel)
 		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(h, 1, 0);
+		warptoclient(selmon->sel, 1, 0);
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		warptoclient(h, 0);
+		warptoclient(selmon->sel, 0);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 	#endif // PATCH_MOUSE_POINTER_WARPING
 }
@@ -12762,6 +12879,8 @@ manage(Window w, XWindowAttributes *wa)
 	}
 	#endif // PATCH_HANDLE_SIGNALS
 
+	publishwindowactions(c);
+
 	setclientstate(c, NormalState);
 	if (!nonstop) arrange(c->mon);
 	XMapWindow(dpy, c->win);
@@ -13525,7 +13644,7 @@ movemouse(const Arg *arg)
 				ny = selmon->wy + selmon->wh - HEIGHT(c);
 			if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
 			&& (abs(nx - c->x) > snap || abs(ny - c->y) > snap))
-				togglefloatingex(c);
+				togglefloatingex(c, 1);
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
 				resize(c, nx, ny, c->w, c->h, 1);
 			#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
@@ -17485,7 +17604,7 @@ resizemouse(const Arg *arg)
 			{
 				if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
 				&& (abs(nw - c->w) > snap || abs(nh - c->h) > snap))
-					togglefloatingex(c);
+					togglefloatingex(c, 1);
 			}
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
 				resize(c, nx, ny, nw, nh, 1);
@@ -18846,28 +18965,24 @@ sendmon(Client *c, Monitor *m, Client *leader, int force, unsigned int newtags)
 			c->mon = m;
 			c->monindex = m->num;
 			c->tags = newtags; // assign tags of target monitor;
-			#if PATCH_CLASS_STACKING
-			if(!attach_stackhead(c))
-			#endif // PATCH_CLASS_STACKING
-			{
-				#if PATCH_ATTACH_BELOW_AND_NEWMASTER
-				if (m->lt[m->sellt]->arrange != &monocle &&
-					(!c->isfullscreen
-					#if PATCH_FLAG_FAKEFULLSCREEN
-					|| c->fakefullscreen == 1
-					#endif // PATCH_FLAG_FAKEFULLSCREEN
-				)) {
-					attachBelow(c);
-					attachstackBelow(c);
-				}
-				else
-				#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
-				{
-					attach(c);
-					attachstackex(c);
-					m->sel = c;
-				}
+			#if PATCH_ATTACH_BELOW_AND_NEWMASTER
+			if (m->lt[m->sellt]->arrange != &monocle &&
+				(!c->isfullscreen
+				#if PATCH_FLAG_FAKEFULLSCREEN
+				|| c->fakefullscreen == 1
+				#endif // PATCH_FLAG_FAKEFULLSCREEN
+			)) {
+				attachBelow(c);
+				attachstackBelow(c);
 			}
+			else
+			#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+			{
+				attach(c);
+				attachstackex(c);
+				m->sel = c;
+			}
+
 			// move the client if it is floating;
 			if (c->isfloating) {
 				if (!c->parent || c->parent->mon != c->mon) {
@@ -19003,6 +19118,68 @@ set_idle_alarm(void)
 	return cursor_idle_alarm;
 }
 #endif // PATCH_MOUSE_POINTER_HIDING
+
+void
+publishwindowactions(Client *c)
+{
+	#if PATCH_SHOW_DESKTOP || PATCH_FLAG_PANEL
+	if (0
+		#if PATCH_FLAG_IGNORED
+		|| c->isignored
+		#endif // PATCH_FLAG_IGNORED
+		#if PATCH_SHOW_DESKTOP
+		|| c->isdesktop
+		#endif // PATCH_SHOW_DESKTOP
+		#if PATCH_FLAG_PANEL
+		|| c->ispanel
+		#endif // PATCH_FLAG_PANEL
+	) {
+		XDeleteProperty(dpy, c->win, netatom[NetWMAllowedActions]);
+		return;
+	}
+	#endif // PATCH_SHOW_DESKTOP || PATCH_FLAG_PANEL
+	Atom action[NetWMActionClose - NetWMAllowedActions];
+	int i = 0;
+	if (c->isfloating
+		#if PATCH_FLAG_FLOAT_ALIGNMENT || PATCH_FLAG_NEVER_MOVE
+		&& (0
+			#if PATCH_FLAG_NEVER_MOVE
+			|| !c->nevermove
+			#endif // PATCH_FLAG_NEVER_MOVE
+			#if PATCH_FLAG_FLOAT_ALIGNMENT
+			|| c->floatalignx == -1 || c->floataligny == -1
+			#endif // PATCH_FLAG_FLOAT_ALIGNMENT
+		)
+		#endif // PATCH_FLAG_FLOAT_ALIGNMENT || PATCH_FLAG_NEVER_MOVE
+		)
+		action[i++] = netatom[NetWMActionMove];
+	if (c->isfloating
+		#if PATCH_FLAG_NEVER_RESIZE
+		&& !c->neverresize
+		#endif // PATCH_FLAG_NEVER_RESIZE
+		)
+		action[i++] = netatom[NetWMActionResize];
+	#if PATCH_FLAG_STICKY
+	#if PATCH_MODAL_SUPPORT
+	if (!c->ismodal)
+	#endif // PATCH_MODAL_SUPPORT
+	action[i++] = netatom[NetWMActionStick];
+	#endif // PATCH_FLAG_STICKY
+	#if PATCH_HANDLE_MIN_MAX_STATE
+	#if PATCH_FLAG_HIDDEN
+	action[i++] = netatom[NetWMActionMinimize];
+	#endif // PATCH_FLAG_HIDDEN
+	if (!c->isfixed && !c->isfullscreen) {
+		action[i++] = netatom[NetWMActionMaximizeH];
+		action[i++] = netatom[NetWMActionMaximizeV];
+	}
+	#endif // PATCH_HANDLE_MIN_MAX_STATE
+	action[i++] = netatom[NetWMActionFullscreen];
+	action[i++] = netatom[NetWMActionClose];
+
+	XChangeProperty(dpy, c->win, netatom[NetWMAllowedActions], XA_ATOM, 32,
+			PropModeReplace, (unsigned char *) action, i);
+}
 
 void
 publishwindowstate(Client *c)
@@ -19360,6 +19537,7 @@ setfullscreen(Client *c, int fullscreen)
 	if (fullscreen != c->isfullscreen) { // only send property change if necessary
 		c->isfullscreen = fullscreen;
 		publishwindowstate(c);
+		publishwindowactions(c);
 	}
 
 	#if PATCH_CLIENT_OPACITY
@@ -19494,6 +19672,7 @@ setfullscreen(Client *c, int fullscreen)
 	if (fullscreen && !c->isfullscreen) {
 		c->isfullscreen = 1;
 		publishwindowstate(c);
+		publishwindowactions(c);
 		c->oldbw = c->bw;
 		c->oldstate = c->isfloating;
 		c->bw = 0;
@@ -19534,6 +19713,7 @@ setfullscreen(Client *c, int fullscreen)
 	} else if (!fullscreen && c->isfullscreen) {
 		c->isfullscreen = 0;
 		publishwindowstate(c);
+		publishwindowactions(c);
 		c->bw = c->oldbw;
 		c->isfloating = c->oldstate;
 
@@ -20035,6 +20215,22 @@ setup(void)
 	#if PATCH_MODAL_SUPPORT
 	netatom[NetWMModal] = XInternAtom(dpy, "_NET_WM_STATE_MODAL", False);
 	#endif // PATCH_MODAL_SUPPORT
+	netatom[NetWMAllowedActions] = XInternAtom(dpy, "_NET_WM_ALLOWED_ACTIONS", False);
+	netatom[NetWMActionMove] = XInternAtom(dpy, "_NET_WM_ACTION_MOVE", False);
+	netatom[NetWMActionResize] = XInternAtom(dpy, "_NET_WM_ACTION_RESIZE", False);
+	#if PATCH_FLAG_STICKY
+	netatom[NetWMActionStick] = XInternAtom(dpy, "_NET_WM_ACTION_STICK", False);
+	#endif // PATCH_FLAG_STICKY
+	#if PATCH_HANDLE_MIN_MAX_STATE
+	netatom[NetWMChangeState] = XInternAtom(dpy, "WM_CHANGE_STATE", False);
+	#if PATCH_FLAG_HIDDEN
+	netatom[NetWMActionMinimize] = XInternAtom(dpy, "_NET_WM_ACTION_MINIMIZE", False);
+	#endif // PATCH_FLAG_HIDDEN
+	netatom[NetWMActionMaximizeH] = XInternAtom(dpy, "_NET_WM_ACTION_MAXIMIZE_HORZ", False);
+	netatom[NetWMActionMaximizeV] = XInternAtom(dpy, "_NET_WM_ACTION_MAXIMIZE_VERT", False);
+	#endif // PATCH_HANDLE_MIN_MAX_STATE
+	netatom[NetWMActionFullscreen] = XInternAtom(dpy, "_NET_WM_ACTION_FULLSCREEN", False);
+	netatom[NetWMActionClose] = XInternAtom(dpy, "_NET_WM_ACTION_CLOSE", False);
 	netatom[NetWMWindowType] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
 	netatom[NetWMWindowTypeSplash] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_SPLASH", False);
@@ -20050,11 +20246,20 @@ setup(void)
 	#if PATCH_SHOW_DESKTOP
 	netatom[NetWMWindowTypeDesktop] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DESKTOP", False);
 	#endif // PATCH_SHOW_DESKTOP
-	#if PATCH_LOG_DIAGNOSTICS
-	netatom[NetWMAbove] = XInternAtom(dpy, "_NET_WM_STATE_ABOVE", False);
-	netatom[NetWMBelow] = XInternAtom(dpy, "_NET_WM_STATE_BELOW", False);
+	#if PATCH_HANDLE_MIN_MAX_STATE
 	netatom[NetWMMaximizedH] = XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_HORZ", False);
 	netatom[NetWMMaximizedV] = XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_VERT", False);
+	#endif // PATCH_HANDLE_MIN_MAX_STATE
+	#if PATCH_LOG_DIAGNOSTICS
+	#if !PATCH_FLAG_HIDDEN
+	netatom[NetWMHidden] = XInternAtom(dpy, "_NET_WM_STATE_HIDDEN", False);
+	#endif // !PATCH_FLAG_HIDDEN
+	netatom[NetWMAbove] = XInternAtom(dpy, "_NET_WM_STATE_ABOVE", False);
+	netatom[NetWMBelow] = XInternAtom(dpy, "_NET_WM_STATE_BELOW", False);
+	#if !PATCH_HANDLE_MIN_MAX_STATE
+	netatom[NetWMMaximizedH] = XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_HORZ", False);
+	netatom[NetWMMaximizedV] = XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_VERT", False);
+	#endif // !PATCH_HANDLE_MIN_MAX_STATE
 	netatom[NetWMShaded] = XInternAtom(dpy, "_NET_WM_STATE_SHADED", False);
 	netatom[NetWMSkipPager] = XInternAtom(dpy, "_NET_WM_STATE_SKIP_PAGER", False);
 	netatom[NetWMSkipTaskbar] = XInternAtom(dpy, "_NET_WM_STATE_SKIP_TASKBAR", False);
@@ -22991,10 +23196,10 @@ togglefloating(const Arg *arg)
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	checkmouseoverclient();
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
-	togglefloatingex(selmon->sel);
+	togglefloatingex(selmon->sel, 1);
 }
 void
-togglefloatingex(Client *c)
+togglefloatingex(Client *c, int update)
 {
 	int vis;
 	if (!c || c->isfixed)
@@ -23050,8 +23255,10 @@ togglefloatingex(Client *c)
 					c->h = c->mon->wy + c->mon->wh - c->y - c->bw*2;
 			}
 		}
+		if (update)
+			showhide(c, 1);
 		if (vis) {
-			resize(c, c->x, c->y, c->w, c->h, False);	// restore last known float dimensions
+			//resize(c, c->x, c->y, c->w, c->h, False);	// restore last known float dimensions
 			#if PATCH_CLASS_STACKING
 			if (c->mon->class_stacking && c == c->mon->sel && c->isstackhead
 				#if PATCH_FLAG_HIDDEN
@@ -23074,20 +23281,21 @@ togglefloatingex(Client *c)
 		c->sfy = c->y;
 		c->sfw = c->w;
 		c->sfh = c->h;
+		if (!vis && update)
+			XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
 	}
-	if (!vis)
-		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
 	#if PATCH_CROP_WINDOWS
 	if (!c->isfloating && c->crop)
 		cropdelete(c);
 	#endif // PATCH_CROP_WINDOWS
-	if (vis)
+	if (vis && update)
 		arrange(c->mon);
+	publishwindowactions(c);
 	#if PATCH_PERSISTENT_METADATA
 	setclienttagprop(c);
 	#endif // PATCH_PERSISTENT_METADATA
 	#if PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
-	if (vis && !c->isfloating && focuswin)
+	if (vis && update && !c->isfloating && focuswin)
 		focus(NULL, 0);
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 }
@@ -23369,6 +23577,14 @@ toggleviewex(Monitor *m, int tagmask)
 		m->alttagsquiet = m->pertag->alttagsquiet[m->pertag->curtag];
 		#endif // PATCH_ALT_TAGS
 
+		#if PATCH_SWITCH_TAG_ON_EMPTY
+		m->switchonempty = m->pertag->switchonempty[m->pertag->curtag];
+		#endif // PATCH_SWITCH_TAG_ON_EMPTY
+
+		#if PATCH_CLASS_STACKING
+		m->class_stacking = m->pertag->class_stacking[m->pertag->curtag];
+		#endif // PATCH_CLASS_STACKING
+
 		if (m->showbar != m->pertag->showbars[m->pertag->curtag])
 			togglebarex(m);
 		#endif // PATCH_PERTAG
@@ -23478,7 +23694,8 @@ unfocus(Client *c, int setfocus)
 
 #if PATCH_FLAG_HIDDEN
 void
-unhidewin(const Arg *arg) {
+unhidewin(const Arg *arg)
+{
 	#if PATCH_FOCUS_FOLLOWS_MOUSE
 	checkmouseovermonitor(selmon);
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
@@ -23519,6 +23736,37 @@ unhidewin(const Arg *arg) {
 	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
 
 }
+
+#if PATCH_HANDLE_MIN_MAX_STATE
+void
+unhidewinex(Client *c)
+{
+	if (!c || !MINIMIZED(c) || !c->ishidden
+		#if PATCH_FLAG_GAME
+		|| (c->isgame && c->isfullscreen)
+		#endif // PATCH_FLAG_GAME
+		#if PATCH_SHOW_DESKTOP
+		|| (c->isdesktop || c->ondesktop)
+		#endif // PATCH_SHOW_DESKTOP
+		) return;
+
+	sethidden(c, False, False);
+	#if PATCH_PERSISTENT_METADATA
+	setclienttagprop(c);
+	#endif // PATCH_PERSISTENT_METADATA
+
+	arrangemon(c->mon);
+
+	#if PATCH_FOCUS_FOLLOWS_MOUSE
+	int x, y;
+	if (getrootptr(&x, &y)) {
+		Client *c = recttoclient(x, y, 1, 1, True);
+		if (c != selmon->sel)
+			focus(c, 0);
+	}
+	#endif // PATCH_FOCUS_FOLLOWS_MOUSE
+}
+#endif // PATCH_HANDLE_MIN_MAX_STATE
 #endif // PATCH_FLAG_HIDDEN
 
 void
@@ -25055,11 +25303,10 @@ viewmontag(Monitor *m, unsigned int tagmask, int switchmon)
 		if (!showdesktop || !m->showdesktop)
 		#endif // PATCH_SHOW_DESKTOP
 		{
-			int i = tagtoindex(m->tagset[m->seltags]);
-			if (i) {
-				m->focusontag[i - 1] = m->sel;
-if (m->sel)
-DEBUGFORCE("setting m[%i] to \"%s\"\n", i - 1, m->sel->name);
+			if (!nonstop) {
+				int i = tagtoindex(m->tagset[m->seltags]);
+				if (i)
+					m->focusontag[i - 1] = m->sel;
 			}
 		}
 		m->seltags ^= 1; /* toggle sel tagset */
@@ -25599,10 +25846,10 @@ warptoclient(Client *c, int force)
 			&& c->fakefullscreen != 1
 			#endif // PATCH_FLAG_FAKEFULLSCREEN
 		) {
-			tx = selmon->mx;
-			ty = selmon->my;
-			tw = selmon->mw;
-			th = selmon->mh;
+			tx = c->mon->mx;
+			ty = c->mon->my;
+			tw = c->mon->mw;
+			th = c->mon->mh;
 			tpx = tx + tw / 2;
 			tpy = ty + th / 2;
 		} else {
