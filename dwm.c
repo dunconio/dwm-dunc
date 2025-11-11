@@ -978,7 +978,7 @@ enum {	NetSupported, NetWMName,
 		#if PATCH_WINDOW_ICONS
 		NetWMIcon,
 		#endif // PATCH_WINDOW_ICONS
-		NetWMCheck, NetWMState, NetWMAttention,
+		NetWMCheck, NetWMState, NetWMAttention, NetWMFocused,
 		#if PATCH_FLAG_ALWAYSONTOP
 		NetWMStaysOnTop,
 		#endif // PATCH_FLAG_ALWAYSONTOP
@@ -1859,7 +1859,7 @@ static void print_wrap(FILE *f, size_t line_length, const char *indent, size_t c
 	const char *col1_text, const char *line1_gap, const char *normal_gap, const char *col2_text);
 static void propertynotify(XEvent *e);
 static void publishwindowactions(Client *c);
-static void publishwindowstate(Client *c);
+static void publishwindowstate(Client *c, int isfocused);
 #if PATCH_ALTTAB
 static void quietunmap(Window w);
 #endif // PATCH_ALTTAB
@@ -2784,7 +2784,7 @@ applyrulesdeferred(Client *c, char *oldtitle)
 			if (sel)
 				focus(NULL, 0);
 		}
-		publishwindowstate(c);
+		publishwindowstate(c, c == selmon->sel);
 		publishwindowactions(c);
 		#if PATCH_PERSISTENT_METADATA
 		setclienttagprop(c);
@@ -5066,10 +5066,26 @@ clientmessage(XEvent *e)
 		#endif // PATCH_FLAG_HIDDEN
 		#if PATCH_HANDLE_MIN_MAX_STATE
 		else if (
+			(cme->data.l[1] == netatom[NetWMMaximizedH] && cme->data.l[2] == netatom[NetWMMaximizedV]) ||
+			(cme->data.l[1] == netatom[NetWMMaximizedV] && cme->data.l[2] == netatom[NetWMMaximizedH])
+		) {
+			if (c->isfullscreen || c->isfixed || (!c->isfloating && solitary(c))
+				#if PATCH_MODAL_SUPPORT
+				|| c->ismodal
+				#endif // PATCH_MODAL_SUPPORT
+				) return;
+			DEBUG("clientmessage(NetWMMaximizedH + NetWMMaximizedV) %s client:\"%s\"\n",
+				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
+			);
+			DEBUGFORCE("Maximize %s client:\"%s\"\n",
+				(cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !0)) ? "APPLY" : "REMOVE", c->name
+			);
+		}
+		else if (
 			cme->data.l[1] == netatom[NetWMMaximizedH] ||
 			cme->data.l[2] == netatom[NetWMMaximizedH]
 		) {
-			if (c->isfullscreen || c->isfixed || (!c->isfloating && solitary(c))
+			if (c->isfullscreen || c->isfixed || !c->isfloating
 				#if PATCH_MODAL_SUPPORT
 				|| c->ismodal
 				#endif // PATCH_MODAL_SUPPORT
@@ -5085,7 +5101,7 @@ clientmessage(XEvent *e)
 			cme->data.l[1] == netatom[NetWMMaximizedV] ||
 			cme->data.l[2] == netatom[NetWMMaximizedV]
 		) {
-			if (c->isfullscreen || c->isfixed || (!c->isfloating && solitary(c))
+			if (c->isfullscreen || c->isfixed || !c->isfloating
 				#if PATCH_MODAL_SUPPORT
 				|| c->ismodal
 				#endif // PATCH_MODAL_SUPPORT
@@ -8597,6 +8613,7 @@ focus(Client *c, int force)
 		#if PATCH_CLIENT_OPACITY
 		opacity(c, 1);
 		#endif // PATCH_CLIENT_OPACITY
+		publishwindowstate(c, 1);
 	} else {
 		#if PATCH_SHOW_DESKTOP
 		#if PATCH_SHOW_DESKTOP_ONLY_WHEN_ACTIVE
@@ -12624,7 +12641,6 @@ manage(Window w, XWindowAttributes *wa)
 	#if PATCH_FLAG_HIDDEN
 	sethidden(c, c->ishidden, False);
 	#endif // PATCH_FLAG_HIDDEN
-	publishwindowstate(c);
 
 	#if PATCH_SHOW_DESKTOP
 	if (c->isdesktop)
@@ -12879,6 +12895,7 @@ manage(Window w, XWindowAttributes *wa)
 	}
 	#endif // PATCH_HANDLE_SIGNALS
 
+	publishwindowstate(c, 0);
 	publishwindowactions(c);
 
 	setclientstate(c, NormalState);
@@ -17358,7 +17375,7 @@ togglealwaysontop(const Arg *arg)
 		return;
 	#endif // PATCH_SHOW_DESKTOP
 	selmon->sel->alwaysontop = !selmon->sel->alwaysontop;
-	publishwindowstate(selmon->sel);
+	publishwindowstate(selmon->sel, 1);
 	restack(selmon);
 }
 #endif // PATCH_FLAG_ALWAYSONTOP
@@ -19182,10 +19199,12 @@ publishwindowactions(Client *c)
 }
 
 void
-publishwindowstate(Client *c)
+publishwindowstate(Client *c, int isfocused)
 {
 	Atom state[NetWMFullscreen - NetWMState];
 	int i = 0;
+	if (isfocused)
+		state[i++] = netatom[NetWMFocused];
 	if (c->isurgent)
 		state[i++] = netatom[NetWMAttention];
 	if (c->isfullscreen)
@@ -19219,7 +19238,7 @@ setalwaysontop(Client *c, int alwaysontop)
 		return;
 
 	c->alwaysontop = alwaysontop;
-	publishwindowstate(c);
+	publishwindowstate(c, c == selmon->sel);
 	if (!alwaysontop)
 		arrange(c->mon);
 }
@@ -19536,7 +19555,7 @@ setfullscreen(Client *c, int fullscreen)
 
 	if (fullscreen != c->isfullscreen) { // only send property change if necessary
 		c->isfullscreen = fullscreen;
-		publishwindowstate(c);
+		publishwindowstate(c, c == selmon->sel);
 		publishwindowactions(c);
 	}
 
@@ -19671,7 +19690,7 @@ setfullscreen(Client *c, int fullscreen)
 
 	if (fullscreen && !c->isfullscreen) {
 		c->isfullscreen = 1;
-		publishwindowstate(c);
+		publishwindowstate(c, c == selmon->sel);
 		publishwindowactions(c);
 		c->oldbw = c->bw;
 		c->oldstate = c->isfloating;
@@ -19712,7 +19731,7 @@ setfullscreen(Client *c, int fullscreen)
 
 	} else if (!fullscreen && c->isfullscreen) {
 		c->isfullscreen = 0;
-		publishwindowstate(c);
+		publishwindowstate(c, c == selmon->sel);
 		publishwindowactions(c);
 		c->bw = c->oldbw;
 		c->isfloating = c->oldstate;
@@ -19776,9 +19795,10 @@ sethidden(Client *c, int hidden, int rearrange)
 		unminimize(c);
 
 	c->ishidden = hidden;
-	publishwindowstate(c);
 	if (rearrange && (!c->isfloating || !hidden))
 		arrange(c->mon);
+
+	publishwindowstate(c, c == selmon->sel && !hidden);
 }
 #endif // PATCH_FLAG_HIDDEN
 
@@ -20047,7 +20067,7 @@ setsticky(Client *c, int sticky)
 		return;
 
 	c->issticky = sticky;
-	publishwindowstate(c);
+	publishwindowstate(c, c == selmon->sel);
 	if (!sticky)
 		arrange(c->mon);
 }
@@ -20197,6 +20217,7 @@ setup(void)
 	netatom[NetSystemTrayVisual] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_VISUAL", False);
 	netatom[NetWMName] = XInternAtom(dpy, "_NET_WM_NAME", False);
 	netatom[NetWMAttention] = XInternAtom(dpy, "_NET_WM_STATE_DEMANDS_ATTENTION", False);
+	netatom[NetWMFocused] = XInternAtom(dpy, "_NET_WM_STATE_FOCUSED", False);
 	#if PATCH_WINDOW_ICONS
 	netatom[NetWMIcon] = XInternAtom(dpy, "_NET_WM_ICON", False);
 	#endif // PATCH_WINDOW_ICONS
@@ -23684,7 +23705,7 @@ unfocus(Client *c, int setfocus)
 	fpcurpos = 0;
 	#endif // PATCH_FOCUS_BORDER || PATCH_FOCUS_PIXEL
 
-	publishwindowstate(c);	// reset window state;
+	publishwindowstate(c, 0);	// reset window state;
 
 	if (setfocus) {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
@@ -23925,7 +23946,7 @@ unmanage(Client *c, int destroyed, int cleanup)
 		XSelectInput(dpy, c->win, NoEventMask);
 		XConfigureWindow(dpy, c->win, CWBorderWidth, &wc); /* restore border */
 		XUngrabButton(dpy, AnyButton, AnyModifier, c->win);
-		publishwindowstate(c);	// reset window state;
+		publishwindowstate(c, 0);	// reset window state;
 		setclientstate(c, WithdrawnState);
 		XSync(dpy, False);
 		XSetErrorHandler(xerror);
