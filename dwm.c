@@ -3935,6 +3935,8 @@ arrangemon(Monitor *m)
 
 	#if PATCH_CLASS_STACKING
 	for (c = m->clients; c; c = c->next) {
+		if (!m->class_stacking && (c->isstackhead || c->stackhead) && ISVISIBLE(c))
+			XSetWindowBorder(dpy, c->win, scheme[selmon->sel == c ? SchemeSel : SchemeNorm][ColBorder].pixel);
 		c->stackhead = NULL;
 		c->isstackhead = 0;
 	}
@@ -23574,7 +23576,7 @@ togglesplit(const Arg *arg)
 		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
 		warptoclient(selmon->sel, 0);
 		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
-		#else
+		#else // NO PATCH_MOUSE_POINTER_WARPING
 		if (selmon->sel->isfullscreen
 			#if PATCH_FLAG_FAKEFULLSCREEN
 			&& selmon->sel->fakefullscreen != 1
@@ -23600,7 +23602,26 @@ togglestacking(const Arg *arg)
 	selmon->pertag->class_stacking[selmon->pertag->curtag] = !selmon->pertag->class_stacking[selmon->pertag->curtag];
 	#endif // PATCH_PERTAG
 	selmon->class_stacking = !selmon->class_stacking;
+	Client *sel = selmon->sel;
 	arrange(selmon);
+	if (sel) {
+		#if PATCH_MOUSE_POINTER_WARPING
+		#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		warptoclient(sel, 1, 0);
+		#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		warptoclient(sel, 0);
+		#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
+		#else // NO PATCH_MOUSE_POINTER_WARPING
+		if (sel->isfullscreen
+			#if PATCH_FLAG_FAKEFULLSCREEN
+			&& sel->fakefullscreen != 1
+			#endif // PATCH_FLAG_FAKEFULLSCREEN
+			)
+			XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->mx + (selmon->mw / 2), selmon->my + (selmon->mh / 2));
+		else
+			XWarpPointer(dpy, None, root, 0, 0, 0, 0, sel->x + (sel->w / 2), sel->y + (sel->h / 2));
+		#endif // PATCH_MOUSE_POINTER_WARPING
+	}
 }
 #endif // PATCH_CLASS_STACKING
 
