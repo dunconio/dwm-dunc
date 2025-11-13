@@ -1001,6 +1001,9 @@ enum {	NetSupported, NetWMName,
 		NetWMMaximizedH,
 		NetWMMaximizedV,
 		#endif // !PATCH_HANDLE_MIN_MAX_STATE
+		#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+		NetWMSkipTaskbar,
+		#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 		#if PATCH_LOG_DIAGNOSTICS
 		#if !PATCH_FLAG_HIDDEN
 		NetWMHidden,
@@ -1013,7 +1016,9 @@ enum {	NetSupported, NetWMName,
 		#endif // !PATCH_HANDLE_MIN_MAX_STATE
 		NetWMShaded,
 		NetWMSkipPager,
+		#if !PATCH_HANDLE_SKIP_TASKBAR_STATE
 		NetWMSkipTaskbar,
+		#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 		#endif // PATCH_LOG_DIAGNOSTICS
 		// add _NET_WM_STATE flags here;
 		NetWMFullscreen,
@@ -1161,6 +1166,9 @@ struct Client {
 	int wasfloating;
 	int maximized;
 	#endif // PATCH_HANDLE_MIN_MAX_STATE
+	#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+	int skiptaskbar;
+	#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 	#if PATCH_CLASS_STACKING
 	Client *stackhead;		// tiled window whose position is to be matched;
 	int isstackhead;
@@ -1960,6 +1968,9 @@ static void setnumdesktops(void);
 #if PATCH_CLIENT_OPACITY
 static void setopacity(Client *c, double opacity);
 #endif // PATCH_CLIENT_OPACITY
+#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+static void setskiptaskbar(Client *c, int enable);
+#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 #if PATCH_FLAG_STICKY
 static void setsticky(Client *c, int sticky);
 #endif // PATCH_FLAG_STICKY
@@ -4790,6 +4801,7 @@ fprintf(stderr, "dwm: starting cleanup...\n");
 	int index = 0;
 	for (Monitor *m = mons; m; m = m->next)
 		for (Client *c = m->clients; c; c = c->next) {
+			/*
 			if (c->isfullscreen
 				#if PATCH_FLAG_GAME
 				&& !c->isgame
@@ -4803,6 +4815,7 @@ fprintf(stderr, "dwm: starting cleanup...\n");
 				#endif // PATCH_FLAG_FAKEFULLSCREEN
 				setfullscreen(c, 0);
 			}
+			*/
 			#if PATCH_SHOW_DESKTOP
 			if (!showdesktop || !c->isdesktop)
 			#endif // PATCH_SHOW_DESKTOP
@@ -4816,6 +4829,7 @@ fprintf(stderr, "dwm: starting cleanup...\n");
 					setclienttagpropex(c, ++index);
 	#endif // PATCH_SHOW_DESKTOP
 	#else // NO PATCH_PERSISTENT_METADATA
+	/*
 	for (Monitor *m = mons; m; m = m->next)
 		for (Client *c = m->clients; c; c = c->next)
 			if (c->isfullscreen) {
@@ -4829,6 +4843,7 @@ fprintf(stderr, "dwm: starting cleanup...\n");
 				#endif // PATCH_FLAG_FAKEFULLSCREEN
 				setfullscreen(c, 0);
 			}
+	*/
 	#endif // PATCH_PERSISTENT_METADATA
 	#if PATCH_FLAG_PANEL
 	for (Monitor *m = mons; m; m = m->next)
@@ -5178,6 +5193,17 @@ clientmessage(XEvent *e)
 			);
 		}
 		#endif // PATCH_HANDLE_MIN_MAX_STATE
+		#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+		else if (
+			cme->data.l[1] == netatom[NetWMSkipTaskbar] ||
+			cme->data.l[2] == netatom[NetWMSkipTaskbar]
+		) {
+			DEBUG("clientmessage(NetWMSkipTaskbar) %s client:\"%s\"\n",
+				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
+			);
+			setskiptaskbar(c, (cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !c->skiptaskbar)) ? 1 : 0);
+		}
+		#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 		#if PATCH_LOG_DIAGNOSTICS
 		#if !PATCH_FLAG_HIDDEN
 		else if (cme->data.l[1] == netatom[NetWMHidden] ||
@@ -5245,6 +5271,7 @@ clientmessage(XEvent *e)
 				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
 			);
 		}
+		#if !PATCH_HANDLE_SKIP_TASKBAR_STATE
 		else if (
 			cme->data.l[1] == netatom[NetWMSkipTaskbar] ||
 			cme->data.l[2] == netatom[NetWMSkipTaskbar]
@@ -5253,6 +5280,7 @@ clientmessage(XEvent *e)
 				(cme->data.l[0] == 1 ? "_NET_WM_STATE_ADD" : (cme->data.l[0] == 2 ? "_NET_WM_STATE_TOGGLE" : "OFF?")), c->name
 			);
 		}
+		#endif // !PATCH_HANDLE_SKIP_TASKBAR_STATE
 		else {
 			DEBUG(
 				"clientmessage(1: 0x%lx, 2: 0x%lx) x:%i y:%i w:%i h:%i c:%s\n",
@@ -7044,6 +7072,9 @@ drawbar(Monitor *m, int skiptags)
 							#if PATCH_FLAG_HIDDEN
 							&& !c->ishidden
 							#endif // PATCH_FLAG_HIDDEN
+							#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+							&& !c->skiptaskbar
+							#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 							&& (
 								!m->focusontag[i] ||
 								(
@@ -7109,6 +7140,9 @@ drawbar(Monitor *m, int skiptags)
 							#if PATCH_FLAG_HIDDEN
 							&& !c->ishidden
 							#endif // PATCH_FLAG_HIDDEN
+							#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+							&& !c->skiptaskbar
+							#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 							&& (
 								!m->focusontag[i] ||
 								(
@@ -7800,9 +7834,15 @@ drawbar(Monitor *m, int skiptags)
 			#if PATCH_FLAG_PANEL
 			&& !m->sel->ispanel
 			#endif // PATCH_FLAG_PANEL
+			#if PATCH_FLAG_HIDDEN
+			&& !m->sel->ishidden
+			#endif // PATCH_FLAG_HIDDEN
 			#if PATCH_FLAG_IGNORED
 			&& !m->sel->isignored
 			#endif // PATCH_FLAG_IGNORED
+			#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+			&& !m->sel->skiptaskbar
+			#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 		)
 		#if PATCH_ALTTAB
 		|| alttab_override
@@ -17243,6 +17283,31 @@ setopacity(Client *c, double opacity)
 }
 #endif // PATCH_CLIENT_OPACITY
 
+#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+void
+setskiptaskbar(Client *c, int enable)
+{
+	if (!c)
+		return;
+
+	c->skiptaskbar = enable;
+
+	#if PATCH_FLAG_HIDDEN
+	if (c->ishidden)
+		return;
+	#endif // PATCH_FLAG_HIDDEN
+	#if PATCH_FLAG_PANEL
+	if (c->ispanel)
+		return;
+	#else // NO PATCH_FLAG_PANEL
+	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
+	if (wtype == netatom[NetWMWindowTypeDock])
+		return;
+	#endif // PATCH_FLAG_PANEL
+	drawbar(c->mon, 0);
+}
+#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
+
 int
 skipnextkeyevent(int type, unsigned int keycode, unsigned int state, unsigned long serial)
 {
@@ -19324,6 +19389,10 @@ publishwindowstate(Client *c, int isfocused)
 	if (c->ismodal)
 		state[i++] = netatom[NetWMModal];
 	#endif // PATCH_MODAL_SUPPORT
+	#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+	if (c->skiptaskbar)
+		state[i++] = netatom[NetWMSkipTaskbar];
+	#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 	#if PATCH_FLAG_STICKY
 	if (c->issticky)
 		state[i++] = netatom[NetWMSticky];
@@ -19437,6 +19506,9 @@ setdefaultvalues(Client *c)
 	#if PATCH_HANDLE_MIN_MAX_STATE
 	c->maximized = 0;
 	#endif // PATCH_HANDLE_MIN_MAX_STATE
+	#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+	c->skiptaskbar = 0;
+	#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 	#if PATCH_FLAG_PANEL
 	c->ispanel = 0;
 	#endif // PATCH_FLAG_PANEL
@@ -20386,6 +20458,9 @@ setup(void)
 	netatom[NetWMMaximizedH] = XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_HORZ", False);
 	netatom[NetWMMaximizedV] = XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_VERT", False);
 	#endif // PATCH_HANDLE_MIN_MAX_STATE
+	#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+	netatom[NetWMSkipTaskbar] = XInternAtom(dpy, "_NET_WM_STATE_SKIP_TASKBAR", False);
+	#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 	#if PATCH_LOG_DIAGNOSTICS
 	#if !PATCH_FLAG_HIDDEN
 	netatom[NetWMHidden] = XInternAtom(dpy, "_NET_WM_STATE_HIDDEN", False);
@@ -20398,7 +20473,9 @@ setup(void)
 	#endif // !PATCH_HANDLE_MIN_MAX_STATE
 	netatom[NetWMShaded] = XInternAtom(dpy, "_NET_WM_STATE_SHADED", False);
 	netatom[NetWMSkipPager] = XInternAtom(dpy, "_NET_WM_STATE_SKIP_PAGER", False);
+	#if !PATCH_HANDLE_SKIP_TASKBAR_STATE
 	netatom[NetWMSkipTaskbar] = XInternAtom(dpy, "_NET_WM_STATE_SKIP_TASKBAR", False);
+	#endif // !PATCH_HANDLE_SKIP_TASKBAR_STATE
 	#endif // PATCH_LOG_DIAGNOSTICS
 	netatom[NetClientList] = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
 	netatom[NetClientInfo] = XInternAtom(dpy, "_NET_CLIENT_INFO", False);
@@ -24049,6 +24126,10 @@ unmanage(Client *c, int destroyed, int cleanup)
 	if (c->ishidden)
 		sethidden(c, False, False);
 	#endif // PATCH_FLAG_HIDDEN
+	#if PATCH_FLAG_PANEL
+	if (c->ispanel)
+		unminimize(c);
+	#endif // PATCH_FLAG_PANEL
 	#if PATCH_FLAG_GAME
 	if (c == constrained_game)
 		destroybarriergame();
@@ -25164,6 +25245,9 @@ updatewindowstate(Client *c)
 		#if PATCH_MODAL_SUPPORT
 		, modal = 0
 		#endif // PATCH_MODAL_SUPPORT
+		#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+		, skiptb = 0
+		#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 		#if PATCH_FLAG_STICKY
 		, sticky = 0
 		#endif // PATCH_FLAG_STICKY
@@ -25201,6 +25285,10 @@ updatewindowstate(Client *c)
 				else if (c->ismodal_override != 0 && state[i] == netatom[NetWMModal])
 					modal = 1;
 				#endif // PATCH_MODAL_SUPPORT
+				#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+				if (state[i] == netatom[NetWMSkipTaskbar])
+					skiptb = 1;
+				#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 				#if PATCH_FLAG_STICKY
 				else if (state[i] == netatom[NetWMSticky])
 					sticky = 1;
@@ -25245,6 +25333,12 @@ updatewindowstate(Client *c)
 		di = 1;
 	}
 	#endif // PATCH_MODAL_SUPPORT
+	#if PATCH_HANDLE_SKIP_TASKBAR_STATE
+	if (c->skiptaskbar != skiptb) {
+		setskiptaskbar(c, skiptb);
+		di = 1;
+	}
+	#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
 	#if PATCH_FLAG_STICKY
 	if (c->issticky != sticky) {
 		setsticky(c, 1);

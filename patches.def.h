@@ -25,6 +25,7 @@
 #define PATCH_FONT_GROUPS					1
 #define PATCH_HANDLE_MIN_MAX_STATE			1
 #define PATCH_HANDLE_SIGNALS				1	// respond appropriately to signals;
+#define PATCH_HANDLE_SKIP_TASKBAR_STATE		1	// handle _NET_WM_STATE_SKIP_TASKBAR window state;
 #define PATCH_HIDE_VACANT_TAGS				1
 #define PATCH_IPC							1	// socket-based message handling;
 #define PATCH_KEY_HOLD						1	// shortcut hold option to trigger extra action;

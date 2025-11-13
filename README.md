@@ -67,6 +67,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_FONT_GROUPS` | Add font-groups to enable different font groups for each bar element and alt-tab switcher; |
 | `PATCH_HANDLE_MIN_MAX_STATE` | Respond to minimize & maximize state change requests from clients; |
 | `PATCH_HANDLE_SIGNALS` | Add signal handling for: -<ul><li>`SIGTERM`: quit</li><li>`SIGHUP`: attempt to terminate all clients, and then quit;</li><li>`SIGRTMIN`+0: reload all config and rescan clients;</li><li>`SIGRTMIN`+1: reload rules config (applies to new clients);</li></ul> |
+| `PATCH_HANDLE_SKIP_TASKBAR_STATE` | Handle window state _NET_WM_STATE_SKIP_TASKBAR; |
 | `PATCH_HIDE_VACANT_TAGS` | Hides vacant tags (except the current active tag); |
 | `PATCH_IPC` | Provides socket-based message handling; |
 | `PATCH_LOG_DIAGNOSTICS` | Diagnostic functions that log to `stderr`; |
