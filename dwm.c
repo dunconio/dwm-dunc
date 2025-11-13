@@ -5132,9 +5132,9 @@ clientmessage(XEvent *e)
 				focus(c, 1);
 				#if PATCH_MOUSE_POINTER_WARPING
 				#if PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, 1, 1);
+				warptoclient(c, 0, 0);
 				#else // NO PATCH_MOUSE_POINTER_WARPING_SMOOTH
-				warptoclient(c, 1);
+				warptoclient(c, 0);
 				#endif // PATCH_MOUSE_POINTER_WARPING_SMOOTH
 				#else // NO PATCH_MOUSE_POINTER_WARPING
 				#if PATCH_FOCUS_FOLLOWS_MOUSE
