@@ -261,8 +261,8 @@ static char *colours[][3] = {
 
 #if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 static int showmaster = 1;				// show master client on tag bar;
-static char *ptagf = "[%s %s]";	// format of a tag label
-static char *etagf = "[%s]";		// format of an empty tag
+static char *ptagf = "%s:%s";	// format of a tag label
+static char *etagf = "%s";		// format of an empty tag
 static int lcaselbl = 1;				// 1 means make tag label lowercase
 static int reverselbl = 0;				// 1 means reverse the order for ptagf;
 #endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG
