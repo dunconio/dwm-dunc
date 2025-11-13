@@ -5567,8 +5567,9 @@ createbarrier(Client *c, Monitor *m)
 		w = m->mw;
 		h = m->mh;
 	} else {
-		x = c->x + c->bw;
-		y = c->y + c->bw;
+		unsigned int bw = solitary(c) ? 0 : c->bw;
+		x = c->x + bw;
+		y = c->y + bw;
 		w = c->w;
 		h = c->h;
 	}
@@ -9860,7 +9861,8 @@ getrelativeptr(Client *c, int *x, int *y)
 	if (!XQueryPointer(dpy, c->win, &dummy, &dummy, &di, &di, x, y, &dui))
 		ok = 0;
 	else {
-		if (*x + c->bw < 0 || *y + c->bw < 0 || *x > (c->w + c->bw) || *y > (c->h + c->bw))
+		unsigned int bw = solitary(c) ? 0 : c->bw;
+		if (*x + bw < 0 || *y + bw < 0 || *x > (c->w + bw) || *y > (c->h + bw))
 			ok = 0;
 	}
 	if (!ok) {
@@ -11354,8 +11356,9 @@ lastcoordsrecall(Client *c, int reset, int relative, int *px, int *py)
 		*px = y;
 	}
 	else {
-		*px = x + c->x + c->bw;
-		*py = y + c->y + c->bw;
+		unsigned int bw = solitary(c) ? 0 : c->bw;
+		*px = x + c->x + bw;
+		*py = y + c->y + bw;
 	}
 }
 
@@ -11370,8 +11373,11 @@ lastcoordsstore(Client *c)
 		return;
 
 	// store existing coordinates;
-	if (px < 0 || px > c->w || py < 0 || py > c->h)
+	if (px < 0 || px > c->w || py < 0 || py > c->h) {
+		if (c->lastdx < 0 || c->lastdx > c->w || c->lastdy < 0 || c->lastdy > c->h)
+			c->nolastcoords = 1;
 		return;
+	}
 
 	c->lastdx = px;
 	c->lastdy = py;
@@ -26056,14 +26062,15 @@ warptoclient(Client *c, int force)
 			tpx = tx + tw / 2;
 			tpy = ty + th / 2;
 		} else {
-			tx = c->x + c->bw;
-			ty = c->y + c->bw;
+			unsigned int bw = solitary(c) ? 0 : c->bw;
+			tx = c->x + bw;
+			ty = c->y + bw;
 			tw = c->w;
 			th = c->h;
 			#if PATCH_ALTTAB
 			if (altTabMon) {
-				tpx = c->x + c->bw + c->w/2;
-				tpy = c->y + c->bw + c->h/2;
+				tpx = c->x + bw + c->w/2;
+				tpy = c->y + bw + c->h/2;
 			}
 			else
 			#endif // NO PATCH_ALTTAB
@@ -26072,11 +26079,11 @@ warptoclient(Client *c, int force)
 				lastcoordsrecall(c, 0, 0, &tpx, &tpy);
 				#else // NO PATCH_MOUSE_POINTER_WARPING_RECALL
 				if (c->focusabs) {
-					tpx = c->x + c->bw + c->focusdx + (c->focusdx < 0 ? c->w : 0);
-					tpy = c->y + c->bw + c->focusdy + (c->focusdy < 0 ? c->h : 0);
+					tpx = c->x + bw + c->focusdx + (c->focusdx < 0 ? c->w : 0);
+					tpy = c->y + bw + c->focusdy + (c->focusdy < 0 ? c->h : 0);
 				} else {
-					tpx = c->x + c->bw + c->focusdx * c->w/2 + (c->focusdx < 0 ? c->w : 0);
-					tpy = c->y + c->bw + c->focusdy * c->h/2 + (c->focusdy < 0 ? c->h : 0);
+					tpx = c->x + bw + c->focusdx * c->w/2 + (c->focusdx < 0 ? c->w : 0);
+					tpy = c->y + bw + c->focusdy * c->h/2 + (c->focusdy < 0 ? c->h : 0);
 				}
 				#endif // PATCH_MOUSE_POINTER_WARPING_RECALL
 			}
