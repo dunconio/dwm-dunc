@@ -686,6 +686,9 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_FLAG_NEVER_RESIZE
 	{ R_BOOL,	"set-never-resize",					"prevent the application from resizing the client" },
 	#endif // PATCH_FLAG_NEVER_RESIZE
+	#if PATCH_FLAG_NEVER_URGENT
+	{ R_BOOL,	"set-never-urgent",					"prevent the client from being marked as urgent" },
+	#endif // PATCH_FLAG_NEVER_URGENT
 	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 	{ R_BOOL,	"set-newmaster",					"client always created as a new master, otherwise client goes onto the stack" },
 	#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
@@ -1189,6 +1192,9 @@ struct Client {
 	#if PATCH_FLAG_NEVER_FOCUS
 	int neverfocus_override;
 	#endif // PATCH_FLAG_NEVER_FOCUS
+	#if PATCH_FLAG_NEVER_URGENT
+	int neverurgent;
+	#endif // PATCH_FLAG_NEVER_URGENT
 	int oldstate, isfullscreen, lostfullscreen
 		#if PATCH_TERMINAL_SWALLOWING
 		, isterminal , noswallow
@@ -1981,7 +1987,7 @@ static int setupepoll(void);
 #if PATCH_MOUSE_POINTER_HIDING
 static void setup_sync_counters(void);
 #endif // PATCH_MOUSE_POINTER_HIDING
-static void seturgent(Client *c, int urg);
+static int seturgent(Client *c, int urg);
 #if PATCH_EWMH_TAGS
 static void setviewport(void);
 #endif // PATCH_EWMH_TAGS
@@ -3595,6 +3601,9 @@ applyrules(Client *c, int deferred, char *oldtitle)
 			#if PATCH_FLAG_NEVER_FULLSCREEN
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-never-fullscreen")) && json_isboolean(r_node)) c->neverfullscreen = r_node->valueint;
 			#endif // PATCH_FLAG_NEVER_FULLSCREEN
+			#if PATCH_FLAG_NEVER_URGENT
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-never-urgent")) && json_isboolean(r_node)) c->neverurgent = r_node->valueint;
+			#endif // PATCH_FLAG_NEVER_URGENT
 			#if PATCH_FLAG_ACTIVATION_CLICK
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-activation-click")) && cJSON_IsInteger(r_node)) c->activationclick = r_node->valueint;
 			#endif // PATCH_FLAG_ACTIVATION_CLICK
@@ -5057,9 +5066,9 @@ clientmessage(XEvent *e)
 		if (cme->data.l[1] == netatom[NetWMAttention]
 		|| cme->data.l[2] == netatom[NetWMAttention]) {
 			if (!c->isurgent && urgency) {
-				seturgent(c, 1);
-				if (ISVISIBLE(c) && !MINIMIZED(c))
-					drawbar(c->mon, 0);
+				if (seturgent(c, 1))
+					if (ISVISIBLE(c) && !MINIMIZED(c))
+						drawbar(c->mon, 0);
 			}
 			return;
 		}
@@ -5336,9 +5345,9 @@ clientmessage(XEvent *e)
 				&& !c->isdesktop && !c->ondesktop
 				#endif // PATCH_SHOW_DESKTOP
 			) {
-				seturgent(c, 1);
-				if (!MINIMIZED(c))
-					drawbar(c->mon, 0);
+				if (seturgent(c, 1))
+					if (!MINIMIZED(c))
+						drawbar(c->mon, 0);
 			}
 		}
 
@@ -7062,6 +7071,9 @@ drawbar(Monitor *m, int skiptags)
 					)
 					urg |= c->tags;
 
+				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG || (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS)
+				Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
+				#endif // PATCH_SHOW_MASTER_CLIENT_ON_TAG || (PATCH_WINDOW_ICONS && PATCH_WINDOW_ICONS_ON_TAGS)
 				#if PATCH_SHOW_MASTER_CLIENT_ON_TAG
 				if (m->showmaster) {
 					for (i = 0; i < LENGTH(tags); i++) {
@@ -7075,6 +7087,14 @@ drawbar(Monitor *m, int skiptags)
 							#if PATCH_HANDLE_SKIP_TASKBAR_STATE
 							&& !c->skiptaskbar
 							#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
+							#if PATCH_FLAG_PANEL
+							&& !c->ispanel
+							#else // NO PATCH_FLAG_PANEL
+							&& wtype != netatom[NetWMWindowTypeDock]
+							#endif // PATCH_FLAG_PANEL
+							&& wtype != netatom[NetWMWindowTypeSplash]
+							&& wtype != netatom[NetWMWindowTypeMenu]
+							&& wtype != netatom[NetWMWindowTypePopupMenu]
 							&& (
 								!m->focusontag[i] ||
 								(
@@ -7143,6 +7163,14 @@ drawbar(Monitor *m, int skiptags)
 							#if PATCH_HANDLE_SKIP_TASKBAR_STATE
 							&& !c->skiptaskbar
 							#endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
+							#if PATCH_FLAG_PANEL
+							&& !c->ispanel
+							#else // NO PATCH_FLAG_PANEL
+							&& wtype != netatom[NetWMWindowTypeDock]
+							#endif // PATCH_FLAG_PANEL
+							&& wtype != netatom[NetWMWindowTypeSplash]
+							&& wtype != netatom[NetWMWindowTypeMenu]
+							&& wtype != netatom[NetWMWindowTypePopupMenu]
 							&& (
 								!m->focusontag[i] ||
 								(
@@ -12988,9 +13016,13 @@ manage(Window w, XWindowAttributes *wa)
 	#if PATCH_HANDLE_SIGNALS
 	if (closing) {
 		if ((!c->ultparent || c->ultparent == c)
-			#if PATCH_MODAL_SUPPORT
-			&& !(c->ismodal && c->parent)
-			#endif // PATCH_MODAL_SUPPORT
+			&& !(c->parent &&
+				#if PATCH_MODAL_SUPPORT
+				(c->ismodal || c->isfloating)
+				#else // NO PATCH_MODAL_SUPPORT
+				c->isfloating
+				#endif // PATCH_MODAL_SUPPORT
+			)
 		) {
 			int related = 0;
 			for (Monitor *mm = c->mon; mm;) {
@@ -13015,6 +13047,10 @@ manage(Window w, XWindowAttributes *wa)
 				killclientex(c, 1);
 				return;
 			}
+		}
+		else {
+			takefocus = 1;
+			c->isurgent = 1;
 		}
 	}
 	#endif // PATCH_HANDLE_SIGNALS
@@ -17299,11 +17335,16 @@ setskiptaskbar(Client *c, int enable)
 	#if PATCH_FLAG_PANEL
 	if (c->ispanel)
 		return;
-	#else // NO PATCH_FLAG_PANEL
+	#endif // NO PATCH_FLAG_PANEL
 	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
-	if (wtype == netatom[NetWMWindowTypeDock])
-		return;
-	#endif // PATCH_FLAG_PANEL
+	if (
+		#if !PATCH_FLAG_PANEL
+		wtype == netatom[NetWMWindowTypeDock] ||
+		#endif // !PATCH_FLAG_PANEL
+		wtype == netatom[NetWMWindowTypeSplash] ||
+		wtype == netatom[NetWMWindowTypeMenu] ||
+		wtype == netatom[NetWMWindowTypePopupMenu]
+		) return;
 	drawbar(c->mon, 0);
 }
 #endif // PATCH_HANDLE_SKIP_TASKBAR_STATE
@@ -19570,6 +19611,9 @@ setdefaultvalues(Client *c)
 	c->parent_late = -1;
 	c->neverparent = 0;
 	#endif // PATCH_FLAG_PARENT
+	#if PATCH_FLAG_NEVER_URGENT
+	c->neverurgent = 0;
+	#endif // PATCH_FLAG_NEVER_URGENT
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 	c->pauseinvisible = 0;
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
@@ -20781,17 +20825,25 @@ setup_sync_counters(void)
 }
 #endif // PATCH_MOUSE_POINTER_HIDING
 
-void
+int
 seturgent(Client *c, int urg)
 {
 	XWMHints *wmh;
-
+	int rc = 0;
+	#if PATCH_FLAG_NEVER_URGENT
+	if (c->neverurgent)
+		urg = 0;
+	#endif // PATCH_FLAG_NEVER_URGENT
 	c->isurgent = urgency ? urg : 0;
 	if (!(wmh = XGetWMHints(dpy, c->win)))
-		return;
-	wmh->flags = urg ? (wmh->flags | XUrgencyHint) : (wmh->flags & ~XUrgencyHint);
-	XSetWMHints(dpy, c->win, wmh);
+		return rc;
+	if ((wmh->flags & XUrgencyHint ? 1 : 0) != urg ? 1 : 0) {
+		wmh->flags = urg ? (wmh->flags | XUrgencyHint) : (wmh->flags & ~XUrgencyHint);
+		XSetWMHints(dpy, c->win, wmh);
+		rc = 1;
+	}
 	XFree(wmh);
+	return rc;
 }
 
 #if PATCH_EWMH_TAGS
@@ -25302,8 +25354,8 @@ updatewindowstate(Client *c)
 
 	di = 0;
 	if (c->isurgent != urgent && urgency) {
-		seturgent(c, 1);
-		di = 1;
+		if (seturgent(c, 1))
+			di = 1;
 	}
 	if (c->isfullscreen != fullscreen) {
 		setfullscreen(c, fullscreen);
@@ -25353,14 +25405,15 @@ void
 updatewindowtype(Client *c)
 {
 	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
-	if (wtype == netatom[NetWMWindowTypeDialog] && c->isfloating_override != 0) {
+	if (wtype == netatom[NetWMWindowTypeDialog]) {
 		#if PATCH_FLAG_CENTRED
 		if (c->iscentred_override == -1)
 			c->iscentred = 2;
 		#endif // PATCH_FLAG_CENTRED
-		c->isfloating = 1;
+		if (c->isfloating_override != 0)
+			c->isfloating = 1;
 	}
-	else if (wtype == netatom[NetWMWindowTypeSplash] && c->isfloating_override != 0) {
+	else if (wtype == netatom[NetWMWindowTypeSplash]) {
 		c->autofocus =
 			#if PATCH_SHOW_DESKTOP
 			(showdesktop
@@ -25377,7 +25430,8 @@ updatewindowtype(Client *c)
 		if (c->iscentred_override == -1)
 			c->iscentred = 1;
 		#endif // PATCH_FLAG_CENTRED
-		c->isfloating = 1;
+		if (c->isfloating_override != 0)
+			c->isfloating = 1;
 		#if PATCH_FLAG_NEVER_FOCUS
 		c->neverfocus_override =
 		#endif // PATCH_FLAG_NEVER_FOCUS

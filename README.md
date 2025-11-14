@@ -136,6 +136,7 @@ These can be enabled/disabled by editing `patches.h`
 | `PATCH_FLAG_NEVER_FULLSCREEN` | Rule prevent clients from setting themselves fullscreen; |
 | `PATCH_FLAG_NEVER_MOVE` | Rule prevent clients from moving themselves; |
 | `PATCH_FLAG_NEVER_RESIZE` | Rule prevent clients from resizing themselves; |
+| `PATCH_FLAG_NEVER_URGENT` | Rule prevent clients from being marked as urgent; |
 | `PATCH_FLAG_PANEL` |  |
 | `PATCH_FLAG_PAUSE_ON_INVISIBLE` |  |
 | `PATCH_FLAG_PARENT` | Treat client as if its parent is the specified window (of same class if rule is deferred); |

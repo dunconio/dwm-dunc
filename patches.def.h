@@ -105,6 +105,7 @@
 #define PATCH_FLAG_NEVER_FULLSCREEN			1	// set-never-fullscreen rule prevent clients from setting themselves fullscreen;
 #define PATCH_FLAG_NEVER_MOVE				1	// set-never-move rule prevent clients from moving themselves;
 #define PATCH_FLAG_NEVER_RESIZE				1	// set-never-resize rule prevent clients from resizing themselves;
+#define PATCH_FLAG_NEVER_URGENT				1	// set-never-urgent rule prevent clients from being set as urgent;
 #define PATCH_FLAG_PANEL					1
 #define PATCH_FLAG_PAUSE_ON_INVISIBLE		1
 #define PATCH_FLAG_PARENT					1	// treat client as if its parent is the specified window (of same class if rule is deferred);
