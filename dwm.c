@@ -5065,11 +5065,9 @@ clientmessage(XEvent *e)
 		#endif // PATCH_FLAG_IGNORED
 		if (cme->data.l[1] == netatom[NetWMAttention]
 		|| cme->data.l[2] == netatom[NetWMAttention]) {
-			if (!c->isurgent && urgency) {
-				if (seturgent(c, 1))
-					if (ISVISIBLE(c) && !MINIMIZED(c))
-						drawbar(c->mon, 0);
-			}
+			if (seturgent(c, urgency && (cme->data.l[0] == 1 || (cme->data.l[0] == 2 && !c->isurgent))))
+				if (ISVISIBLE(c) && !MINIMIZED(c))
+					drawbar(c->mon, 0);
 			return;
 		}
 		else if (cme->data.l[1] == netatom[NetWMFullscreen]
@@ -25354,7 +25352,7 @@ updatewindowstate(Client *c)
 
 	di = 0;
 	if (c->isurgent != urgent && urgency) {
-		if (seturgent(c, 1))
+		if (seturgent(c, urgent))
 			di = 1;
 	}
 	if (c->isfullscreen != fullscreen) {
