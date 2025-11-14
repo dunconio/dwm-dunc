@@ -710,6 +710,9 @@ static const supported_rules_json supported_rules[] = {
 	#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 	{ R_BOOL,	"set-pause-on-invisible",			"client process will be sent SIGSTOP when not visible, and SIGCONT when visible, killed, or unmanaged" },
 	#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
+	#if PATCH_SWITCH_TAG_ON_EMPTY
+	{ R_BOOL,	"set-prevent-switch-on-empty",		"true to prevent switching tags when the client closes and it is the last visible on the tag" },
+	#endif // PATCH_SWITCH_TAG_ON_EMPTY
 	#if PATCH_FLAG_STICKY
 	{ R_BOOL,	"set-sticky",						"client appears on all tags" },
 	#endif // PATCH_FLAG_STICKY
@@ -1181,6 +1184,9 @@ struct Client {
 	int isdesktop;		// desktop client
 	int ondesktop;		// client's parent or ultimate parent is the desktop;
 	#endif // PATCH_SHOW_DESKTOP
+	#if PATCH_SWITCH_TAG_ON_EMPTY
+	int noswitchonempty;
+	#endif // PATCH_SWITCH_TAG_ON_EMPTY
 	#if PATCH_CLIENT_OPACITY
 	double opacity;
 	double unfocusopacity;
@@ -3641,6 +3647,9 @@ applyrules(Client *c, int deferred, char *oldtitle)
 			#if PATCH_FLAG_PAUSE_ON_INVISIBLE
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-pause-on-invisible")) && json_isboolean(r_node)) c->pauseinvisible = r_node->valueint;
 			#endif // PATCH_FLAG_PAUSE_ON_INVISIBLE
+			#if PATCH_SWITCH_TAG_ON_EMPTY
+			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-prevent-switch-on-empty")) && json_isboolean(r_node)) c->noswitchonempty = r_node->valueint;
+			#endif // PATCH_SWITCH_TAG_ON_EMPTY
 			#if PATCH_FLAG_STICKY
 			if ((r_node = cJSON_GetObjectItemCaseSensitive(r_json, "set-sticky")) && json_isboolean(r_node)) c->issticky = r_node->valueint;
 			#endif // PATCH_FLAG_STICKY
@@ -12368,6 +12377,7 @@ manage(Window w, XWindowAttributes *wa)
 		return;
 
 	int takefocus = !(nonstop & 1);
+	int isurgent = 0;
 
 	Client *t = NULL;
 	#if PATCH_TERMINAL_SWALLOWING
@@ -12576,6 +12586,8 @@ manage(Window w, XWindowAttributes *wa)
 		#endif // PATCH_TERMINAL_SWALLOWING
 	}
 
+	isurgent = c->isurgent;
+
 	#if PATCH_FLAG_TITLE
 	if (c->displayname)
 		updatetitle(c, 0);
@@ -12735,10 +12747,18 @@ manage(Window w, XWindowAttributes *wa)
 				case 5:
 					x = *(data+4);
 				case 4:
-					if (ISBOOLEAN(*(data+3))) {
-						format = c->isfloating & (1 << 1);
-						c->oldstate = *(data+3);
-						c->isfloating = c->oldstate | format;
+					if (ISBOOLEAN(*(data+3)))
+						c->isfloating = *(data+3);
+					else {
+						if (c->isfullscreen
+							#if PATCH_FLAG_FAKEFULLSCREEN
+							&& c->fakefullscreen != 1
+							#endif // PATCH_FLAG_FAKEFULLSCREEN
+						) {
+							format = c->isfloating & (1 << 1);
+							c->oldstate = *(data+3);
+							c->isfloating = c->oldstate | format;
+						}
 					}
 				case 3:
 					c->monindex = *(data+2);
@@ -12822,7 +12842,7 @@ manage(Window w, XWindowAttributes *wa)
 			#endif // PATCH_SHOW_DESKTOP
 		)
 		#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
-		|| (c->mon != selmon && !c->isurgent)
+		|| (c->mon != selmon && !isurgent)
 		#if PATCH_FLAG_HIDDEN
 		|| c->ishidden
 		#endif // PATCH_FLAG_HIDDEN
@@ -12861,7 +12881,7 @@ manage(Window w, XWindowAttributes *wa)
 			#if PATCH_SHOW_DESKTOP
 			|| ISVISIBLEONTAG(c, c->mon->tagset[c->mon->seltags])
 			#endif // PATCH_SHOW_DESKTOP
-			) && c->mon == selmon) && !c->isurgent)
+			) && c->mon == selmon) && !isurgent)
 			takefocus = 0;
 		else if (c->mon->sel) {
 			if (((
@@ -13048,7 +13068,7 @@ manage(Window w, XWindowAttributes *wa)
 		}
 		else {
 			takefocus = 1;
-			c->isurgent = 1;
+			isurgent = 1;
 		}
 	}
 	#endif // PATCH_HANDLE_SIGNALS
@@ -13069,7 +13089,7 @@ manage(Window w, XWindowAttributes *wa)
 		minimize(c);
 	#endif // PATCH_FLAG_HIDDEN
 
-	if (c->isurgent && !nonstop && takefocus)
+	if (isurgent && !nonstop && takefocus)
 	{
 		XWindowAttributes wa;
 		XGetWindowAttributes(dpy, c->win, &wa);
@@ -19535,6 +19555,9 @@ setdefaultvalues(Client *c)
 	#if PATCH_ATTACH_BELOW_AND_NEWMASTER
 	c->newmaster = 0;
 	#endif // PATCH_ATTACH_BELOW_AND_NEWMASTER
+	#if PATCH_SWITCH_TAG_ON_EMPTY
+	c->noswitchonempty = 0;
+	#endif // PATCH_SWITCH_TAG_ON_EMPTY
 	#if PATCH_PAUSE_PROCESS
 	c->paused = 0;
 	#endif // PATCH_PAUSE_PROCESS
@@ -20834,8 +20857,8 @@ seturgent(Client *c, int urg)
 	#endif // PATCH_FLAG_NEVER_URGENT
 	c->isurgent = urgency ? urg : 0;
 	if (!(wmh = XGetWMHints(dpy, c->win)))
-		return rc;
-	if ((wmh->flags & XUrgencyHint ? 1 : 0) != urg ? 1 : 0) {
+		return 0;
+	if (((wmh->flags & XUrgencyHint) ? 1 : 0) != urg) {
 		wmh->flags = urg ? (wmh->flags | XUrgencyHint) : (wmh->flags & ~XUrgencyHint);
 		XSetWMHints(dpy, c->win, wmh);
 		rc = 1;
@@ -24291,7 +24314,7 @@ unmanage(Client *c, int destroyed, int cleanup)
 
 		#if PATCH_SWITCH_TAG_ON_EMPTY
 		Client *cc = c;
-		if (c->mon->switchonempty && ((c->tags & c->mon->tagset[c->mon->seltags]) || c->issticky)) {
+		if (c->mon->switchonempty && !c->noswitchonempty && ((c->tags & c->mon->tagset[c->mon->seltags]) || c->issticky)) {
 			for (cc = c->mon->clients; cc && (
 				!ISVISIBLEONTAG(cc, c->tags)
 				#if PATCH_FLAG_PANEL
@@ -25457,7 +25480,7 @@ updatewmhints(Client *c)
 			wmh->flags &= ~XUrgencyHint;
 			XSetWMHints(dpy, c->win, wmh);
 		} else
-			c->isurgent = (wmh->flags & XUrgencyHint) ? (urgency ? 1 : 0) : 0;
+			c->isurgent = urgency && (wmh->flags & XUrgencyHint) ? 1 : 0;
 		#if PATCH_FLAG_NEVER_FOCUS
 		if (c->neverfocus_override == -1) {
 		#endif // PATCH_FLAG_NEVER_FOCUS
